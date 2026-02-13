@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -23,14 +23,26 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session - IMPORTANT: do not remove this
-  const { data: { user } } = await supabase.auth.getUser()
-
   // Public routes that don't require auth
   const publicRoutes = ['/login', '/register', '/auth/callback']
   const isPublicRoute = publicRoutes.some(route =>
     request.nextUrl.pathname.startsWith(route)
   )
+
+  // Refresh session and get user
+  // Wrapped in try-catch: if Supabase is unreachable, treat as unauthenticated
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // Supabase fetch failed — if on a protected route, redirect to login
+    if (!isPublicRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+  }
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
