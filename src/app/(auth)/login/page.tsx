@@ -1,12 +1,17 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { Loader2 } from "lucide-react"
 
+import { signInWithEmail } from "@/lib/auth-actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Card,
   CardContent,
@@ -32,6 +37,12 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const urlError = searchParams.get("error")
+  const [error, setError] = useState<string | null>(urlError)
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -40,9 +51,24 @@ export default function LoginPage() {
     },
   })
 
-  function onSubmit(values: LoginFormValues) {
-    console.log(values)
-    // TODO: Implement auth
+  async function onSubmit(values: LoginFormValues) {
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      const { error } = await signInWithEmail(values.email, values.password)
+
+      if (error) {
+        setError(error.message)
+        return
+      }
+
+      router.push("/dashboard")
+    } catch {
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -56,6 +82,11 @@ export default function LoginPage() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <FormField
               control={form.control}
               name="email"
@@ -66,6 +97,7 @@ export default function LoginPage() {
                     <Input
                       type="email"
                       placeholder="you@company.com"
+                      disabled={isLoading}
                       {...field}
                     />
                   </FormControl>
@@ -80,7 +112,12 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      disabled={isLoading}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -88,7 +125,8 @@ export default function LoginPage() {
             />
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 size-4 animate-spin" />}
               Sign in
             </Button>
             <p className="text-muted-foreground text-center text-sm">

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronRight, Bell, LogOut, Settings, User } from "lucide-react"
 
+import { useAuth } from "@/lib/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -27,9 +28,19 @@ function getBreadcrumbs(pathname: string) {
   })
 }
 
+function getUserInitials(email?: string | null): string {
+  if (!email) return "?"
+  return email.charAt(0).toUpperCase()
+}
+
 export function PlatformHeader() {
   const pathname = usePathname()
   const breadcrumbs = getBreadcrumbs(pathname)
+  const { user, signOut } = useAuth()
+
+  const displayName = user?.user_metadata?.full_name || user?.email || "User"
+  const displayEmail = user?.email || ""
+  const initials = getUserInitials(user?.email)
 
   return (
     <header className="border-border flex h-14 shrink-0 items-center gap-4 border-b bg-background px-4 sm:px-6">
@@ -67,9 +78,9 @@ export function PlatformHeader() {
               aria-label="Account menu"
             >
               <Avatar className="size-8">
-                <AvatarImage src="" alt="User" />
+                <AvatarImage src="" alt={displayName} />
                 <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                  JD
+                  {initials}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -77,9 +88,9 @@ export function PlatformHeader() {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="font-medium">John Doe</p>
+                <p className="font-medium">{displayName}</p>
                 <p className="text-muted-foreground text-xs">
-                  john.doe@wealtharchitect.com
+                  {displayEmail}
                 </p>
               </div>
             </DropdownMenuLabel>
@@ -97,7 +108,11 @@ export function PlatformHeader() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" className="cursor-pointer">
+            <DropdownMenuItem
+              variant="destructive"
+              className="cursor-pointer"
+              onClick={() => signOut()}
+            >
               <LogOut className="mr-2 size-4" />
               Logout
             </DropdownMenuItem>

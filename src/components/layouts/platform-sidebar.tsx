@@ -9,6 +9,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 
+import { useAuth } from "@/lib/auth-provider"
 import {
   Sidebar,
   SidebarContent,
@@ -30,6 +31,10 @@ const navItems = [
 
 export function PlatformSidebar() {
   const pathname = usePathname()
+  const { user } = useAuth()
+
+  const displayName = user?.user_metadata?.full_name || user?.email || "User"
+  const initials = user?.email ? user.email.charAt(0).toUpperCase() : "?"
 
   return (
     <Sidebar>
@@ -72,14 +77,14 @@ export function PlatformSidebar() {
       <SidebarFooter className="border-sidebar-border border-t p-2">
         <div className="flex items-center gap-3 rounded-md px-2 py-2">
           <Avatar className="size-8">
-            <AvatarImage src="" alt="User" />
+            <AvatarImage src="" alt={displayName} />
             <AvatarFallback className="bg-primary/10 text-primary text-sm">
-              JD
+              {initials}
             </AvatarFallback>
           </Avatar>
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="text-sidebar-foreground truncate text-sm font-medium">
-              John Doe
+              {displayName}
             </span>
             <span className="text-sidebar-foreground/70 truncate text-xs">
               Financial Advisor

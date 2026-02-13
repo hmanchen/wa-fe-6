@@ -6,6 +6,15 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
 
+  // Handle error responses from Supabase (e.g. expired email link)
+  const errorParam = searchParams.get('error')
+  if (errorParam) {
+    const errorDescription = searchParams.get('error_description') || 'Authentication failed'
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(errorDescription)}`
+    )
+  }
+
   if (code) {
     const supabase = await createServerSupabaseClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
