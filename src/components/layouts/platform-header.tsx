@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronRight, Bell, LogOut, Settings, User } from "lucide-react"
+import { ChevronRight, Bell, LogOut, Settings } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -95,12 +95,6 @@ export function PlatformHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/profile" className="cursor-pointer">
-                <User className="mr-2 size-4" />
-                Profile
-              </Link>
-            </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/settings" className="cursor-pointer">
                 <Settings className="mr-2 size-4" />
