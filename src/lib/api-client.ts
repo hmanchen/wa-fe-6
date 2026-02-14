@@ -26,14 +26,13 @@ class ApiClient {
     })
 
     if (response.status === 401) {
-      window.location.href = '/login'
-      throw new Error('Authentication expired')
+      throw new Error('Authentication expired — please log in again')
     }
 
     const json = await response.json()
 
     if (!response.ok) {
-      throw new Error(json.message || json.error || 'API request failed')
+      throw new Error(json.detail || json.message || json.error || 'API request failed')
     }
 
     return json
@@ -51,15 +50,15 @@ class ApiClient {
   }
 
   getCase(caseId: string) {
-    return this.request('GET', `/api/v1/cases/${caseId}`)
+    return this.request('GET', `/api/v1/cases/${caseId}/`)
   }
 
   updateCase(caseId: string, data: { case_name?: string; status?: string; notes?: string }) {
-    return this.request('PUT', `/api/v1/cases/${caseId}`, data)
+    return this.request('PUT', `/api/v1/cases/${caseId}/`, data)
   }
 
   archiveCase(caseId: string) {
-    return this.request('DELETE', `/api/v1/cases/${caseId}`)
+    return this.request('DELETE', `/api/v1/cases/${caseId}/`)
   }
 
   // ── Client Profiles ──────────────────────────────────────────────
@@ -94,34 +93,34 @@ class ApiClient {
 
   // ── AI & Recommendations ────────────────────────────────────────
   generateExplanation(data: Record<string, unknown>) {
-    return this.request('POST', '/api/v1/explanations/generate', data)
+    return this.request('POST', '/api/v1/explanations/generate/', data)
   }
 
   generateTalkingPoints(data: Record<string, unknown>) {
-    return this.request('POST', '/api/v1/explanations/talking-points', data)
+    return this.request('POST', '/api/v1/explanations/talking-points/', data)
   }
 
   generateRecommendations(data: Record<string, unknown>) {
-    return this.request('POST', '/api/v1/recommendations/generate', data)
+    return this.request('POST', '/api/v1/recommendations/generate/', data)
   }
 
   // ── Products ─────────────────────────────────────────────────────
   searchProducts(data: Record<string, unknown>) {
-    return this.request('POST', '/api/v1/products/search', data)
+    return this.request('POST', '/api/v1/products/search/', data)
   }
 
   recommendProductTypes(data: Record<string, unknown>) {
-    return this.request('POST', '/api/v1/products/recommend-types', data)
+    return this.request('POST', '/api/v1/products/recommend-types/', data)
   }
 
   // ── PDF ──────────────────────────────────────────────────────────
   generatePDF(data: Record<string, unknown>) {
-    return this.request('POST', '/api/v1/pdf/generate', data)
+    return this.request('POST', '/api/v1/pdf/generate/', data)
   }
 
   // ── Health (no auth) ─────────────────────────────────────────────
   healthCheck() {
-    return fetch(`${API_BASE}/api/v1/health`).then(r => r.json())
+    return fetch(`${API_BASE}/api/v1/health/`).then(r => r.json())
   }
 }
 

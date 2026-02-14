@@ -41,9 +41,12 @@ import { createCaseSchema, type CreateCaseInput } from "@/lib/validators/case";
 import type { Case } from "@/types/case";
 
 const CASE_TYPE_OPTIONS = [
-  { value: "individual", label: "Individual" },
-  { value: "couple", label: "Couple" },
-  { value: "family", label: "Family" },
+  { value: "life_insurance", label: "Life Insurance" },
+  { value: "retirement_planning", label: "Retirement Planning" },
+  { value: "estate_planning", label: "Estate Planning" },
+  { value: "investment_review", label: "Investment Review" },
+  { value: "comprehensive", label: "Comprehensive" },
+  { value: "other", label: "Other" },
 ] as const;
 
 export interface CaseFormProps {
@@ -60,7 +63,7 @@ function toFormValues(data?: Partial<Case> | null): CreateCaseInput {
       clientEmail: "",
       clientPhone: "",
       meetingDate: "",
-      caseType: "individual",
+      caseType: "life_insurance",
       description: "",
     };
   }
@@ -69,7 +72,7 @@ function toFormValues(data?: Partial<Case> | null): CreateCaseInput {
     clientEmail: data.clientEmail ?? "",
     clientPhone: data.clientPhone ?? "",
     meetingDate: data.meetingDate ?? "",
-    caseType: data.caseType ?? "individual",
+    caseType: data.caseType ?? "life_insurance",
     description: data.description ?? "",
   };
 }

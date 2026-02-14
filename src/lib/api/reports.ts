@@ -12,7 +12,7 @@ export async function generateReport(
   config: ReportConfig = {}
 ): Promise<Report> {
   const { data } = await apiClient.post<ApiResponse<Report>>(
-    `/reports/${caseId}/generate`,
+    `/reports/${caseId}/generate/`,
     config
   );
   return (data?.data ?? data) as Report;
@@ -23,7 +23,7 @@ export async function getReport(
   reportId: string
 ): Promise<Report> {
   const { data } = await apiClient.get<ApiResponse<Report>>(
-    `/reports/${caseId}/${reportId}`
+    `/reports/${caseId}/${reportId}/`
   );
   return (data?.data ?? data) as Report;
 }
@@ -33,7 +33,7 @@ export async function downloadReport(
   reportId: string
 ): Promise<Blob> {
   const { data } = await apiClient.get<Blob>(
-    `/reports/${caseId}/${reportId}/download`,
+    `/reports/${caseId}/${reportId}/download/`,
     { responseType: "blob" }
   );
   return data;

@@ -59,10 +59,7 @@ async function request<T>(method: string, url: string, body?: unknown, options?:
   })
 
   if (response.status === 401) {
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login'
-    }
-    throw new Error('Authentication expired')
+    throw new Error('Authentication expired — please log in again')
   }
 
   if (options?.responseType === 'blob') {
@@ -73,7 +70,7 @@ async function request<T>(method: string, url: string, body?: unknown, options?:
   const json = await response.json()
 
   if (!response.ok) {
-    throw new Error(json.message || json.error || 'API request failed')
+    throw new Error(json.detail || json.message || json.error || 'API request failed')
   }
 
   return { data: json }

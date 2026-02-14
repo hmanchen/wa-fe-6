@@ -9,7 +9,7 @@ export async function computeNeedsAnalysis(
   caseId: string
 ): Promise<NeedsAnalysisResult> {
   const { data } = await apiClient.post<ApiResponse<NeedsAnalysisResult>>(
-    `/computation/needs-analysis/${caseId}`
+    `/computation/needs-analysis/${caseId}/`
   );
   return data?.data as NeedsAnalysisResult;
 }
@@ -24,7 +24,7 @@ export async function getAiExplanation(
 ): Promise<string> {
   const { data } = await apiClient.get<
     ApiResponse<AiExplanationResponse>
-  >(`/computation/ai-explanation/${caseId}/${analysisId}`);
+  >(`/computation/ai-explanation/${caseId}/${analysisId}/`);
   return data?.data?.explanation ?? "";
 }
 
@@ -39,6 +39,6 @@ export async function validateFunding(
 ): Promise<ValidateFundingResponse & Partial<Recommendation>> {
   const { data } = await apiClient.post<
     ApiResponse<ValidateFundingResponse & Partial<Recommendation>>
-  >(`/computation/validate-funding/${caseId}/${recommendationId}`);
+  >(`/computation/validate-funding/${caseId}/${recommendationId}/`);
   return data?.data as ValidateFundingResponse & Partial<Recommendation>;
 }

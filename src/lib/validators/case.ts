@@ -18,7 +18,7 @@ export const createCaseSchema = z.object({
     .string()
     .optional()
     .or(z.literal("")),
-  caseType: z.enum(["individual", "couple", "family"], {
+  caseType: z.enum(["life_insurance", "retirement_planning", "estate_planning", "investment_review", "comprehensive", "other"], {
     message: "Please select a case type",
   }),
   description: z.string().max(1000, "Description is too long").optional(),

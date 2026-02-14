@@ -24,7 +24,7 @@ export const CasePriority = {
 export type CasePriority =
   | (typeof CasePriority)[keyof typeof CasePriority];
 
-export type CaseType = 'individual' | 'couple' | 'family';
+export type CaseType = 'life_insurance' | 'retirement_planning' | 'estate_planning' | 'investment_review' | 'comprehensive' | 'other';
 
 export interface Case {
   id: string;
