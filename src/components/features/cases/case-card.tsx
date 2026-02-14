@@ -14,9 +14,12 @@ import type { CaseListItem } from "@/types/case";
 import { ChevronRight } from "lucide-react";
 
 const CASE_TYPE_LABELS: Record<string, string> = {
-  individual: "Individual",
-  couple: "Couple",
-  family: "Family",
+  life_insurance: "Life Insurance",
+  retirement_planning: "Retirement Planning",
+  estate_planning: "Estate Planning",
+  investment_review: "Investment Review",
+  comprehensive: "Comprehensive",
+  other: "Other",
 };
 
 export interface CaseCardProps {

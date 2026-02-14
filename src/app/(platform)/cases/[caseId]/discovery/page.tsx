@@ -2,12 +2,12 @@
 
 import { useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 
-import { CaseNav } from "@/components/layouts/case-nav";
-import { PageHeader } from "@/components/shared/page-header";
 import { FullPageLoader } from "@/components/shared/loading-spinner";
 import { DiscoveryProgress } from "@/components/features/discovery/discovery-progress";
+import { AdvisorTalkingPoints } from "@/components/features/discovery/advisor-talking-points";
 import { ClientInfoForm } from "@/components/features/discovery/client-info-form";
 import { FinancialProfileForm } from "@/components/features/discovery/financial-profile-form";
 import { ExistingCoverageForm } from "@/components/features/discovery/existing-coverage-form";
@@ -15,8 +15,9 @@ import { GoalsForm } from "@/components/features/discovery/goals-form";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDiscovery, useUpdateDiscovery, useCompleteDiscoveryStep } from "@/hooks/use-discovery";
+import { useCase } from "@/hooks/use-cases";
 import type { DiscoveryStep } from "@/types/discovery";
-import { AlertCircle, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const STEPS: { id: DiscoveryStep; label: string }[] = [
   { id: "personal-info", label: "Personal Info" },
@@ -31,6 +32,7 @@ export default function DiscoveryPage() {
   const caseId = params.caseId as string;
 
   const { data: discovery, isLoading, error } = useDiscovery(caseId);
+  const { data: caseData } = useCase(caseId);
   const updateDiscovery = useUpdateDiscovery(caseId);
   const completeStep = useCompleteDiscoveryStep(caseId);
 
@@ -42,9 +44,21 @@ export default function DiscoveryPage() {
   const handleStepClick = useCallback(
     (stepId: string) => {
       const index = STEPS.findIndex((s) => s.id === stepId);
-      if (index >= 0) setCurrentStepIndex(index);
+      if (index < 0) return;
+      // Can always go back to completed or current steps
+      // Can only go forward if all previous steps are completed
+      if (index > currentStepIndex) {
+        const allPreviousCompleted = STEPS.slice(0, index).every((s) =>
+          completedSteps.includes(s.id)
+        );
+        if (!allPreviousCompleted) {
+          toast.error("Please complete the current step before moving ahead.");
+          return;
+        }
+      }
+      setCurrentStepIndex(index);
     },
-    []
+    [currentStepIndex, completedSteps]
   );
 
   const handleNext = useCallback(() => {
@@ -100,18 +114,30 @@ export default function DiscoveryPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6">
-      <CaseNav
-        caseId={caseId}
-        currentStep="discovery"
-        completedSteps={completedSteps}
-      />
+    <div className="flex flex-col gap-4 p-4 sm:p-6">
+      {/* Compact header: back link + title + step counter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/cases/${caseId}`}
+            className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            <span className="hidden sm:inline">
+              {caseData?.clientName || "Overview"}
+            </span>
+          </Link>
+          <div className="h-5 w-px bg-border" />
+          <div>
+            <h1 className="text-lg font-semibold leading-tight">Client Discovery</h1>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground sm:text-sm">
+          Step {currentStepIndex + 1} of {STEPS.length}
+        </p>
+      </div>
 
-      <PageHeader
-        title="Client Discovery"
-        description="Gather comprehensive client information to build an accurate needs analysis."
-      />
-
+      {/* Discovery step tabs */}
       <DiscoveryProgress
         steps={STEPS}
         currentStep={currentStep.id}
@@ -119,65 +145,92 @@ export default function DiscoveryPage() {
         onStepClick={handleStepClick}
       />
 
-      <div className="mx-auto w-full max-w-4xl">
-        {currentStep.id === "personal-info" && (
-          <ClientInfoForm
-            defaultValues={discovery?.personalInfo}
-            onSubmit={(data) => handleStepSubmit("personal-info", data)}
-            isSubmitting={updateDiscovery.isPending}
-          />
-        )}
-        {currentStep.id === "financial-profile" && (
-          <FinancialProfileForm
-            defaultValues={discovery?.financialProfile}
-            onSubmit={(data) => handleStepSubmit("financial-profile", data)}
-            isSubmitting={updateDiscovery.isPending}
-          />
-        )}
-        {currentStep.id === "existing-coverage" && (
-          <ExistingCoverageForm
-            defaultValues={discovery?.existingCoverage}
-            onSubmit={(data) => handleStepSubmit("existing-coverage", data)}
-            isSubmitting={updateDiscovery.isPending}
-          />
-        )}
-        {currentStep.id === "goals-priorities" && (
-          <GoalsForm
-            defaultValues={discovery?.goals}
-            onSubmit={(data) => handleStepSubmit("goals-priorities", data)}
-            isSubmitting={updateDiscovery.isPending}
-          />
-        )}
-
-        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStepIndex === 0}
-          >
-            <ChevronLeft className="mr-2 size-4" />
-            Back
-          </Button>
-
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            Step {currentStepIndex + 1} of {STEPS.length}
-          </div>
-
-          {currentStepIndex < STEPS.length - 1 ? (
-            <Button variant="outline" onClick={handleNext}>
-              Skip
-              <ChevronRight className="ml-2 size-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={() => router.push(`/cases/${caseId}/needs-analysis`)}
-              className="gap-2"
-            >
-              <CheckCircle2 className="size-4" />
-              Proceed to Analysis
-            </Button>
+      {/* Two-column layout: form left, divider, session guide right */}
+      <div className="flex gap-0">
+        {/* Left: Form content — capped width so fields aren't too wide */}
+        <div className="min-w-0 max-w-2xl flex-1 pr-6">
+          {currentStep.id === "personal-info" && (
+            <ClientInfoForm
+              defaultValues={discovery?.personalInfo}
+              onSubmit={(data) => handleStepSubmit("personal-info", data)}
+              isSubmitting={updateDiscovery.isPending}
+            />
           )}
+          {currentStep.id === "financial-profile" && (
+            <FinancialProfileForm
+              defaultValues={discovery?.financialProfile}
+              onSubmit={(data) => handleStepSubmit("financial-profile", data)}
+              isSubmitting={updateDiscovery.isPending}
+            />
+          )}
+          {currentStep.id === "existing-coverage" && (
+            <ExistingCoverageForm
+              defaultValues={discovery?.existingCoverage}
+              onSubmit={(data) => handleStepSubmit("existing-coverage", data)}
+              isSubmitting={updateDiscovery.isPending}
+            />
+          )}
+          {currentStep.id === "goals-priorities" && (
+            <GoalsForm
+              defaultValues={discovery?.goals}
+              onSubmit={(data) => handleStepSubmit("goals-priorities", data)}
+              isSubmitting={updateDiscovery.isPending}
+            />
+          )}
+
+          {/* Bottom navigation */}
+          <div className="mt-6 flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBack}
+              disabled={currentStepIndex === 0}
+            >
+              <ChevronLeft className="mr-1 size-4" />
+              Back
+            </Button>
+
+            {currentStepIndex < STEPS.length - 1 ? (
+              currentStepIndex === 0 ? (
+                /* Personal Info is required — no skip, must save */
+                <Button
+                  size="sm"
+                  type="submit"
+                  form="discovery-form"
+                >
+                  Next
+                  <ChevronRight className="ml-1 size-4" />
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleNext}>
+                  Skip
+                  <ChevronRight className="ml-1 size-4" />
+                </Button>
+              )
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => router.push(`/cases/${caseId}/needs-analysis`)}
+                className="gap-1.5"
+              >
+                <CheckCircle2 className="size-4" />
+                Proceed to Analysis
+              </Button>
+            )}
+          </div>
         </div>
+
+        {/* Vertical divider — fades out toward the bottom */}
+        <div className="hidden self-stretch md:block">
+          <div className="h-full w-px bg-gradient-to-b from-border/60 via-border/30 to-transparent" />
+        </div>
+
+        {/* Right: Session guide */}
+        <aside className="hidden w-80 shrink-0 pl-6 md:block">
+          <div className="sticky top-4 rounded-lg border bg-muted/20 p-3">
+            <AdvisorTalkingPoints step={currentStep.id} />
+          </div>
+        </aside>
       </div>
     </div>
   );

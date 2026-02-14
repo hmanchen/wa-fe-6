@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const addressSchema = z.object({
+  country: z.string().optional(),
   street: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(), // Maps to province in Address type
@@ -10,16 +11,36 @@ export const addressSchema = z.object({
 export const personalInfoSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  dateOfBirth: z.string().optional(),
-  gender: z.string().optional(),
-  maritalStatus: z.string().optional(),
+  dateOfBirth: z.string().min(1, "Date of birth is required"),
+  gender: z.string().min(1, "Gender is required"),
+  maritalStatus: z.string().min(1, "Marital status is required"),
+  partnerFirstName: z.string().optional(),
+  partnerLastName: z.string().optional(),
+  partnerDateOfBirth: z.string().optional(),
   dependents: z.number().int().min(0).optional(),
   email: z.preprocess(
     (val) => (val === "" ? undefined : val),
-    z.string().email("Invalid email format").optional()
+    z.string().email("Invalid email format").min(1, "Email is required")
   ),
-  phone: z.string().optional(),
+  phone: z.string().min(1, "Phone number is required"),
   address: addressSchema.optional(),
+}).superRefine((data, ctx) => {
+  if (data.maritalStatus === "married") {
+    if (!data.partnerFirstName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Partner first name is required",
+        path: ["partnerFirstName"],
+      });
+    }
+    if (!data.partnerLastName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Partner last name is required",
+        path: ["partnerLastName"],
+      });
+    }
+  }
 });
 
 export const financialProfileSchema = z.object({

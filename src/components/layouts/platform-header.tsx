@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { ChevronRight, Bell, LogOut, Settings } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-provider"
+import { useCase } from "@/hooks/use-cases"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -16,16 +17,36 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-function getBreadcrumbs(pathname: string) {
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function getBreadcrumbs(pathname: string, caseClientName?: string) {
   const segments = pathname.split("/").filter(Boolean)
   if (segments.length === 0) return [{ label: "Dashboard", href: "/" }]
 
   return segments.map((segment, i) => {
     const href = "/" + segments.slice(0, i + 1).join("/")
-    const label =
-      segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ")
+
+    // If this segment is a UUID and we have a case client name, use it
+    let label: string
+    if (UUID_REGEX.test(segment) && caseClientName) {
+      label = caseClientName
+    } else {
+      label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ")
+    }
+
     return { label, href }
   })
+}
+
+/** Extract a case ID (UUID) from the pathname if present (e.g. /cases/<uuid>/discovery) */
+function extractCaseId(pathname: string): string | null {
+  const segments = pathname.split("/").filter(Boolean)
+  const casesIndex = segments.indexOf("cases")
+  if (casesIndex >= 0 && casesIndex + 1 < segments.length) {
+    const maybeId = segments[casesIndex + 1]
+    if (UUID_REGEX.test(maybeId)) return maybeId
+  }
+  return null
 }
 
 function getUserInitials(email?: string | null): string {
@@ -35,8 +56,12 @@ function getUserInitials(email?: string | null): string {
 
 export function PlatformHeader() {
   const pathname = usePathname()
-  const breadcrumbs = getBreadcrumbs(pathname)
   const { user, signOut } = useAuth()
+
+  // Fetch case data when on a case-specific page so breadcrumbs show client name
+  const caseId = extractCaseId(pathname)
+  const { data: caseData } = useCase(caseId)
+  const breadcrumbs = getBreadcrumbs(pathname, caseData?.clientName)
 
   const displayName = user?.user_metadata?.full_name || user?.email || "User"
   const displayEmail = user?.email || ""

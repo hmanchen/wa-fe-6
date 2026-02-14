@@ -27,6 +27,29 @@ export interface UpdateCaseData {
   status?: string;
 }
 
+/** Transform backend snake_case response to frontend camelCase */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function fromBackendCase(raw: any): Case {
+  return {
+    id: raw.id,
+    caseNumber: raw.case_number ?? raw.caseNumber ?? "",
+    status: raw.status,
+    priority: raw.priority ?? "medium",
+    clientId: raw.client_id ?? raw.clientId ?? "",
+    advisorId: raw.advisor_id ?? raw.advisorId ?? "",
+    title: raw.case_name ?? raw.title ?? "",
+    description: raw.description ?? "",
+    clientName: raw.client_name ?? raw.clientName ?? raw.case_name ?? "",
+    clientEmail: raw.client_email ?? raw.clientEmail ?? "",
+    clientPhone: raw.client_phone ?? raw.clientPhone,
+    meetingDate: raw.meeting_date ?? raw.meetingDate,
+    caseType: raw.case_type ?? raw.caseType ?? "other",
+    createdAt: raw.created_at ?? raw.createdAt ?? "",
+    updatedAt: raw.updated_at ?? raw.updatedAt ?? "",
+    completedAt: raw.completed_at ?? raw.completedAt,
+  } as Case;
+}
+
 /** Format a case type value for display (e.g. "life_insurance" → "Life Insurance") */
 function formatCaseType(caseType: string): string {
   return caseType
@@ -79,12 +102,18 @@ export async function getCases(
     "/cases/",
     { params }
   );
-  return (data?.data ?? data) as PaginatedResponse<Case>;
+  const raw = (data?.data ?? data) as PaginatedResponse<Case>;
+  // Transform each case item from snake_case to camelCase
+  if (raw && Array.isArray(raw.data)) {
+    raw.data = raw.data.map(fromBackendCase);
+  }
+  return raw;
 }
 
 export async function getCase(id: string): Promise<Case> {
   const { data } = await apiClient.get<ApiResponse<Case>>(`/cases/${id}/`);
-  return (data?.data ?? data) as Case;
+  const raw = data?.data ?? data;
+  return fromBackendCase(raw);
 }
 
 export async function createCase(
@@ -92,7 +121,8 @@ export async function createCase(
 ): Promise<Case> {
   const payload = toBackendCreatePayload(createData);
   const { data } = await apiClient.post<ApiResponse<Case>>("/cases/", payload);
-  return (data?.data ?? data) as Case;
+  const raw = data?.data ?? data;
+  return fromBackendCase(raw);
 }
 
 export async function updateCase(
@@ -104,7 +134,8 @@ export async function updateCase(
     `/cases/${id}/`,
     payload
   );
-  return (data?.data ?? data) as Case;
+  const raw = data?.data ?? data;
+  return fromBackendCase(raw);
 }
 
 export async function deleteCase(id: string): Promise<void> {

@@ -46,6 +46,9 @@ export interface ClientPersonalInfo {
   dateOfBirth: string; // ISO 8601 date string
   gender?: Gender;
   maritalStatus?: MaritalStatus;
+  partnerFirstName?: string;
+  partnerLastName?: string;
+  partnerDateOfBirth?: string; // ISO 8601 date string
   dependents: number;
   email?: string;
   phone?: string;
