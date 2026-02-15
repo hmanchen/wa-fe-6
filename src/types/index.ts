@@ -71,3 +71,18 @@ export type {
   ReportStatus,
   Report,
 } from './report';
+
+// Financial Interview types
+export type {
+  EmploymentRecord,
+  HSADetails,
+  IRADetails,
+  RothIRADetails,
+  BrokerageDetails,
+  SystematicInvestment,
+  FundsAbroad,
+  PersonFinancialBackground,
+  FinancialInterviewSection,
+  FinancialInterviewStatus,
+  FinancialInterviewData,
+} from './financial-interview';

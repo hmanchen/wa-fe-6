@@ -18,11 +18,14 @@ export const personalInfoSchema = z.object({
   partnerLastName: z.string().optional(),
   partnerDateOfBirth: z.string().optional(),
   dependents: z.number().int().min(0).optional(),
-  email: z.preprocess(
-    (val) => (val === "" ? undefined : val),
-    z.string().email("Invalid email format").min(1, "Email is required")
-  ),
-  phone: z.string().min(1, "Phone number is required"),
+  email: z.string().min(1, "Email is required").email("Please enter a valid email address"),
+  phone: z
+    .string()
+    .min(1, "Phone number is required")
+    .refine(
+      (val) => /^\d{10}$/.test(val.replace(/[\s\-().+]/g, "")),
+      { message: "Please enter a valid 10-digit mobile number" }
+    ),
   address: addressSchema.optional(),
 }).superRefine((data, ctx) => {
   if (data.maritalStatus === "married") {
@@ -38,6 +41,13 @@ export const personalInfoSchema = z.object({
         code: z.ZodIssueCode.custom,
         message: "Partner last name is required",
         path: ["partnerLastName"],
+      });
+    }
+    if (!data.partnerDateOfBirth) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Partner date of birth is required",
+        path: ["partnerDateOfBirth"],
       });
     }
   }
