@@ -47,6 +47,8 @@ function makeEmptyBackground(role: "primary" | "spouse"): PersonFinancialBackgro
     ira: { hasIRA: false },
     rothIRA: { hasRothIRA: false },
     brokerage: { hasBrokerage: false },
+    cd: { hasCDs: false },
+    cashOnHand: { hasCashOnHand: false },
     systematicInvestments: { hasSystematicInvestments: false },
     fundsAbroad: { sendsFundsAbroad: false },
   };
@@ -680,7 +682,162 @@ export function Section1Form({
 
       <Separator />
 
-      {/* ── Step 6: Systematic Investments ── */}
+      {/* ── Step 6: Certificates of Deposit (CDs) ── */}
+      <div onFocus={() => notifyStep("cd")} onClick={() => notifyStep("cd")}>
+        <ToggleSection
+          label="Certificates of Deposit (CDs)"
+          description="Fixed-term, FDIC-insured savings instruments"
+          enabled={data.cd.hasCDs}
+          onToggle={(v) =>
+            update({ cd: { ...data.cd, hasCDs: v } })
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Institution</Label>
+              <Input
+                className="text-sm"
+                placeholder="e.g. Marcus by Goldman Sachs"
+                value={data.cd.institution ?? ""}
+                onChange={(e) =>
+                  update({
+                    cd: { ...data.cd, institution: e.target.value },
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Number of CDs</Label>
+              <Input
+                type="number"
+                min={0}
+                className="text-sm"
+                placeholder="0"
+                value={data.cd.numberOfCDs ?? ""}
+                onChange={(e) =>
+                  update({
+                    cd: {
+                      ...data.cd,
+                      numberOfCDs:
+                        e.target.value === ""
+                          ? undefined
+                          : parseInt(e.target.value, 10),
+                    },
+                  })
+                }
+              />
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <CurrencyInput
+              label="Total value"
+              value={data.cd.totalValue}
+              onChange={(v) =>
+                update({ cd: { ...data.cd, totalValue: v } })
+              }
+            />
+            <PercentInput
+              label="Best interest rate"
+              value={data.cd.interestRate}
+              onChange={(v) =>
+                update({ cd: { ...data.cd, interestRate: v } })
+              }
+            />
+            <div className="space-y-1">
+              <Label className="text-xs">Longest term (months)</Label>
+              <Input
+                type="number"
+                min={0}
+                className="text-sm"
+                placeholder="e.g. 12"
+                value={data.cd.longestTermMonths ?? ""}
+                onChange={(e) =>
+                  update({
+                    cd: {
+                      ...data.cd,
+                      longestTermMonths:
+                        e.target.value === ""
+                          ? undefined
+                          : parseInt(e.target.value, 10),
+                    },
+                  })
+                }
+              />
+            </div>
+          </div>
+        </ToggleSection>
+      </div>
+
+      <Separator />
+
+      {/* ── Step 7: Cash on Hand ── */}
+      <div onFocus={() => notifyStep("cashOnHand")} onClick={() => notifyStep("cashOnHand")}>
+        <ToggleSection
+          label="Cash on Hand"
+          description="Checking, savings, and emergency fund balances"
+          enabled={data.cashOnHand.hasCashOnHand}
+          onToggle={(v) =>
+            update({
+              cashOnHand: { ...data.cashOnHand, hasCashOnHand: v },
+            })
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CurrencyInput
+              label="Checking account balance"
+              value={data.cashOnHand.checkingBalance}
+              onChange={(v) =>
+                update({
+                  cashOnHand: {
+                    ...data.cashOnHand,
+                    checkingBalance: v,
+                  },
+                })
+              }
+            />
+            <CurrencyInput
+              label="Savings account balance"
+              value={data.cashOnHand.savingsBalance}
+              onChange={(v) =>
+                update({
+                  cashOnHand: {
+                    ...data.cashOnHand,
+                    savingsBalance: v,
+                  },
+                })
+              }
+            />
+          </div>
+          <div className="mt-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Emergency fund target (months of expenses)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={24}
+                className="text-sm"
+                placeholder="e.g. 6"
+                value={data.cashOnHand.emergencyFundMonths ?? ""}
+                onChange={(e) =>
+                  update({
+                    cashOnHand: {
+                      ...data.cashOnHand,
+                      emergencyFundMonths:
+                        e.target.value === ""
+                          ? undefined
+                          : parseInt(e.target.value, 10),
+                    },
+                  })
+                }
+              />
+            </div>
+          </div>
+        </ToggleSection>
+      </div>
+
+      <Separator />
+
+      {/* ── Step 8: Systematic Investments ── */}
       <div onFocus={() => notifyStep("systematic")} onClick={() => notifyStep("systematic")}>
         <ToggleSection
           label="Other Systematic Investments"

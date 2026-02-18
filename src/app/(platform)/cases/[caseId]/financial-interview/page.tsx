@@ -94,13 +94,17 @@ export default function FinancialInterviewPage() {
               className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="size-4" />
-              <span className="hidden sm:inline">
-                {caseData?.clientName || "Overview"}
-              </span>
+              <span className="hidden sm:inline">Overview</span>
             </Link>
             <div className="h-5 w-px bg-border" />
             <h1 className="text-lg font-semibold leading-tight">
-              Financial Interview
+              {(() => {
+                const pi = caseData?.clientPersonalInfo;
+                const primaryFirst = pi?.firstName || caseData?.clientName?.split(" ")[0] || caseData?.clientName;
+                const spouseFirst = pi?.partnerFirstName;
+                const names = spouseFirst ? `${primaryFirst} & ${spouseFirst}` : (primaryFirst || "Client");
+                return `${names} — Financial Interview`;
+              })()}
             </h1>
           </div>
           <Button

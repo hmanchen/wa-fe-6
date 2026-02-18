@@ -19,23 +19,37 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function getBreadcrumbs(pathname: string, caseClientName?: string) {
+function getBreadcrumbs(pathname: string, caseDisplayName?: string) {
   const segments = pathname.split("/").filter(Boolean)
   if (segments.length === 0) return [{ label: "Dashboard", href: "/" }]
 
   return segments.map((segment, i) => {
     const href = "/" + segments.slice(0, i + 1).join("/")
 
-    // If this segment is a UUID and we have a case client name, use it
+    // If this segment is a UUID and we have a display name, use it
     let label: string
-    if (UUID_REGEX.test(segment) && caseClientName) {
-      label = caseClientName
+    if (UUID_REGEX.test(segment) && caseDisplayName) {
+      label = caseDisplayName
     } else {
       label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ")
     }
 
     return { label, href }
   })
+}
+
+/** Build a display name like "Hariprasad & Sindu" from case data */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getCaseDisplayName(caseData: any): string {
+  const primaryName = caseData?.clientName || ""
+  const pi = caseData?.clientPersonalInfo
+  if (pi?.partnerFirstName) {
+    // Use first names: "Primary & Spouse"
+    const primaryFirst = pi.firstName || primaryName.split(" ")[0] || primaryName
+    const spouseFirst = pi.partnerFirstName
+    return `${primaryFirst} & ${spouseFirst}`
+  }
+  return primaryName
 }
 
 /** Extract a case ID (UUID) from the pathname if present (e.g. /cases/<uuid>/discovery) */
@@ -61,7 +75,8 @@ export function PlatformHeader() {
   // Fetch case data when on a case-specific page so breadcrumbs show client name
   const caseId = extractCaseId(pathname)
   const { data: caseData } = useCase(caseId)
-  const breadcrumbs = getBreadcrumbs(pathname, caseData?.clientName)
+  const caseDisplayName = getCaseDisplayName(caseData)
+  const breadcrumbs = getBreadcrumbs(pathname, caseDisplayName)
 
   const displayName = user?.user_metadata?.full_name || user?.email || "User"
   const displayEmail = user?.email || ""

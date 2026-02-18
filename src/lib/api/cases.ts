@@ -9,18 +9,44 @@ export interface GetCasesParams {
 }
 
 export interface CreateCaseData {
-  clientName: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: string;
+  maritalStatus: string;
+  dependents?: number;
   clientEmail: string;
-  clientPhone?: string;
+  clientPhone: string;
+  country?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  partnerFirstName?: string;
+  partnerLastName?: string;
+  partnerDateOfBirth?: string;
   meetingDate?: string;
   caseType: string;
   description?: string;
 }
 
 export interface UpdateCaseData {
-  clientName?: string;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  maritalStatus?: string;
+  dependents?: number;
   clientEmail?: string;
   clientPhone?: string;
+  country?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  partnerFirstName?: string;
+  partnerLastName?: string;
+  partnerDateOfBirth?: string;
   meetingDate?: string;
   caseType?: string;
   description?: string;
@@ -30,6 +56,31 @@ export interface UpdateCaseData {
 /** Transform backend snake_case response to frontend camelCase */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function fromBackendCase(raw: any): Case {
+  // Parse client_personal_info from backend (snake_case) to camelCase
+  const pi = raw.client_personal_info ?? raw.clientPersonalInfo;
+  const personalInfo = pi
+    ? {
+        firstName: pi.first_name ?? pi.firstName,
+        lastName: pi.last_name ?? pi.lastName,
+        dateOfBirth: pi.date_of_birth ?? pi.dateOfBirth,
+        gender: pi.gender,
+        maritalStatus: pi.marital_status ?? pi.maritalStatus,
+        dependents: pi.dependents,
+        partnerFirstName: pi.partner_first_name ?? pi.partnerFirstName,
+        partnerLastName: pi.partner_last_name ?? pi.partnerLastName,
+        partnerDateOfBirth: pi.partner_date_of_birth ?? pi.partnerDateOfBirth,
+        address: pi.address
+          ? {
+              country: pi.address.country,
+              street: pi.address.street,
+              city: pi.address.city,
+              province: pi.address.province,
+              postalCode: pi.address.postal_code ?? pi.address.postalCode,
+            }
+          : undefined,
+      }
+    : undefined;
+
   return {
     id: raw.id,
     caseNumber: raw.case_number ?? raw.caseNumber ?? "",
@@ -44,6 +95,7 @@ function fromBackendCase(raw: any): Case {
     clientPhone: raw.client_phone ?? raw.clientPhone,
     meetingDate: raw.meeting_date ?? raw.meetingDate,
     caseType: raw.case_type ?? raw.caseType ?? "other",
+    clientPersonalInfo: personalInfo,
     createdAt: raw.created_at ?? raw.createdAt ?? "",
     updatedAt: raw.updated_at ?? raw.updatedAt ?? "",
     completedAt: raw.completed_at ?? raw.completedAt,
@@ -70,14 +122,36 @@ function toDateString(isoDate?: string): string | undefined {
 
 /** Transform frontend camelCase form data to backend snake_case format */
 function toBackendCreatePayload(formData: CreateCaseData) {
+  const fullName = `${formData.firstName} ${formData.lastName}`.trim();
   return {
-    case_name: `${formData.clientName} — ${formatCaseType(formData.caseType)}`,
-    client_name: formData.clientName,
+    case_name: `${fullName} — ${formatCaseType(formData.caseType)}`,
+    client_name: fullName,
     client_email: formData.clientEmail,
     client_phone: formData.clientPhone || undefined,
     meeting_date: toDateString(formData.meetingDate),
     case_type: formData.caseType,
     description: formData.description || undefined,
+    // Personal info stored in client_personal_info JSON
+    client_personal_info: {
+      first_name: formData.firstName,
+      last_name: formData.lastName,
+      date_of_birth: formData.dateOfBirth,
+      gender: formData.gender,
+      marital_status: formData.maritalStatus,
+      dependents: formData.dependents ?? 0,
+      email: formData.clientEmail,
+      phone: formData.clientPhone,
+      partner_first_name: formData.maritalStatus === "married" ? formData.partnerFirstName || undefined : undefined,
+      partner_last_name: formData.maritalStatus === "married" ? formData.partnerLastName || undefined : undefined,
+      partner_date_of_birth: formData.maritalStatus === "married" ? formData.partnerDateOfBirth || undefined : undefined,
+      address: {
+        country: formData.country || undefined,
+        street: formData.street || undefined,
+        city: formData.city || undefined,
+        province: formData.state || undefined,
+        postal_code: formData.postalCode || undefined,
+      },
+    },
   };
 }
 
@@ -85,7 +159,10 @@ function toBackendCreatePayload(formData: CreateCaseData) {
 function toBackendUpdatePayload(formData: UpdateCaseData) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload: Record<string, any> = {};
-  if (formData.clientName !== undefined) payload.client_name = formData.clientName;
+  if (formData.firstName !== undefined || formData.lastName !== undefined) {
+    const fullName = `${formData.firstName ?? ""} ${formData.lastName ?? ""}`.trim();
+    if (fullName) payload.client_name = fullName;
+  }
   if (formData.clientEmail !== undefined) payload.client_email = formData.clientEmail;
   if (formData.clientPhone !== undefined) payload.client_phone = formData.clientPhone;
   if (formData.meetingDate !== undefined) payload.meeting_date = toDateString(formData.meetingDate);

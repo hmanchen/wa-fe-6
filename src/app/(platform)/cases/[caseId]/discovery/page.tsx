@@ -4,11 +4,11 @@ import { useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { differenceInYears } from "date-fns";
 
 import { FullPageLoader } from "@/components/shared/loading-spinner";
 import { DiscoveryProgress } from "@/components/features/discovery/discovery-progress";
 import { AdvisorTalkingPoints } from "@/components/features/discovery/advisor-talking-points";
-import { ClientInfoForm } from "@/components/features/discovery/client-info-form";
 import { FinancialProfileForm } from "@/components/features/discovery/financial-profile-form";
 import { ExistingCoverageForm } from "@/components/features/discovery/existing-coverage-form";
 import { GoalsForm } from "@/components/features/discovery/goals-form";
@@ -17,14 +17,65 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDiscovery, useUpdateDiscovery, useCompleteDiscoveryStep } from "@/hooks/use-discovery";
 import { useCase } from "@/hooks/use-cases";
 import type { DiscoveryStep } from "@/types/discovery";
-import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  User,
+  Pencil,
+} from "lucide-react";
 
+// Discovery now starts at Financial Profile — Personal Info is captured during Case Creation
 const STEPS: { id: DiscoveryStep; label: string }[] = [
-  { id: "personal-info", label: "Personal Info" },
   { id: "financial-profile", label: "Financial Profile" },
   { id: "existing-coverage", label: "Existing Coverage" },
   { id: "goals-priorities", label: "Goals & Priorities" },
 ];
+
+// ── Client summary card (read-only, from case data) ──────────
+
+function ClientSummaryCard({
+  caseData,
+  caseId,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  caseData: any;
+  caseId: string;
+}) {
+  if (!caseData) return null;
+
+  const name = caseData.clientName || "—";
+  const email = caseData.clientEmail || "—";
+  const phone = caseData.clientPhone || "—";
+
+  return (
+    <div className="mb-4 flex items-start justify-between rounded-lg border bg-muted/20 px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex size-8 items-center justify-center rounded-full bg-primary/10">
+          <User className="size-4 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{name}</p>
+          <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+            <span>{email}</span>
+            <span>{phone}</span>
+          </div>
+        </div>
+      </div>
+      <Link
+        href={`/cases/${caseId}`}
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <Pencil className="size-3" />
+        Edit
+      </Link>
+    </div>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────
 
 export default function DiscoveryPage() {
   const params = useParams();
@@ -45,8 +96,6 @@ export default function DiscoveryPage() {
     (stepId: string) => {
       const index = STEPS.findIndex((s) => s.id === stepId);
       if (index < 0) return;
-      // Can always go back to completed or current steps
-      // Can only go forward if all previous steps are completed
       if (index > currentStepIndex) {
         const allPreviousCompleted = STEPS.slice(0, index).every((s) =>
           completedSteps.includes(s.id)
@@ -76,8 +125,7 @@ export default function DiscoveryPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleStepSubmit = useCallback(async (stepId: DiscoveryStep, data: any) => {
     try {
-      const fieldMap: Record<DiscoveryStep, string> = {
-        "personal-info": "personalInfo",
+      const fieldMap: Record<string, string> = {
         "financial-profile": "financialProfile",
         "existing-coverage": "existingCoverage",
         "goals-priorities": "goals",
@@ -90,8 +138,8 @@ export default function DiscoveryPage() {
       if (currentStepIndex < STEPS.length - 1) {
         handleNext();
       } else {
-        toast.success("Discovery completed! Proceeding to Needs Analysis.");
-        router.push(`/cases/${caseId}/needs-analysis`);
+        toast.success("Discovery completed! Proceeding to Financial Interview.");
+        router.push(`/cases/${caseId}/financial-interview`);
       }
     } catch {
       toast.error("Failed to save. Please try again.");
@@ -115,7 +163,7 @@ export default function DiscoveryPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6">
-      {/* Compact header: back link + title + step counter */}
+      {/* Compact header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Link
@@ -128,14 +176,15 @@ export default function DiscoveryPage() {
             </span>
           </Link>
           <div className="h-5 w-px bg-border" />
-          <div>
-            <h1 className="text-lg font-semibold leading-tight">Client Discovery</h1>
-          </div>
+          <h1 className="text-lg font-semibold leading-tight">Client Discovery</h1>
         </div>
         <p className="text-xs text-muted-foreground sm:text-sm">
           Step {currentStepIndex + 1} of {STEPS.length}
         </p>
       </div>
+
+      {/* Client summary card */}
+      <ClientSummaryCard caseData={caseData} caseId={caseId} />
 
       {/* Discovery step tabs */}
       <DiscoveryProgress
@@ -145,17 +194,9 @@ export default function DiscoveryPage() {
         onStepClick={handleStepClick}
       />
 
-      {/* Two-column layout: form left, divider, session guide right */}
+      {/* Two-column layout */}
       <div className="flex gap-0">
-        {/* Left: Form content — capped width so fields aren't too wide */}
         <div className="min-w-0 max-w-2xl flex-1 pr-6">
-          {currentStep.id === "personal-info" && (
-            <ClientInfoForm
-              defaultValues={discovery?.personalInfo}
-              onSubmit={(data) => handleStepSubmit("personal-info", data)}
-              isSubmitting={updateDiscovery.isPending}
-            />
-          )}
           {currentStep.id === "financial-profile" && (
             <FinancialProfileForm
               defaultValues={discovery?.financialProfile}
@@ -191,36 +232,24 @@ export default function DiscoveryPage() {
             </Button>
 
             {currentStepIndex < STEPS.length - 1 ? (
-              currentStepIndex === 0 ? (
-                /* Personal Info is required — no skip, must save */
-                <Button
-                  size="sm"
-                  type="submit"
-                  form="discovery-form"
-                >
-                  Next
-                  <ChevronRight className="ml-1 size-4" />
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={handleNext}>
-                  Skip
-                  <ChevronRight className="ml-1 size-4" />
-                </Button>
-              )
+              <Button variant="outline" size="sm" onClick={handleNext}>
+                Skip
+                <ChevronRight className="ml-1 size-4" />
+              </Button>
             ) : (
               <Button
                 size="sm"
-                onClick={() => router.push(`/cases/${caseId}/needs-analysis`)}
+                onClick={() => router.push(`/cases/${caseId}/financial-interview`)}
                 className="gap-1.5"
               >
                 <CheckCircle2 className="size-4" />
-                Proceed to Analysis
+                Proceed to Financial Interview
               </Button>
             )}
           </div>
         </div>
 
-        {/* Vertical divider — fades out toward the bottom */}
+        {/* Vertical divider */}
         <div className="hidden self-stretch md:block">
           <div className="h-full w-px bg-gradient-to-b from-border/60 via-border/30 to-transparent" />
         </div>

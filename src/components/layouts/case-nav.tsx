@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils"
 
 const STEPS = [
   { id: "overview", label: "Overview", path: "" },
-  { id: "discovery", label: "Discovery", path: "discovery" },
   { id: "financial-interview", label: "Financial Interview", path: "financial-interview" },
   { id: "analysis", label: "Needs Analysis", path: "analysis" },
   { id: "recommendations", label: "Recommendations", path: "recommendations" },

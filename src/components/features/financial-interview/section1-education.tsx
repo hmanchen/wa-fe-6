@@ -118,6 +118,49 @@ const STEP_EDUCATION: Record<string, EducationItem[]> = {
       ],
     },
   ],
+  cd: [
+    {
+      icon: <Landmark className="size-3.5 text-teal-500" />,
+      title: "Certificates of Deposit (CDs)",
+      points: [
+        "FDIC-insured up to $250,000 per institution",
+        "Fixed interest rate — guaranteed return",
+        "Early withdrawal penalties vary (typically 3–12 months of interest)",
+        "CD laddering strategy can provide liquidity + higher rates",
+        "Current rates are historically elevated — good time to lock in",
+      ],
+    },
+    {
+      icon: <Lightbulb className="size-3.5 text-amber-500" />,
+      title: "Advisor tips",
+      points: [
+        "Are CDs maturing soon? Great opportunity to reallocate",
+        "Compare CD rates to high-yield savings and treasuries",
+        "Discuss whether funds should be redeployed for growth or protection",
+      ],
+    },
+  ],
+  cashOnHand: [
+    {
+      icon: <DollarSign className="size-3.5 text-green-600" />,
+      title: "Cash reserves & emergency fund",
+      points: [
+        "Recommended: 3–6 months of expenses as emergency fund",
+        "Self-employed or single income? Aim for 6–12 months",
+        "Keep emergency fund liquid (high-yield savings, not invested)",
+        "Excess cash beyond emergency fund may lose value to inflation",
+      ],
+    },
+    {
+      icon: <Lightbulb className="size-3.5 text-amber-500" />,
+      title: "Key questions",
+      points: [
+        "Is the emergency fund sufficient for the family's risk profile?",
+        "Is excess cash sitting idle that could be better deployed?",
+        "Does the client have upcoming large expenses (home, education)?",
+      ],
+    },
+  ],
   systematic: [
     {
       icon: <PiggyBank className="size-3.5 text-pink-500" />,

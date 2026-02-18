@@ -26,6 +26,25 @@ export type CasePriority =
 
 export type CaseType = 'life_insurance' | 'retirement_planning' | 'estate_planning' | 'investment_review' | 'comprehensive' | 'other';
 
+export interface CasePersonalInfo {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  maritalStatus?: string;
+  dependents?: number;
+  partnerFirstName?: string;
+  partnerLastName?: string;
+  partnerDateOfBirth?: string;
+  address?: {
+    country?: string;
+    street?: string;
+    city?: string;
+    province?: string;
+    postalCode?: string;
+  };
+}
+
 export interface Case {
   id: string;
   caseNumber: string;
@@ -40,6 +59,7 @@ export interface Case {
   clientPhone?: string;
   meetingDate?: string; // ISO 8601 date string
   caseType: CaseType;
+  clientPersonalInfo?: CasePersonalInfo;
   createdAt: string; // ISO 8601 date string
   updatedAt: string; // ISO 8601 date string
   completedAt?: string; // ISO 8601 date string

@@ -64,6 +64,30 @@ export interface FundsAbroad {
   country?: string;
 }
 
+export interface CDDetails {
+  hasCDs: boolean;
+  /** Number of CDs held */
+  numberOfCDs?: number;
+  /** Total value across all CDs */
+  totalValue?: number;
+  /** Highest interest rate among CDs */
+  interestRate?: number;
+  /** Institution holding CDs */
+  institution?: string;
+  /** Longest remaining term in months */
+  longestTermMonths?: number;
+}
+
+export interface CashOnHandDetails {
+  hasCashOnHand: boolean;
+  /** Checking account balance */
+  checkingBalance?: number;
+  /** Savings account balance */
+  savingsBalance?: number;
+  /** Emergency fund target (months of expenses) */
+  emergencyFundMonths?: number;
+}
+
 export interface PersonFinancialBackground {
   /** "primary" or "spouse" */
   role: "primary" | "spouse";
@@ -74,6 +98,8 @@ export interface PersonFinancialBackground {
   ira: IRADetails;
   rothIRA: RothIRADetails;
   brokerage: BrokerageDetails;
+  cd: CDDetails;
+  cashOnHand: CashOnHandDetails;
   systematicInvestments: SystematicInvestment;
   fundsAbroad: FundsAbroad;
 }
