@@ -88,18 +88,185 @@ export interface CashOnHandDetails {
   emergencyFundMonths?: number;
 }
 
+export interface PensionDetails {
+  hasPension: boolean;
+  /** Employer / plan provider */
+  employer?: string;
+  /** Vested or not */
+  isVested?: boolean;
+  /** Estimated monthly benefit at retirement */
+  estimatedMonthlyBenefit?: number;
+  /** Lump-sum option value (if offered) */
+  lumpSumOption?: number;
+  /** Years of service credited */
+  yearsOfService?: number;
+  /** Eligible retirement age for this plan */
+  eligibleRetirementAge?: number;
+}
+
+export interface Plan403b457bDetails {
+  hasPlan: boolean;
+  planType?: "403b" | "457b" | "both";
+  annualContribution?: number;
+  currentBalance?: number;
+  employerMatch?: boolean;
+  employerMatchPercent?: number;
+  isMaxedOut?: boolean;
+}
+
+export interface Education529Details {
+  has529: boolean;
+  /** Number of 529 accounts (one per beneficiary typically) */
+  numberOfAccounts?: number;
+  totalBalance?: number;
+  annualContribution?: number;
+  /** State plan used (some offer state tax deductions) */
+  statePlan?: string;
+  /** Beneficiary names / count */
+  beneficiaryCount?: number;
+}
+
+export interface AnnuityDetails {
+  hasAnnuity: boolean;
+  type?: "fixed" | "variable" | "indexed" | "immediate";
+  provider?: string;
+  currentValue?: number;
+  /** Annual guaranteed rate (fixed/indexed) */
+  guaranteedRate?: number;
+  surrenderPeriodYearsRemaining?: number;
+  /** Monthly income if annuitized */
+  monthlyIncome?: number;
+}
+
+export interface BondHoldingsDetails {
+  hasBonds: boolean;
+  /** Municipal bonds — tax-free interest */
+  municipalBondValue?: number;
+  /** US Treasury / I-Bonds / T-Bills */
+  treasuryBondValue?: number;
+  /** Corporate bonds */
+  corporateBondValue?: number;
+  /** Bond funds / ETFs */
+  bondFundValue?: number;
+  /** Average yield across holdings */
+  averageYieldPercent?: number;
+}
+
+export interface EquityCompensationDetails {
+  hasEquityComp: boolean;
+  /** Vested stock options value */
+  vestedOptionsValue?: number;
+  /** Unvested stock options value */
+  unvestedOptionsValue?: number;
+  /** Restricted Stock Units (RSUs) — vested value */
+  vestedRSUValue?: number;
+  /** RSUs — unvested value */
+  unvestedRSUValue?: number;
+  /** ESPP participation */
+  hasESPP?: boolean;
+  esppContributionPercent?: number;
+  companyName?: string;
+}
+
+export interface RealEstateDetails {
+  hasRealEstate: boolean;
+  /** Number of investment properties (excluding primary home) */
+  numberOfProperties?: number;
+  /** Total estimated market value of investment properties */
+  totalMarketValue?: number;
+  /** Total outstanding mortgage on investment properties */
+  totalMortgageBalance?: number;
+  /** Monthly rental income across all properties */
+  monthlyRentalIncome?: number;
+  /** Primary home equity (market value minus mortgage) */
+  primaryHomeEquity?: number;
+}
+
+export interface CryptoDetails {
+  hasCrypto: boolean;
+  /** Total current value of crypto holdings */
+  totalValue?: number;
+  /** Platforms used (Coinbase, Binance, etc.) */
+  platforms?: string;
+  /** Major holdings (BTC, ETH, etc.) */
+  majorHoldings?: string;
+  /** Cost basis (for tax purposes) */
+  approximateCostBasis?: number;
+}
+
+export interface SocialSecurityDetails {
+  hasEstimate: boolean;
+  /** Estimated monthly benefit at full retirement age */
+  estimatedMonthlyBenefitFRA?: number;
+  /** Full retirement age (66, 67, etc.) */
+  fullRetirementAge?: number;
+  /** Estimated benefit if taken early (age 62) */
+  estimatedBenefitEarly?: number;
+  /** Estimated benefit if delayed (age 70) */
+  estimatedBenefitDelayed?: number;
+  /** Years of qualifying work credits */
+  qualifyingYears?: number;
+}
+
+export interface IncomeDetails {
+  annualSalary?: number;
+  otherIncome?: number;
+  otherIncomeSource?: string;
+  /** Bonus / commission (annual estimate) */
+  annualBonus?: number;
+  incomeFrequency?: "weekly" | "biweekly" | "semi-monthly" | "monthly" | "annual";
+}
+
+export interface MonthlyExpensesDetails {
+  housing?: number;
+  utilities?: number;
+  transportation?: number;
+  groceries?: number;
+  insurance?: number;
+  childcare?: number;
+  entertainment?: number;
+  diningOut?: number;
+  subscriptions?: number;
+  otherExpenses?: number;
+}
+
+export interface Retirement401kDetails {
+  has401k: boolean;
+  /** Current employer plan */
+  currentBalance?: number;
+  employerMatchPercent?: number;
+  employeeContributionPercent?: number;
+  isMaxedOut?: boolean;
+  /** Has an old/previous 401(k) from a prior employer */
+  hasOld401k?: boolean;
+  old401kBalance?: number;
+  old401kAction?: "rolled-over" | "left-with-employer" | "cashed-out" | "converted-to-roth";
+}
+
 export interface PersonFinancialBackground {
   /** "primary" or "spouse" */
   role: "primary" | "spouse";
   yearsInCountry: number;
   countryOfResidence: string;
+  income: IncomeDetails;
+  monthlyExpenses: MonthlyExpensesDetails;
+  retirement401k: Retirement401kDetails;
   employmentHistory: EmploymentRecord[];
   hsa: HSADetails;
   ira: IRADetails;
   rothIRA: RothIRADetails;
+  pension: PensionDetails;
+  plan403b457b: Plan403b457bDetails;
   brokerage: BrokerageDetails;
   cd: CDDetails;
+  bonds: BondHoldingsDetails;
+  annuity: AnnuityDetails;
+  equityCompensation: EquityCompensationDetails;
+  education529: Education529Details;
+  realEstate: RealEstateDetails;
+  crypto: CryptoDetails;
   cashOnHand: CashOnHandDetails;
+  socialSecurity: SocialSecurityDetails;
   systematicInvestments: SystematicInvestment;
   fundsAbroad: FundsAbroad;
 }
@@ -198,6 +365,7 @@ export interface TaxDiversificationData {
 
 export type FinancialInterviewSection =
   | "financial-background"
+  | "income-replacement-risk"
   | "life-insurance-education"
   | "financial-home"
   | "financial-x-curve"

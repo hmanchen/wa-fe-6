@@ -15,10 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCase } from "@/hooks/use-cases";
+import { useFinancialInterview, useSaveFinancialBackground } from "@/hooks/use-financial-interview";
 import { InterviewSectionNav } from "@/components/features/financial-interview/interview-section-nav";
-import { Section1Form } from "@/components/features/financial-interview/section1-form";
-import { Section1Education } from "@/components/features/financial-interview/section1-education";
-import { IncomeReplacementStory } from "@/components/features/financial-interview/income-replacement-story";
+import { FinancialBgLayout } from "@/components/features/financial-interview/financial-bg-layout";
+import { IncomeReplacementScreen } from "@/components/features/financial-interview/income-replacement-screen";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
 
@@ -35,6 +35,8 @@ export default function FinancialInterviewPage() {
   const params = useParams();
   const caseId = params.caseId as string;
   const { data: caseData } = useCase(caseId);
+  const { data: interviewData } = useFinancialInterview(caseId);
+  const saveBackground = useSaveFinancialBackground(caseId);
 
   // ── Section-level state ──────────────────────────────────
   const [currentSection, setCurrentSection] =
@@ -43,10 +45,17 @@ export default function FinancialInterviewPage() {
     FinancialInterviewSection[]
   >([]);
 
-  // ── Section 1 state ──────────────────────────────────────
-  const [activeEducationStep, setActiveEducationStep] = useState("background");
-  const [primaryData, setPrimaryData] = useState<PersonFinancialBackground | undefined>();
-  const [spouseData, setSpouseData] = useState<PersonFinancialBackground | undefined>();
+  // ── Derived display name ────────────────────────────────
+  const clientNames = (() => {
+    const pi = caseData?.clientPersonalInfo;
+    const primaryFirst = pi?.firstName || caseData?.clientName?.split(" ")[0] || "Client";
+    const primaryLast = pi?.lastName || caseData?.clientName?.split(" ").slice(1).join(" ") || "";
+    const spouseFirst = pi?.partnerFirstName;
+    const spouseLast = pi?.partnerLastName;
+    const primary = [primaryFirst, primaryLast].filter(Boolean).join(" ");
+    const spouse = spouseFirst ? [spouseFirst, spouseLast].filter(Boolean).join(" ") : "";
+    return spouse ? `${primary} & ${spouse}` : primary;
+  })();
 
   // ── Annotation overlay ───────────────────────────────────
   const [annotationActive, setAnnotationActive] = useState(false);
@@ -61,20 +70,28 @@ export default function FinancialInterviewPage() {
 
   const handlePrimarySave = useCallback(
     async (data: PersonFinancialBackground) => {
-      // TODO: Wire to backend API once endpoint exists
-      setPrimaryData(data);
-      toast.success("Primary client financial background saved");
+      try {
+        await saveBackground.mutateAsync({ role: "primary", data });
+        toast.success("Primary client financial background saved");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        toast.error(`Failed to save: ${message}`);
+      }
     },
-    []
+    [saveBackground]
   );
 
   const handleSpouseSave = useCallback(
     async (data: PersonFinancialBackground) => {
-      // TODO: Wire to backend API once endpoint exists
-      setSpouseData(data);
-      toast.success("Spouse financial background saved");
+      try {
+        await saveBackground.mutateAsync({ role: "spouse", data });
+        toast.success("Spouse financial background saved");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        toast.error(`Failed to save: ${message}`);
+      }
     },
-    []
+    [saveBackground]
   );
 
   return (
@@ -98,13 +115,7 @@ export default function FinancialInterviewPage() {
             </Link>
             <div className="h-5 w-px bg-border" />
             <h1 className="text-lg font-semibold leading-tight">
-              {(() => {
-                const pi = caseData?.clientPersonalInfo;
-                const primaryFirst = pi?.firstName || caseData?.clientName?.split(" ")[0] || caseData?.clientName;
-                const spouseFirst = pi?.partnerFirstName;
-                const names = spouseFirst ? `${primaryFirst} & ${spouseFirst}` : (primaryFirst || "Client");
-                return `${names} — Financial Interview`;
-              })()}
+              {clientNames} — Financial Interview
             </h1>
           </div>
           <Button
@@ -127,61 +138,46 @@ export default function FinancialInterviewPage() {
 
         {/* ── Section content ── */}
         {currentSection === "financial-background" && (
-          <div className="flex gap-0">
-            {/* Left: Forms */}
-            <div className="min-w-0 max-w-3xl flex-1 pr-6">
-              <Tabs defaultValue="primary" className="w-full">
-                <TabsList className="mb-4 w-full justify-start">
-                  <TabsTrigger value="primary" className="gap-1.5">
-                    <User className="size-3.5" />
-                    Primary Client
-                  </TabsTrigger>
-                  <TabsTrigger value="spouse" className="gap-1.5">
-                    <Users className="size-3.5" />
-                    Spouse
-                  </TabsTrigger>
-                </TabsList>
+          <Tabs defaultValue="primary" className="w-full">
+            <TabsList className="mb-4 justify-start">
+              <TabsTrigger value="primary" className="gap-1.5">
+                <User className="size-3.5" />
+                Primary Client
+              </TabsTrigger>
+              <TabsTrigger value="spouse" className="gap-1.5">
+                <Users className="size-3.5" />
+                Spouse
+              </TabsTrigger>
+            </TabsList>
 
-                <TabsContent value="primary">
-                  <Section1Form
-                    role="primary"
-                    defaultValues={primaryData}
-                    onSubmit={handlePrimarySave}
-                    onActiveStepChange={setActiveEducationStep}
-                  />
-                </TabsContent>
+            <TabsContent value="primary">
+              <FinancialBgLayout
+                clientNames={clientNames}
+                defaultValues={interviewData?.primaryBackground}
+                role="primary"
+                onSubmit={handlePrimarySave}
+                isSubmitting={saveBackground.isPending}
+              />
+            </TabsContent>
 
-                <TabsContent value="spouse">
-                  <Section1Form
-                    role="spouse"
-                    defaultValues={spouseData}
-                    onSubmit={handleSpouseSave}
-                    onActiveStepChange={setActiveEducationStep}
-                  />
-                </TabsContent>
-              </Tabs>
-            </div>
+            <TabsContent value="spouse">
+              <FinancialBgLayout
+                clientNames={clientNames}
+                defaultValues={interviewData?.spouseBackground}
+                role="spouse"
+                onSubmit={handleSpouseSave}
+                isSubmitting={saveBackground.isPending}
+              />
+            </TabsContent>
+          </Tabs>
+        )}
 
-            {/* Vertical divider */}
-            <div className="hidden self-stretch md:block">
-              <div className="h-full w-px bg-gradient-to-b from-border/60 via-border/30 to-transparent" />
-            </div>
-
-            {/* Right: Education panel */}
-            <aside className="hidden w-80 shrink-0 pl-6 md:block">
-              <div className="sticky top-4 space-y-6">
-                {/* Step-specific education */}
-                <div className="rounded-lg border bg-muted/20 p-3">
-                  <Section1Education activeStep={activeEducationStep} />
-                </div>
-
-                {/* Income Replacement Risk story */}
-                <div className="rounded-lg border bg-muted/20 p-3">
-                  <IncomeReplacementStory />
-                </div>
-              </div>
-            </aside>
-          </div>
+        {/* ── Income Replacement Risk — full-width education ── */}
+        {currentSection === "income-replacement-risk" && (
+          <IncomeReplacementScreen
+            onContinue={() => setCurrentSection("life-insurance-education")}
+            onSkip={() => setCurrentSection("life-insurance-education")}
+          />
         )}
 
         {/* Placeholder for other sections */}
