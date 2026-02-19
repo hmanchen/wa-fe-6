@@ -10,6 +10,8 @@ import {
   Pencil,
   User,
   Users,
+  PanelTopClose,
+  PanelTopOpen,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -61,6 +63,9 @@ export default function FinancialInterviewPage() {
   // ── Annotation overlay ───────────────────────────────────
   const [annotationActive, setAnnotationActive] = useState(false);
 
+  // ── Collapse header + section nav to reclaim vertical space ──
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
   // ── Handlers ─────────────────────────────────────────────
   const handleSectionClick = useCallback(
     (section: FinancialInterviewSection) => {
@@ -104,38 +109,70 @@ export default function FinancialInterviewPage() {
       />
 
       <div className="flex flex-col gap-1 px-4 pt-0 pb-1 sm:px-6">
-        {/* ── Header ── */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/cases/${caseId}`}
-              className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" />
-              <span className="hidden sm:inline">Overview</span>
-            </Link>
-            <div className="h-5 w-px bg-border" />
-            <h1 className="text-lg font-semibold leading-tight">
-              {clientNames} — Financial Interview
-            </h1>
-          </div>
-          <Button
-            variant={annotationActive ? "default" : "outline"}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setAnnotationActive(!annotationActive)}
-          >
-            <Pencil className="size-3.5" />
-            {annotationActive ? "Drawing..." : "Draw / Annotate"}
-          </Button>
-        </div>
+        {/* ── Collapsible header + section nav ── */}
+        {!headerCollapsed && (
+          <>
+            {/* Header */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/cases/${caseId}`}
+                  className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <ArrowLeft className="size-4" />
+                  <span className="hidden sm:inline">Overview</span>
+                </Link>
+                <div className="h-5 w-px bg-border" />
+                <h1 className="text-lg font-semibold leading-tight">
+                  {clientNames} — Financial Interview
+                </h1>
+              </div>
+              <Button
+                variant={annotationActive ? "default" : "outline"}
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setAnnotationActive(!annotationActive)}
+              >
+                <Pencil className="size-3.5" />
+                {annotationActive ? "Drawing..." : "Draw / Annotate"}
+              </Button>
+            </div>
 
-        {/* ── Section navigation ── */}
-        <InterviewSectionNav
-          currentSection={currentSection}
-          completedSections={completedSections}
-          onSectionClick={handleSectionClick}
-        />
+            {/* Section navigation */}
+            <InterviewSectionNav
+              currentSection={currentSection}
+              completedSections={completedSections}
+              onSectionClick={handleSectionClick}
+            />
+          </>
+        )}
+
+        {/* Toggle button — always visible */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+            onClick={() => setHeaderCollapsed((prev) => !prev)}
+          >
+            {headerCollapsed ? (
+              <>
+                <PanelTopOpen className="size-3.5" />
+                Show Navigation
+              </>
+            ) : (
+              <>
+                <PanelTopClose className="size-3.5" />
+                Hide Navigation
+              </>
+            )}
+          </Button>
+          {headerCollapsed && (
+            <span className="text-xs text-muted-foreground">
+              {clientNames} — <span className="font-medium text-foreground">{currentSection.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+            </span>
+          )}
+        </div>
 
         {/* ── Section content ── */}
         {currentSection === "financial-background" && (

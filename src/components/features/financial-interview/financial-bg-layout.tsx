@@ -80,8 +80,8 @@ function AccountCard({
 }) {
   return (
     <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", accent)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0 sm:w-56 sm:shrink-0">
           <p className="text-sm font-semibold">{name}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
@@ -212,18 +212,6 @@ function EmploymentSection({
 
   return (
     <div className="space-y-4">
-      {/* Country */}
-      <div className="max-w-xs space-y-1">
-        <Label className="text-xs font-medium">Country of residence</Label>
-        <Select value={data.countryOfResidence} onValueChange={(v) => update({ countryOfResidence: v })}>
-          <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="US">United States</SelectItem>
-            <SelectItem value="CA">Canada</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Employment status selector */}
       <div className="space-y-2">
         <Label className="text-xs font-medium">Employment status</Label>
@@ -399,41 +387,65 @@ function RetirementSection({
 }) {
   return (
     <div className="space-y-3">
-      <AccountCard
-        name="401(k)"
-        description="Employer-sponsored retirement plan"
-        accent="border-l-indigo-400"
-        balance={data.retirement401k?.currentBalance}
-        onBalanceChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, currentBalance: v } })}
-        contribution={(() => {
-          const pct = data.retirement401k?.employeeContributionPercent ?? 0;
-          const salary = data.income?.annualSalary ?? 0;
-          return pct > 0 && salary > 0 ? Math.round((pct / 100) * salary) : undefined;
-        })()}
-        onContributionChange={(v) => {
-          const salary = data.income?.annualSalary ?? 0;
-          const pct = salary > 0 && v ? Math.round((v / salary) * 100) : undefined;
-          update({ retirement401k: { ...data.retirement401k, has401k: true, employeeContributionPercent: pct } });
-        }}
-      />
-      <AccountCard
-        name="Traditional IRA"
-        description="Tax-deferred individual retirement account"
-        accent="border-l-indigo-400"
-        balance={data.ira?.currentBalance}
-        onBalanceChange={(v) => update({ ira: { ...data.ira, hasIRA: true, currentBalance: v } })}
-        contribution={data.ira?.annualContribution}
-        onContributionChange={(v) => update({ ira: { ...data.ira, hasIRA: true, annualContribution: v } })}
-      />
-      <AccountCard
-        name="Roth IRA"
-        description="After-tax contributions, tax-free growth"
-        accent="border-l-indigo-400"
-        balance={data.rothIRA?.currentBalance}
-        onBalanceChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, currentBalance: v } })}
-        contribution={data.rothIRA?.annualContribution}
-        onContributionChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, annualContribution: v } })}
-      />
+      {/* 401(k), Traditional IRA & Roth IRA — grouped */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-indigo-400")}>
+        <div className="mb-3">
+          <p className="text-sm font-semibold">401(k) / IRA / Roth IRA</p>
+          <p className="text-xs text-muted-foreground">Core retirement accounts — enter balances and contributions</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {/* 401(k) */}
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">401(k)</p>
+            <CurrencyField
+              label="Balance"
+              value={data.retirement401k?.currentBalance}
+              onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, currentBalance: v } })}
+            />
+            <CurrencyField
+              label="Contribution"
+              value={(() => {
+                const pct = data.retirement401k?.employeeContributionPercent ?? 0;
+                const salary = data.income?.annualSalary ?? 0;
+                return pct > 0 && salary > 0 ? Math.round((pct / 100) * salary) : undefined;
+              })()}
+              onChange={(v) => {
+                const salary = data.income?.annualSalary ?? 0;
+                const pct = salary > 0 && v ? Math.round((v / salary) * 100) : undefined;
+                update({ retirement401k: { ...data.retirement401k, has401k: true, employeeContributionPercent: pct } });
+              }}
+            />
+          </div>
+          {/* Traditional IRA */}
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Traditional IRA</p>
+            <CurrencyField
+              label="Balance"
+              value={data.ira?.currentBalance}
+              onChange={(v) => update({ ira: { ...data.ira, hasIRA: true, currentBalance: v } })}
+            />
+            <CurrencyField
+              label="Annual Contribution"
+              value={data.ira?.annualContribution}
+              onChange={(v) => update({ ira: { ...data.ira, hasIRA: true, annualContribution: v } })}
+            />
+          </div>
+          {/* Roth IRA */}
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Roth IRA</p>
+            <CurrencyField
+              label="Balance"
+              value={data.rothIRA?.currentBalance}
+              onChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, currentBalance: v } })}
+            />
+            <CurrencyField
+              label="Annual Contribution"
+              value={data.rothIRA?.annualContribution}
+              onChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, annualContribution: v } })}
+            />
+          </div>
+        </div>
+      </div>
       <AccountCard
         name="Pension / Defined Benefit"
         description="Employer-sponsored guaranteed income"
@@ -852,7 +864,7 @@ export function FinancialBgLayout({
               const total = healthScore?.totalScore ?? 0;
               const cats = healthScore?.categories;
               return (
-                <div className="mt-6 rounded-xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-background p-4 dark:border-amber-800/40 dark:from-amber-950/20">
+                <div className="mt-2 rounded-xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-background p-4 dark:border-amber-800/40 dark:from-amber-950/20">
                   <p className="mb-2 text-xs font-bold uppercase tracking-widest text-red-500">
                     Financial Health Score
                   </p>
