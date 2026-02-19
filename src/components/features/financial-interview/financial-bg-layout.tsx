@@ -791,23 +791,23 @@ export function FinancialBgLayout({
               })}
             </div>
 
-            {/* Health score */}
-            <div className="mt-6 rounded-xl border bg-gradient-to-b from-amber-50 to-background p-3 dark:from-amber-950/20">
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-red-500">
-                Health Score
+            {/* Financial Health Score */}
+            <div className="mt-6 rounded-xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-background p-4 dark:border-amber-800/40 dark:from-amber-950/20">
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-red-500">
+                Financial Health Score
               </p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-black">{healthScore.total}</span>
-                <span className="text-sm text-muted-foreground">/100</span>
+              <div className="mb-1 flex items-baseline gap-1.5">
+                <span className="text-5xl font-black leading-none">{healthScore.total}</span>
+                <span className="text-lg text-muted-foreground">/100</span>
               </div>
-              <p className="mb-3 text-[10px] text-muted-foreground">
+              <p className="mb-4 text-xs text-muted-foreground">
                 {healthScore.total < 30
                   ? "Partial — more screens ahead"
                   : healthScore.total < 60
                     ? "Building — keep going"
                     : "Looking strong!"}
               </p>
-              <div className="space-y-1.5">
+              <div className="space-y-2.5">
                 {[
                   { label: "Retirement", value: healthScore.retirement, color: "bg-orange-400" },
                   { label: "Education", value: healthScore.education, color: "bg-blue-400" },
@@ -816,14 +816,14 @@ export function FinancialBgLayout({
                   { label: "Estate", value: healthScore.estate, color: "bg-purple-400" },
                 ].map((cat) => (
                   <div key={cat.label} className="flex items-center gap-2">
-                    <span className="w-16 text-[10px] text-muted-foreground">{cat.label}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                    <span className="w-[4.5rem] text-xs text-muted-foreground">{cat.label}</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                       <div
                         className={cn("h-full rounded-full transition-all", cat.color)}
                         style={{ width: cat.value !== null ? `${(cat.value / 20) * 100}%` : "0%" }}
                       />
                     </div>
-                    <span className="w-8 text-right text-[10px] font-medium">
+                    <span className="w-10 text-right text-xs font-semibold">
                       {cat.value !== null ? `${cat.value}/20` : "—/20"}
                     </span>
                   </div>
