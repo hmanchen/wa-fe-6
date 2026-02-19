@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { PersonFinancialBackground } from "@/types/financial-interview";
+import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore } from "@/types/financial-interview";
 import { FinancialBgInsights } from "./financial-bg-insights";
 
 // ── Sub-section definitions ──────────────────────────────────
@@ -65,6 +65,7 @@ function AccountCard({
   contribution,
   onContributionChange,
   contributionLabel = "Annual Contrib.",
+  accent = "border-l-blue-400",
   children,
 }: {
   name: string;
@@ -74,10 +75,11 @@ function AccountCard({
   contribution?: number;
   onContributionChange?: (v: number | undefined) => void;
   contributionLabel?: string;
+  accent?: string;
   children?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border bg-card px-5 py-4">
+    <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", accent)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold">{name}</p>
@@ -156,58 +158,6 @@ function CurrencyField({
   );
 }
 
-// ── Health score computation ─────────────────────────────────
-
-interface HealthScore {
-  total: number;
-  retirement: number | null;
-  education: number | null;
-  tax: number | null;
-  protection: number | null;
-  estate: number | null;
-}
-
-function computeHealthScore(data: PersonFinancialBackground): HealthScore {
-  let retirement = 0;
-  if (data.retirement401k?.currentBalance) retirement += 4;
-  if (data.retirement401k?.employeeContributionPercent) retirement += 2;
-  if (data.retirement401k?.employerMatchPercent) retirement += 2;
-  if (data.ira?.currentBalance) retirement += 3;
-  if (data.rothIRA?.currentBalance) retirement += 3;
-  if (data.pension?.estimatedMonthlyBenefit) retirement += 3;
-  if (data.plan403b457b?.currentBalance) retirement += 3;
-  retirement = Math.min(retirement, 20);
-
-  let education = 0;
-  if (data.education529?.totalBalance) education += 10;
-  if (data.education529?.annualContribution) education += 5;
-  if (data.socialSecurity?.estimatedMonthlyBenefitFRA) education += 5;
-  education = Math.min(education, 20);
-
-  let tax = 0;
-  const hasPreTax = !!(data.retirement401k?.currentBalance || data.ira?.currentBalance);
-  const hasRoth = !!data.rothIRA?.currentBalance;
-  const hasTaxable = !!(data.brokerage?.currentValue || data.cashOnHand?.checkingBalance);
-  if (hasPreTax) tax += 6;
-  if (hasRoth) tax += 7;
-  if (hasTaxable) tax += 4;
-  if (hasPreTax && hasRoth && hasTaxable) tax += 3;
-  tax = Math.min(tax, 20);
-
-  const hasAllSections =
-    (data.income?.annualSalary ?? 0) > 0 &&
-    retirement > 0;
-
-  return {
-    total: retirement + education + tax,
-    retirement: hasAllSections || retirement > 0 ? retirement : null,
-    education: education > 0 ? education : null,
-    tax: tax > 0 ? tax : null,
-    protection: null,
-    estate: null,
-  };
-}
-
 // ── Section completion check ─────────────────────────────────
 
 function isSectionComplete(section: SubSection, data: PersonFinancialBackground): boolean {
@@ -245,6 +195,12 @@ function isSectionComplete(section: SubSection, data: PersonFinancialBackground)
 
 // ── Sub-section form content ─────────────────────────────────
 
+const STATUS_OPTIONS: { value: EmploymentStatus; label: string; desc: string; color: string }[] = [
+  { value: "employed", label: "Employed", desc: "Working for an employer", color: "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" },
+  { value: "self-employed", label: "Self-Employed / Business", desc: "Own business or freelance", color: "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300" },
+  { value: "not-working", label: "Not Working", desc: "Homemaker, retired, or other", color: "border-slate-400 bg-slate-50 text-slate-600 dark:bg-slate-900/30 dark:text-slate-300" },
+];
+
 function EmploymentSection({
   data,
   update,
@@ -252,73 +208,154 @@ function EmploymentSection({
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
+  const status = data.income?.employmentStatus ?? "employed";
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Country of residence</Label>
-          <Select value={data.countryOfResidence} onValueChange={(v) => update({ countryOfResidence: v })}>
-            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="US">United States</SelectItem>
-              <SelectItem value="CA">Canada</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Years in country</Label>
-          <Input
-            type="number" min={0} className="h-8 text-sm" placeholder="e.g. 10"
-            value={data.yearsInCountry || ""}
-            onChange={(e) => update({ yearsInCountry: e.target.value === "" ? 0 : parseInt(e.target.value, 10) })}
-          />
+      {/* Country */}
+      <div className="max-w-xs space-y-1">
+        <Label className="text-xs font-medium">Country of residence</Label>
+        <Select value={data.countryOfResidence} onValueChange={(v) => update({ countryOfResidence: v })}>
+          <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="US">United States</SelectItem>
+            <SelectItem value="CA">Canada</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Employment status selector */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">Employment status</Label>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => update({ income: { ...data.income, employmentStatus: opt.value } })}
+              className={cn(
+                "rounded-lg border-2 px-3 py-2.5 text-left transition-all",
+                status === opt.value
+                  ? opt.color
+                  : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/70"
+              )}
+            >
+              <p className="text-xs font-semibold">{opt.label}</p>
+              <p className="text-[10px] opacity-70">{opt.desc}</p>
+            </button>
+          ))}
         </div>
       </div>
-      <AccountCard
-        name="Annual Salary"
-        description="Primary employment income (before taxes)"
-        balance={data.income?.annualSalary}
-        onBalanceChange={(v) => update({ income: { ...data.income, annualSalary: v } })}
-        contribution={data.income?.annualBonus}
-        onContributionChange={(v) => update({ income: { ...data.income, annualBonus: v } })}
-        contributionLabel="Bonus / Comm."
-      >
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Pay frequency</Label>
-            <Select
-              value={data.income?.incomeFrequency ?? ""}
-              onValueChange={(v) =>
-                update({ income: { ...data.income, incomeFrequency: v as PersonFinancialBackground["income"]["incomeFrequency"] } })
-              }
-            >
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="biweekly">Bi-weekly</SelectItem>
-                <SelectItem value="semi-monthly">Semi-monthly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="annual">Annual</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <CurrencyField
-            label="Other income (annual)"
-            value={data.income?.otherIncome}
-            onChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
-          />
-          <div className="space-y-1">
-            <Label className="text-xs">Other income source</Label>
-            <Input className="h-8 text-sm" placeholder="e.g. Rental"
-              value={data.income?.otherIncomeSource ?? ""}
-              onChange={(e) => update({ income: { ...data.income, otherIncomeSource: e.target.value } })}
+
+      {/* Employed — salary fields */}
+      {status === "employed" && (
+        <AccountCard
+          name="Annual Salary"
+          description="Primary employment income (before taxes)"
+          accent="border-l-emerald-400"
+          balance={data.income?.annualSalary}
+          onBalanceChange={(v) => update({ income: { ...data.income, annualSalary: v } })}
+          contribution={data.income?.annualBonus}
+          onContributionChange={(v) => update({ income: { ...data.income, annualBonus: v } })}
+          contributionLabel="Bonus / Comm."
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Employer name</Label>
+              <Input className="h-8 text-sm" placeholder="e.g. Google"
+                value={data.income?.employerName ?? ""}
+                onChange={(e) => update({ income: { ...data.income, employerName: e.target.value } })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pay frequency</Label>
+              <Select
+                value={data.income?.incomeFrequency ?? ""}
+                onValueChange={(v) =>
+                  update({ income: { ...data.income, incomeFrequency: v as PersonFinancialBackground["income"]["incomeFrequency"] } })
+                }
+              >
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                  <SelectItem value="semi-monthly">Semi-monthly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="annual">Annual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <CurrencyField
+              label="Other income (annual)"
+              value={data.income?.otherIncome}
+              onChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
             />
           </div>
-        </div>
-      </AccountCard>
+        </AccountCard>
+      )}
+
+      {/* Self-employed — business income fields */}
+      {status === "self-employed" && (
+        <AccountCard
+          name="Business / Self-Employment Income"
+          description="Annual income from business, freelance, or consulting"
+          accent="border-l-blue-400"
+          balance={data.income?.businessIncome}
+          onBalanceChange={(v) => update({ income: { ...data.income, businessIncome: v } })}
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Business type</Label>
+              <Input className="h-8 text-sm" placeholder="e.g. Consulting, Retail"
+                value={data.income?.businessType ?? ""}
+                onChange={(e) => update({ income: { ...data.income, businessType: e.target.value } })}
+              />
+            </div>
+            <CurrencyField
+              label="Bonus / Commission"
+              value={data.income?.annualBonus}
+              onChange={(v) => update({ income: { ...data.income, annualBonus: v } })}
+            />
+            <CurrencyField
+              label="Other income (annual)"
+              value={data.income?.otherIncome}
+              onChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
+            />
+          </div>
+        </AccountCard>
+      )}
+
+      {/* Not working — other income only */}
+      {status === "not-working" && (
+        <AccountCard
+          name="Other Income Sources"
+          description="Rental, pension, alimony, family support, or any other income"
+          accent="border-l-slate-400"
+          balance={data.income?.otherIncome}
+          onBalanceChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Source of income</Label>
+              <Input className="h-8 text-sm" placeholder="e.g. Rental income, Pension"
+                value={data.income?.otherIncomeSource ?? ""}
+                onChange={(e) => update({ income: { ...data.income, otherIncomeSource: e.target.value } })}
+              />
+            </div>
+            <CurrencyField
+              label="Bonus / One-time income"
+              value={data.income?.annualBonus}
+              onChange={(v) => update({ income: { ...data.income, annualBonus: v } })}
+            />
+          </div>
+        </AccountCard>
+      )}
+
+      {/* Monthly expenses — always shown */}
       <AccountCard
         name="Monthly Expenses"
         description="Total household monthly spending"
+        accent="border-l-orange-400"
         balance={(() => {
           const e = data.monthlyExpenses ?? {};
           return (e.housing ?? 0) + (e.utilities ?? 0) + (e.transportation ?? 0) +
@@ -339,7 +376,7 @@ function EmploymentSection({
             onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, groceries: v } })} />
           <CurrencyField label="Insurance" value={data.monthlyExpenses?.insurance}
             onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, insurance: v } })} />
-          <CurrencyField label="Childcare" value={data.monthlyExpenses?.childcare}
+          <CurrencyField label="Childcare / Schooling / Education" value={data.monthlyExpenses?.childcare}
             onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, childcare: v } })} />
           <CurrencyField label="Entertainment" value={data.monthlyExpenses?.entertainment}
             onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, entertainment: v } })} />
@@ -365,6 +402,7 @@ function RetirementSection({
       <AccountCard
         name="401(k)"
         description="Employer-sponsored retirement plan"
+        accent="border-l-indigo-400"
         balance={data.retirement401k?.currentBalance}
         onBalanceChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, currentBalance: v } })}
         contribution={(() => {
@@ -381,6 +419,7 @@ function RetirementSection({
       <AccountCard
         name="Traditional IRA"
         description="Tax-deferred individual retirement account"
+        accent="border-l-indigo-400"
         balance={data.ira?.currentBalance}
         onBalanceChange={(v) => update({ ira: { ...data.ira, hasIRA: true, currentBalance: v } })}
         contribution={data.ira?.annualContribution}
@@ -389,6 +428,7 @@ function RetirementSection({
       <AccountCard
         name="Roth IRA"
         description="After-tax contributions, tax-free growth"
+        accent="border-l-indigo-400"
         balance={data.rothIRA?.currentBalance}
         onBalanceChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, currentBalance: v } })}
         contribution={data.rothIRA?.annualContribution}
@@ -397,6 +437,7 @@ function RetirementSection({
       <AccountCard
         name="Pension / Defined Benefit"
         description="Employer-sponsored guaranteed income"
+        accent="border-l-indigo-400"
         balance={data.pension?.lumpSumOption}
         onBalanceChange={(v) => update({ pension: { ...data.pension, hasPension: true, lumpSumOption: v } })}
         contribution={data.pension?.estimatedMonthlyBenefit}
@@ -406,6 +447,7 @@ function RetirementSection({
       <AccountCard
         name="403(b) / 457(b)"
         description="Non-profit & government retirement plan"
+        accent="border-l-indigo-400"
         balance={data.plan403b457b?.currentBalance}
         onBalanceChange={(v) => update({ plan403b457b: { ...data.plan403b457b, hasPlan: true, currentBalance: v } })}
         contribution={data.plan403b457b?.annualContribution}
@@ -427,12 +469,14 @@ function InvestmentsSection({
       <AccountCard
         name="Brokerage Account"
         description="Taxable investment account (stocks, ETFs, mutual funds)"
+        accent="border-l-emerald-500"
         balance={data.brokerage?.currentValue}
         onBalanceChange={(v) => update({ brokerage: { ...data.brokerage, hasBrokerage: true, currentValue: v } })}
       />
       <AccountCard
         name="Bond Holdings"
         description="Municipal, Treasury, Corporate bonds & bond funds"
+        accent="border-l-emerald-500"
         balance={(() => {
           const b = data.bonds;
           return b ? (b.municipalBondValue ?? 0) + (b.treasuryBondValue ?? 0) +
@@ -443,12 +487,14 @@ function InvestmentsSection({
       <AccountCard
         name="Annuities"
         description="Insurance-based investment / income products"
+        accent="border-l-emerald-500"
         balance={data.annuity?.currentValue}
         onBalanceChange={(v) => update({ annuity: { ...data.annuity, hasAnnuity: true, currentValue: v } })}
       />
       <AccountCard
         name="Stock Options / RSUs / ESPP"
         description="Employer equity compensation"
+        accent="border-l-emerald-500"
         balance={(() => {
           const e = data.equityCompensation;
           return e ? (e.vestedOptionsValue ?? 0) + (e.vestedRSUValue ?? 0) || undefined : undefined;
@@ -458,6 +504,7 @@ function InvestmentsSection({
       <AccountCard
         name="Real Estate"
         description="Primary home equity & investment properties"
+        accent="border-l-emerald-500"
         balance={data.realEstate?.primaryHomeEquity}
         onBalanceChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, primaryHomeEquity: v } })}
         contribution={data.realEstate?.monthlyRentalIncome}
@@ -467,6 +514,7 @@ function InvestmentsSection({
       <AccountCard
         name="Cryptocurrency"
         description="Bitcoin, Ethereum & digital assets"
+        accent="border-l-emerald-500"
         balance={data.crypto?.totalValue}
         onBalanceChange={(v) => update({ crypto: { ...data.crypto, hasCrypto: true, totalValue: v } })}
       />
@@ -486,6 +534,7 @@ function SavingsSection({
       <AccountCard
         name="Cash on Hand"
         description="Checking & savings account balances"
+        accent="border-l-amber-400"
         balance={(data.cashOnHand?.checkingBalance ?? 0) + (data.cashOnHand?.savingsBalance ?? 0) || undefined}
         onBalanceChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, checkingBalance: v } })}
       >
@@ -499,6 +548,7 @@ function SavingsSection({
       <AccountCard
         name="Health Savings Account (HSA)"
         description="Triple tax-advantaged medical savings"
+        accent="border-l-amber-400"
         balance={data.hsa?.currentBalance}
         onBalanceChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })}
         contribution={data.hsa?.annualContribution}
@@ -507,12 +557,14 @@ function SavingsSection({
       <AccountCard
         name="Certificates of Deposit (CDs)"
         description="Fixed-term, FDIC-insured savings"
+        accent="border-l-amber-400"
         balance={data.cd?.totalValue}
         onBalanceChange={(v) => update({ cd: { ...data.cd, hasCDs: true, totalValue: v } })}
       />
       <AccountCard
         name="Emergency Fund"
         description="Target months of expenses as reserve"
+        accent="border-l-amber-400"
         balance={undefined}
         contribution={undefined}
       >
@@ -542,6 +594,7 @@ function EducationSection({
       <AccountCard
         name="529 Education Savings"
         description="Tax-advantaged savings for education expenses"
+        accent="border-l-violet-400"
         balance={data.education529?.totalBalance}
         onBalanceChange={(v) => update({ education529: { ...data.education529, has529: true, totalBalance: v } })}
         contribution={data.education529?.annualContribution}
@@ -550,6 +603,7 @@ function EducationSection({
       <AccountCard
         name="Social Security Estimate"
         description="Projected government retirement benefit"
+        accent="border-l-violet-400"
         contribution={data.socialSecurity?.estimatedMonthlyBenefitFRA}
         onContributionChange={(v) => update({ socialSecurity: { ...data.socialSecurity, hasEstimate: true, estimatedMonthlyBenefitFRA: v } })}
         contributionLabel="Monthly at FRA"
@@ -557,6 +611,7 @@ function EducationSection({
       <AccountCard
         name="Systematic Investments"
         description="SIPs, recurring deposits, or regular investments"
+        accent="border-l-violet-400"
         balance={data.systematicInvestments?.currentValue}
         onBalanceChange={(v) => update({ systematicInvestments: { ...data.systematicInvestments, hasSystematicInvestments: true, currentValue: v } })}
         contribution={data.systematicInvestments?.monthlyAmount}
@@ -579,6 +634,7 @@ function InternationalSection({
       <AccountCard
         name="Funds Sent Abroad"
         description="Regular remittances or transfers to another country"
+        accent="border-l-teal-400"
         contribution={data.fundsAbroad?.monthlyAmount}
         onContributionChange={(v) => update({ fundsAbroad: { ...data.fundsAbroad, sendsFundsAbroad: true, monthlyAmount: v } })}
         contributionLabel="Monthly"
@@ -603,6 +659,7 @@ function InternationalSection({
       <AccountCard
         name="Other Income Sources"
         description="Side business, freelance, or passive income"
+        accent="border-l-teal-400"
         contribution={data.income?.otherIncome}
         onContributionChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
         contributionLabel="Annual"
@@ -666,6 +723,7 @@ export interface FinancialBgLayoutProps {
   clientNames: string;
   defaultValues?: PersonFinancialBackground;
   role: "primary" | "spouse";
+  healthScore?: FinancialHealthScore | null;
   onSubmit: (data: PersonFinancialBackground) => void | Promise<void>;
   isSubmitting?: boolean;
 }
@@ -674,6 +732,7 @@ export function FinancialBgLayout({
   clientNames,
   defaultValues,
   role,
+  healthScore,
   onSubmit,
   isSubmitting = false,
 }: FinancialBgLayoutProps) {
@@ -691,8 +750,6 @@ export function FinancialBgLayout({
     () => SUB_SECTIONS.filter((s) => isSectionComplete(s.id, data)).map((s) => s.id),
     [data]
   );
-
-  const healthScore = useMemo(() => computeHealthScore(data), [data]);
 
   const progressPercent = Math.round((completedSections.length / SUB_SECTIONS.length) * 100);
 
@@ -745,7 +802,6 @@ export function FinancialBgLayout({
 
       {showInsights ? (
         <FinancialBgInsights
-          data={data}
           healthScore={healthScore}
           onContinue={() => onSubmit(data)}
           isSubmitting={isSubmitting}
@@ -792,44 +848,52 @@ export function FinancialBgLayout({
             </div>
 
             {/* Financial Health Score */}
-            <div className="mt-6 rounded-xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-background p-4 dark:border-amber-800/40 dark:from-amber-950/20">
-              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-red-500">
-                Financial Health Score
-              </p>
-              <div className="mb-1 flex items-baseline gap-1.5">
-                <span className="text-5xl font-black leading-none">{healthScore.total}</span>
-                <span className="text-lg text-muted-foreground">/100</span>
-              </div>
-              <p className="mb-4 text-xs text-muted-foreground">
-                {healthScore.total < 30
-                  ? "Partial — more screens ahead"
-                  : healthScore.total < 60
-                    ? "Building — keep going"
-                    : "Looking strong!"}
-              </p>
-              <div className="space-y-2.5">
-                {[
-                  { label: "Retirement", value: healthScore.retirement, color: "bg-orange-400" },
-                  { label: "Education", value: healthScore.education, color: "bg-blue-400" },
-                  { label: "Tax", value: healthScore.tax, color: "bg-red-400" },
-                  { label: "Protection", value: healthScore.protection, color: "bg-green-400" },
-                  { label: "Estate", value: healthScore.estate, color: "bg-purple-400" },
-                ].map((cat) => (
-                  <div key={cat.label} className="flex items-center gap-2">
-                    <span className="w-[4.5rem] text-xs text-muted-foreground">{cat.label}</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn("h-full rounded-full transition-all", cat.color)}
-                        style={{ width: cat.value !== null ? `${(cat.value / 20) * 100}%` : "0%" }}
-                      />
-                    </div>
-                    <span className="w-10 text-right text-xs font-semibold">
-                      {cat.value !== null ? `${cat.value}/20` : "—/20"}
-                    </span>
+            {(() => {
+              const total = healthScore?.totalScore ?? 0;
+              const cats = healthScore?.categories;
+              return (
+                <div className="mt-6 rounded-xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-background p-4 dark:border-amber-800/40 dark:from-amber-950/20">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-widest text-red-500">
+                    Financial Health Score
+                  </p>
+                  <div className="mb-1 flex items-baseline gap-1.5">
+                    <span className="text-5xl font-black leading-none">{total}</span>
+                    <span className="text-lg text-muted-foreground">/{healthScore?.maxPossibleScore ?? 100}</span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    {!healthScore
+                      ? "Loading..."
+                      : total < 30
+                        ? "Partial — more screens ahead"
+                        : total < 60
+                          ? "Building — keep going"
+                          : "Looking strong!"}
+                  </p>
+                  <div className="space-y-2.5">
+                    {[
+                      { label: "Retirement", value: cats?.retirement?.score ?? 0, maxScore: cats?.retirement?.maxScore ?? 20, color: "bg-orange-400" },
+                      { label: "Education", value: cats?.education?.score ?? 0, maxScore: cats?.education?.maxScore ?? 20, color: "bg-blue-400" },
+                      { label: "Tax", value: cats?.tax?.score ?? 0, maxScore: cats?.tax?.maxScore ?? 20, color: "bg-red-400" },
+                      { label: "Protection", value: cats?.protection?.score ?? 0, maxScore: cats?.protection?.maxScore ?? 20, color: "bg-green-400" },
+                      { label: "Estate", value: cats?.estate?.score ?? 0, maxScore: cats?.estate?.maxScore ?? 20, color: "bg-purple-400" },
+                    ].map((cat) => (
+                      <div key={cat.label} className="flex items-center gap-2">
+                        <span className="w-[4.5rem] text-xs text-muted-foreground">{cat.label}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn("h-full rounded-full transition-all", cat.color)}
+                            style={{ width: cat.value !== null ? `${(cat.value / cat.maxScore) * 100}%` : "0%" }}
+                          />
+                        </div>
+                        <span className="w-10 text-right text-xs font-semibold">
+                          {cat.value !== null ? `${cat.value}/${cat.maxScore}` : `—/${cat.maxScore}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* ── Main form area ── */}

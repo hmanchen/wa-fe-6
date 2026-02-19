@@ -37,14 +37,16 @@ export function PlatformSidebar() {
   const initials = user?.email ? user.email.charAt(0).toUpperCase() : "?"
 
   return (
-    <Sidebar>
-      <SidebarHeader className="border-sidebar-border border-b px-4 py-4">
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="border-sidebar-border border-b px-4 py-3">
         <Link
           href="/dashboard"
           className="flex items-center gap-2 font-semibold text-sidebar-foreground"
         >
-          <TrendingUp className="size-6 text-primary" aria-hidden />
-          <span className="text-lg">WealthArchitect</span>
+          <TrendingUp className="size-5 shrink-0 text-primary" aria-hidden />
+          <span className="truncate text-base group-data-[collapsible=icon]:hidden">
+            WealthArchitect
+          </span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
@@ -75,18 +77,18 @@ export function PlatformSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-sidebar-border border-t p-2">
-        <div className="flex items-center gap-3 rounded-md px-2 py-2">
-          <Avatar className="size-8">
+        <div className="flex items-center gap-2 rounded-md px-2 py-1.5">
+          <Avatar className="size-7 shrink-0">
             <AvatarImage src="" alt={displayName} />
-            <AvatarFallback className="bg-primary/10 text-primary text-sm">
+            <AvatarFallback className="bg-primary/10 text-primary text-xs">
               {initials}
             </AvatarFallback>
           </Avatar>
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="text-sidebar-foreground truncate text-sm font-medium">
+          <div className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+            <span className="text-sidebar-foreground truncate text-xs font-medium">
               {displayName}
             </span>
-            <span className="text-sidebar-foreground/70 truncate text-xs">
+            <span className="text-sidebar-foreground/70 truncate text-[10px]">
               Financial Advisor
             </span>
           </div>

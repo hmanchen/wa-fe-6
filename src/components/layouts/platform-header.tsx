@@ -7,6 +7,8 @@ import { ChevronRight, Bell, LogOut, Settings } from "lucide-react"
 import { useAuth } from "@/lib/auth-provider"
 import { useCase } from "@/hooks/use-cases"
 import { Button } from "@/components/ui/button"
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,7 +85,9 @@ export function PlatformHeader() {
   const initials = getUserInitials(user?.email)
 
   return (
-    <header className="border-border flex h-14 shrink-0 items-center gap-4 border-b bg-background px-4 sm:px-6">
+    <header className="border-border flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3 sm:px-4">
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="mr-1 !h-4" />
       <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm">
         {breadcrumbs.map((crumb, i) => (
           <span key={crumb.href} className="flex items-center gap-1">

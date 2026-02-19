@@ -4,9 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getFinancialInterviewData,
   saveFinancialBackground,
+  getFinancialHealthScore,
   type FinancialInterviewPayload,
 } from "@/lib/api/financial-interview";
-import type { PersonFinancialBackground } from "@/types/financial-interview";
+import type { PersonFinancialBackground, FinancialHealthScore } from "@/types/financial-interview";
 
 export function useFinancialInterview(caseId: string | null) {
   return useQuery<FinancialInterviewPayload>({
@@ -14,6 +15,15 @@ export function useFinancialInterview(caseId: string | null) {
     queryFn: () => getFinancialInterviewData(caseId!),
     enabled: !!caseId,
     staleTime: 30_000,
+  });
+}
+
+export function useFinancialHealthScore(caseId: string | null) {
+  return useQuery<FinancialHealthScore>({
+    queryKey: ["financial-health-score", caseId],
+    queryFn: () => getFinancialHealthScore(caseId!),
+    enabled: !!caseId,
+    staleTime: 10_000,
   });
 }
 
@@ -33,6 +43,9 @@ export function useSaveFinancialBackground(caseId: string) {
         ["financial-interview", caseId],
         result
       );
+      queryClient.invalidateQueries({
+        queryKey: ["financial-health-score", caseId],
+      });
     },
   });
 }

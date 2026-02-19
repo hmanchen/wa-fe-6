@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCase } from "@/hooks/use-cases";
-import { useFinancialInterview, useSaveFinancialBackground } from "@/hooks/use-financial-interview";
+import { useFinancialInterview, useFinancialHealthScore, useSaveFinancialBackground } from "@/hooks/use-financial-interview";
 import { InterviewSectionNav } from "@/components/features/financial-interview/interview-section-nav";
 import { FinancialBgLayout } from "@/components/features/financial-interview/financial-bg-layout";
 import { IncomeReplacementScreen } from "@/components/features/financial-interview/income-replacement-screen";
@@ -36,6 +36,7 @@ export default function FinancialInterviewPage() {
   const caseId = params.caseId as string;
   const { data: caseData } = useCase(caseId);
   const { data: interviewData } = useFinancialInterview(caseId);
+  const { data: healthScore } = useFinancialHealthScore(caseId);
   const saveBackground = useSaveFinancialBackground(caseId);
 
   // ── Section-level state ──────────────────────────────────
@@ -102,9 +103,9 @@ export default function FinancialInterviewPage() {
         onClose={() => setAnnotationActive(false)}
       />
 
-      <div className="flex flex-col gap-4 p-4 sm:p-6">
+      <div className="flex flex-col gap-1 px-4 pt-0 pb-1 sm:px-6">
         {/* ── Header ── */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <Link
               href={`/cases/${caseId}`}
@@ -139,7 +140,7 @@ export default function FinancialInterviewPage() {
         {/* ── Section content ── */}
         {currentSection === "financial-background" && (
           <Tabs defaultValue="primary" className="w-full">
-            <TabsList className="mb-4 justify-start">
+            <TabsList className="mb-2 justify-start">
               <TabsTrigger value="primary" className="gap-1.5">
                 <User className="size-3.5" />
                 Primary Client
@@ -155,6 +156,7 @@ export default function FinancialInterviewPage() {
                 clientNames={clientNames}
                 defaultValues={interviewData?.primaryBackground}
                 role="primary"
+                healthScore={healthScore}
                 onSubmit={handlePrimarySave}
                 isSubmitting={saveBackground.isPending}
               />
@@ -165,6 +167,7 @@ export default function FinancialInterviewPage() {
                 clientNames={clientNames}
                 defaultValues={interviewData?.spouseBackground}
                 role="spouse"
+                healthScore={healthScore}
                 onSubmit={handleSpouseSave}
                 isSubmitting={saveBackground.isPending}
               />

@@ -208,8 +208,17 @@ export interface SocialSecurityDetails {
   qualifyingYears?: number;
 }
 
+export type EmploymentStatus = "employed" | "self-employed" | "not-working";
+
 export interface IncomeDetails {
+  employmentStatus?: EmploymentStatus;
+  /** Employer name (when employed) */
+  employerName?: string;
   annualSalary?: number;
+  /** Business / self-employment annual income */
+  businessIncome?: number;
+  /** Type of business or self-employment */
+  businessType?: string;
   otherIncome?: number;
   otherIncomeSource?: string;
   /** Bonus / commission (annual estimate) */
@@ -359,6 +368,59 @@ export interface TaxDiversificationData {
   taxNowTotal: number;
   taxNowBreakdown?: string;
   notes?: string;
+}
+
+// ── Financial Health Score (from backend) ─────────────────────
+
+export interface HealthScoreFactor {
+  label: string;
+  points: number;
+  maxPoints: number;
+  met: boolean;
+}
+
+export interface HealthScoreCategory {
+  score: number | null;
+  maxScore: number;
+  factors: HealthScoreFactor[];
+}
+
+export interface HealthScoreInsightCard {
+  title: string;
+  detail: string;
+}
+
+export interface FinancialHealthScore {
+  totalScore: number;
+  maxPossibleScore: number;
+  categories: {
+    retirement: HealthScoreCategory;
+    education: HealthScoreCategory;
+    tax: HealthScoreCategory;
+    protection: HealthScoreCategory;
+    estate: HealthScoreCategory;
+  };
+  netWorth: {
+    total: number;
+    breakdown: {
+      retirement: number;
+      investments: number;
+      savings: number;
+      realEstate: number;
+      other: number;
+    };
+  };
+  taxBuckets: {
+    taxDeferred: number;
+    taxFree: number;
+    taxable: number;
+  };
+  insights: {
+    strengths: HealthScoreInsightCard[];
+    gaps: HealthScoreInsightCard[];
+    advisorHints: string[];
+    summary: string;
+  };
 }
 
 // ── Top-level Financial Interview Data ───────────────────────

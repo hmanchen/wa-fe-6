@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import type { ApiResponse } from "@/types";
-import type { PersonFinancialBackground } from "@/types/financial-interview";
+import type { PersonFinancialBackground, FinancialHealthScore } from "@/types/financial-interview";
 
 /**
  * Financial interview data is persisted via the discovery endpoint's
@@ -108,4 +108,15 @@ export async function saveFinancialBackground(
       ? deepConvertKeys(fp.spouse_background, toCamelCase)
       : undefined,
   };
+}
+
+export async function getFinancialHealthScore(
+  caseId: string
+): Promise<FinancialHealthScore> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await apiClient.get<ApiResponse<any>>(
+    `/cases/${caseId}/financial-health-score/`
+  );
+  const raw = data?.data ?? data;
+  return deepConvertKeys(raw, toCamelCase) as FinancialHealthScore;
 }
