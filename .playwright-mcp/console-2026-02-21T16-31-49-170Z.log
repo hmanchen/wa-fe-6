@@ -1,0 +1,32 @@
+[   18081ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://ggrwjykdikrakwiiwfgb.supabase.co/auth/v1/token?grant_type=password:0
+[  180472ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://ggrwjykdikrakwiiwfgb.supabase.co/auth/v1/token?grant_type=password:0
+[  185060ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  185063ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[ 1611460ms] [ERROR] ./src/components/features/financial-interview/financial-bg-layout.tsx:1286:8
+Parsing ecmascript source code failed
+  1284 |           </div>
+  1285 |         </div>
+> 1286 |       )}
+       |        ^
+  1287 |     </div>
+  1288 |   );
+  1289 | }
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+
+Import traces:
+  Client Component Browser:
+    ./src/components/features/financial-interview/financial-bg-layout.tsx [Client Component Browser]
+    ./src/app/(platform)/cases/[caseId]/financial-interview/page.tsx [Client Component Browser]
+    ./src/app/(platform)/cases/[caseId]/financial-interview/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/features/financial-interview/financial-bg-layout.tsx [Client Component SSR]
+    ./src/app/(platform)/cases/[caseId]/financial-interview/page.tsx [Client Component SSR]
+    ./src/app/(platform)/cases/[caseId]/financial-interview/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:3127

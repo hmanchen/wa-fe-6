@@ -210,9 +210,28 @@ export interface SocialSecurityDetails {
 
 export type EmploymentStatus = "employed" | "self-employed" | "not-working";
 
+export type IncomeSourceType = "employer" | "business" | "side-hustle";
+
+export interface IncomeSource {
+  id: string;
+  type: IncomeSourceType;
+  isCurrent: boolean;
+  /** Employer / business / gig name */
+  name?: string;
+  annualIncome?: number;
+  annualBonus?: number;
+  frequency?: "weekly" | "biweekly" | "semi-monthly" | "monthly" | "annual";
+  /** For business / side hustle */
+  businessType?: string;
+  /** Years at this job/business */
+  yearsAtJob?: number;
+  /** Has a 401k at this employer (links to retirement) */
+  has401k?: boolean;
+}
+
 export interface IncomeDetails {
   employmentStatus?: EmploymentStatus;
-  /** Employer name (when employed) */
+  /** Employer name (when employed) — kept for backward compat */
   employerName?: string;
   annualSalary?: number;
   /** Business / self-employment annual income */
@@ -224,6 +243,8 @@ export interface IncomeDetails {
   /** Bonus / commission (annual estimate) */
   annualBonus?: number;
   incomeFrequency?: "weekly" | "biweekly" | "semi-monthly" | "monthly" | "annual";
+  /** Multiple income sources (employers, businesses, side hustles) */
+  incomeSources?: IncomeSource[];
 }
 
 export interface MonthlyExpensesDetails {
@@ -239,6 +260,13 @@ export interface MonthlyExpensesDetails {
   otherExpenses?: number;
 }
 
+export interface Previous401k {
+  id: string;
+  employerName?: string;
+  balance?: number;
+  action?: "rolled-over" | "left-with-employer" | "cashed-out" | "converted-to-roth";
+}
+
 export interface Retirement401kDetails {
   has401k: boolean;
   /** Current employer plan */
@@ -250,6 +278,29 @@ export interface Retirement401kDetails {
   hasOld401k?: boolean;
   old401kBalance?: number;
   old401kAction?: "rolled-over" | "left-with-employer" | "cashed-out" | "converted-to-roth";
+  /** Multiple previous 401(k) accounts */
+  previous401ks?: Previous401k[];
+}
+
+export type DebtType =
+  | "mortgage"
+  | "auto-loan"
+  | "student-loan"
+  | "credit-card"
+  | "personal-loan"
+  | "heloc"
+  | "medical-debt"
+  | "tax-debt"
+  | "business-loan"
+  | "other";
+
+export interface DebtEntry {
+  id: string;
+  type: DebtType;
+  description?: string;
+  balance?: number;
+  monthlyPayment?: number;
+  interestRate?: number;
 }
 
 export interface DebtsLiabilities {
@@ -269,6 +320,8 @@ export interface DebtsLiabilities {
   otherLoanBalance?: number;
   otherLoanMonthlyPayment?: number;
   otherLoanDescription?: string;
+  /** Dynamic debt entries */
+  entries?: DebtEntry[];
 }
 
 export interface LifeInsuranceCoverage {

@@ -11,8 +11,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  FileText,
-  BarChart3,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,9 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore } from "@/types/financial-interview";
-import { FinancialBgInsights } from "./financial-bg-insights";
+import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore, IncomeSource, IncomeSourceType, Previous401k, DebtEntry, DebtType } from "@/types/financial-interview";
 
 // ── Sub-section definitions ──────────────────────────────────
 
@@ -162,8 +167,11 @@ function CurrencyField({
 
 function isSectionComplete(section: SubSection, data: PersonFinancialBackground): boolean {
   switch (section) {
-    case "employment":
-      return (data.income?.annualSalary ?? 0) > 0 || (data.income?.businessIncome ?? 0) > 0 || (data.income?.otherIncome ?? 0) > 0;
+    case "employment": {
+      const hasSourceIncome = (data.income?.incomeSources ?? []).some((s) => (s.annualIncome ?? 0) > 0);
+      const hasLegacyIncome = (data.income?.annualSalary ?? 0) > 0 || (data.income?.businessIncome ?? 0) > 0 || (data.income?.otherIncome ?? 0) > 0;
+      return hasSourceIncome || hasLegacyIncome;
+    }
     case "retirement":
       return !!(
         data.retirement401k?.currentBalance ||
@@ -180,13 +188,11 @@ function isSectionComplete(section: SubSection, data: PersonFinancialBackground)
       );
     case "realEstate":
       return !!(data.realEstate?.primaryHomeEquity);
-    case "debts":
-      return !!(
-        data.debts?.mortgageBalance ||
-        data.debts?.autoLoanBalance ||
-        data.debts?.studentLoanBalance ||
-        data.debts?.creditCardBalance
-      );
+    case "debts": {
+      const hasEntries = (data.debts?.entries ?? []).some((e) => (e.balance ?? 0) > 0);
+      const hasLegacyDebts = !!(data.debts?.mortgageBalance || data.debts?.autoLoanBalance || data.debts?.studentLoanBalance || data.debts?.creditCardBalance);
+      return hasEntries || hasLegacyDebts;
+    }
     case "expenses":
       return !!(data.monthlyExpenses?.housing);
     default:
@@ -202,6 +208,123 @@ const STATUS_OPTIONS: { value: EmploymentStatus; label: string; desc: string; co
   { value: "not-working", label: "Not Working", desc: "Homemaker, retired, or other", color: "border-slate-400 bg-slate-50 text-slate-600 dark:bg-slate-900/30 dark:text-slate-300" },
 ];
 
+const SOURCE_TYPE_META: Record<IncomeSourceType, { label: string; desc: string; accent: string; icon: string }> = {
+  employer: { label: "Employer", desc: "W-2 employment", accent: "border-l-emerald-400", icon: "💼" },
+  business: { label: "Business / Self-Employed", desc: "1099, LLC, freelance", accent: "border-l-blue-400", icon: "🏢" },
+  "side-hustle": { label: "Side Hustle / Gig", desc: "Uber, Lyft, DoorDash, etc.", accent: "border-l-amber-400", icon: "🚗" },
+};
+
+function makeSourceId() {
+  return `src_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function IncomeSourceCard({
+  source,
+  index,
+  onUpdate,
+  onRemove,
+}: {
+  source: IncomeSource;
+  index: number;
+  onUpdate: (patch: Partial<IncomeSource>) => void;
+  onRemove: () => void;
+}) {
+  const meta = SOURCE_TYPE_META[source.type];
+  return (
+    <div className={cn("rounded-lg border bg-card shadow-sm", meta.accent, "border-l-4")}>
+      <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{meta.icon}</span>
+          <span className="text-xs font-semibold">
+            {source.name || `${meta.label} ${index + 1}`}
+          </span>
+          {source.isCurrent && (
+            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+              Current
+            </span>
+          )}
+          {!source.isCurrent && (
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              Previous
+            </span>
+          )}
+        </div>
+        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-1">
+          <Label className="text-xs">{source.type === "employer" ? "Employer name" : "Business / Gig name"}</Label>
+          <Input className="h-8 text-sm" placeholder={source.type === "employer" ? "e.g. Google" : source.type === "business" ? "e.g. ABC Consulting" : "e.g. Uber"}
+            value={source.name ?? ""}
+            onChange={(e) => onUpdate({ name: e.target.value })}
+          />
+        </div>
+        <CurrencyField
+          label={source.type === "employer" ? "Annual Salary" : "Annual Income"}
+          value={source.annualIncome}
+          onChange={(v) => onUpdate({ annualIncome: v })}
+        />
+        <CurrencyField
+          label="Bonus / Commission"
+          value={source.annualBonus}
+          onChange={(v) => onUpdate({ annualBonus: v })}
+        />
+        <div className="space-y-1">
+          <Label className="text-xs">Pay frequency</Label>
+          <Select value={source.frequency ?? ""} onValueChange={(v) => onUpdate({ frequency: v as IncomeSource["frequency"] })}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="biweekly">Bi-weekly</SelectItem>
+              <SelectItem value="semi-monthly">Semi-monthly</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="annual">Annual</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {source.type !== "employer" && (
+          <div className="space-y-1">
+            <Label className="text-xs">{source.type === "business" ? "Business type" : "Gig / hustle type"}</Label>
+            <Input className="h-8 text-sm" placeholder={source.type === "business" ? "e.g. Consulting, Retail" : "e.g. Rideshare, Delivery"}
+              value={source.businessType ?? ""}
+              onChange={(e) => onUpdate({ businessType: e.target.value })}
+            />
+          </div>
+        )}
+        <div className="space-y-1">
+          <Label className="text-xs">Years at this job</Label>
+          <Input className="h-8 text-sm" type="number" min={0} placeholder="0"
+            value={source.yearsAtJob ?? ""}
+            onChange={(e) => onUpdate({ yearsAtJob: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </div>
+        <div className="flex items-end pb-1">
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" className="h-3.5 w-3.5 rounded accent-emerald-600"
+              checked={source.isCurrent}
+              onChange={(e) => onUpdate({ isCurrent: e.target.checked })}
+            />
+            Currently active
+          </label>
+        </div>
+        {source.type === "employer" && (
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <input type="checkbox" className="h-3.5 w-3.5 rounded accent-blue-600"
+                checked={source.has401k ?? false}
+                onChange={(e) => onUpdate({ has401k: e.target.checked })}
+              />
+              Has 401(k) here
+            </label>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EmploymentSection({
   data,
   update,
@@ -210,12 +333,46 @@ function EmploymentSection({
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
   const status = data.income?.employmentStatus ?? "employed";
+  const sources: IncomeSource[] = data.income?.incomeSources ?? [];
+
+  const updateSources = useCallback(
+    (newSources: IncomeSource[]) => {
+      update({ income: { ...data.income, incomeSources: newSources } });
+    },
+    [data.income, update]
+  );
+
+  const addSource = useCallback(
+    (type: IncomeSourceType) => {
+      updateSources([...sources, { id: makeSourceId(), type, isCurrent: true, name: "" }]);
+    },
+    [sources, updateSources]
+  );
+
+  const updateSource = useCallback(
+    (idx: number, patch: Partial<IncomeSource>) => {
+      const next = sources.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+      updateSources(next);
+    },
+    [sources, updateSources]
+  );
+
+  const removeSource = useCallback(
+    (idx: number) => {
+      updateSources(sources.filter((_, i) => i !== idx));
+    },
+    [sources, updateSources]
+  );
+
+  const totalIncome = useMemo(() => {
+    return sources.reduce((sum, s) => sum + (s.annualIncome ?? 0) + (s.annualBonus ?? 0), 0) + (data.income?.otherIncome ?? 0);
+  }, [sources, data.income?.otherIncome]);
 
   return (
     <div className="space-y-4">
       {/* Employment status selector */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium">Employment status</Label>
+        <Label className="text-xs font-medium">Primary employment status</Label>
         <div className="grid gap-2 sm:grid-cols-3">
           {STATUS_OPTIONS.map((opt) => (
             <button
@@ -236,113 +393,90 @@ function EmploymentSection({
         </div>
       </div>
 
-      {/* Employed — salary fields */}
-      {status === "employed" && (
-        <AccountCard
-          name="Annual Salary"
-          description="Primary employment income (before taxes)"
-          accent="border-l-emerald-400"
-          balance={data.income?.annualSalary}
-          onBalanceChange={(v) => update({ income: { ...data.income, annualSalary: v } })}
-          contribution={data.income?.annualBonus}
-          onContributionChange={(v) => update({ income: { ...data.income, annualBonus: v } })}
-          contributionLabel="Bonus / Comm."
-        >
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Employer name</Label>
-              <Input className="h-8 text-sm" placeholder="e.g. Google"
-                value={data.income?.employerName ?? ""}
-                onChange={(e) => update({ income: { ...data.income, employerName: e.target.value } })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Pay frequency</Label>
-              <Select
-                value={data.income?.incomeFrequency ?? ""}
-                onValueChange={(v) =>
-                  update({ income: { ...data.income, incomeFrequency: v as PersonFinancialBackground["income"]["incomeFrequency"] } })
-                }
-              >
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="biweekly">Bi-weekly</SelectItem>
-                  <SelectItem value="semi-monthly">Semi-monthly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="annual">Annual</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <CurrencyField
-              label="Other income (annual)"
-              value={data.income?.otherIncome}
-              onChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
+      {/* Income sources list */}
+      {sources.length > 0 && (
+        <div className="space-y-2">
+          {sources.map((src, idx) => (
+            <IncomeSourceCard
+              key={src.id}
+              source={src}
+              index={idx}
+              onUpdate={(patch) => updateSource(idx, patch)}
+              onRemove={() => removeSource(idx)}
             />
-          </div>
-        </AccountCard>
+          ))}
+        </div>
       )}
 
-      {/* Self-employed — business income fields */}
-      {status === "self-employed" && (
-        <AccountCard
-          name="Business / Self-Employment Income"
-          description="Annual income from business, freelance, or consulting"
-          accent="border-l-blue-400"
-          balance={data.income?.businessIncome}
-          onBalanceChange={(v) => update({ income: { ...data.income, businessIncome: v } })}
+      {/* Add source buttons — contextual based on employment status */}
+      <div className="flex flex-wrap gap-2">
+        {status === "employed" && (
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+            onClick={() => addSource("employer")}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Employer
+          </Button>
+        )}
+        {status === "self-employed" && (
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950/30"
+            onClick={() => addSource("business")}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Business
+          </Button>
+        )}
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/30"
+          onClick={() => addSource("side-hustle")}
         >
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Business type</Label>
-              <Input className="h-8 text-sm" placeholder="e.g. Consulting, Retail"
-                value={data.income?.businessType ?? ""}
-                onChange={(e) => update({ income: { ...data.income, businessType: e.target.value } })}
-              />
-            </div>
-            <CurrencyField
-              label="Bonus / Commission"
-              value={data.income?.annualBonus}
-              onChange={(v) => update({ income: { ...data.income, annualBonus: v } })}
-            />
-            <CurrencyField
-              label="Other income (annual)"
-              value={data.income?.otherIncome}
-              onChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
+          <Plus className="h-3.5 w-3.5" /> Add Side Hustle
+        </Button>
+      </div>
+
+      {/* Other passive income */}
+      <div className="rounded-lg border bg-card p-3 shadow-sm">
+        <p className="mb-2 text-xs font-semibold text-muted-foreground">Additional Passive / Other Income</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <CurrencyField
+            label="Other income (annual)"
+            value={data.income?.otherIncome}
+            onChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
+          />
+          <div className="space-y-1">
+            <Label className="text-xs">Source description</Label>
+            <Input className="h-8 text-sm" placeholder="e.g. Rental income, Pension, Alimony"
+              value={data.income?.otherIncomeSource ?? ""}
+              onChange={(e) => update({ income: { ...data.income, otherIncomeSource: e.target.value } })}
             />
           </div>
-        </AccountCard>
-      )}
-
-      {/* Not working — other income only */}
-      {status === "not-working" && (
-        <AccountCard
-          name="Other Income Sources"
-          description="Rental, pension, alimony, family support, or any other income"
-          accent="border-l-slate-400"
-          balance={data.income?.otherIncome}
-          onBalanceChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Source of income</Label>
-              <Input className="h-8 text-sm" placeholder="e.g. Rental income, Pension"
-                value={data.income?.otherIncomeSource ?? ""}
-                onChange={(e) => update({ income: { ...data.income, otherIncomeSource: e.target.value } })}
-              />
+          <div className="flex items-end">
+            <div className="rounded-md bg-muted/60 px-3 py-1.5">
+              <p className="text-[10px] text-muted-foreground">Total combined income</p>
+              <p className="text-sm font-bold text-foreground">${totalIncome.toLocaleString()}</p>
             </div>
-            <CurrencyField
-              label="Bonus / One-time income"
-              value={data.income?.annualBonus}
-              onChange={(v) => update({ income: { ...data.income, annualBonus: v } })}
-            />
           </div>
-        </AccountCard>
-      )}
+        </div>
+      </div>
 
+      {sources.length === 0 && (
+        <p className="text-center text-xs text-muted-foreground py-3">
+          {status === "employed" && "Click above to add your employer(s) and any side hustles."}
+          {status === "self-employed" && "Click above to add your business(es) and any side hustles."}
+          {status === "not-working" && "Click above to add any side hustles or gig work."}
+        </p>
+      )}
     </div>
   );
 }
+
+function makePrev401kId() {
+  return `p401k_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  "rolled-over": "Rolled over to IRA",
+  "left-with-employer": "Left with former employer",
+  "cashed-out": "Cashed out",
+  "converted-to-roth": "Converted to Roth",
+};
 
 function RetirementSection({
   data,
@@ -351,16 +485,47 @@ function RetirementSection({
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
+  const prev401ks: Previous401k[] = data.retirement401k?.previous401ks ?? [];
+
+  const updatePrev401ks = useCallback(
+    (next: Previous401k[]) => {
+      update({ retirement401k: { ...data.retirement401k, has401k: true, previous401ks: next } });
+    },
+    [data.retirement401k, update]
+  );
+
+  const addPrev401k = useCallback(() => {
+    updatePrev401ks([...prev401ks, { id: makePrev401kId() }]);
+  }, [prev401ks, updatePrev401ks]);
+
+  const updateOnePrev = useCallback(
+    (idx: number, patch: Partial<Previous401k>) => {
+      updatePrev401ks(prev401ks.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+    },
+    [prev401ks, updatePrev401ks]
+  );
+
+  const removePrev = useCallback(
+    (idx: number) => {
+      updatePrev401ks(prev401ks.filter((_, i) => i !== idx));
+    },
+    [prev401ks, updatePrev401ks]
+  );
+
+  const totalPrevBalance = useMemo(
+    () => prev401ks.reduce((s, p) => s + (p.balance ?? 0), 0),
+    [prev401ks]
+  );
+
   return (
     <div className="space-y-3">
-      {/* 401(k), Traditional IRA & Roth IRA — grouped */}
+      {/* Current 401(k), Traditional IRA & Roth IRA — grouped */}
       <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-indigo-400")}>
         <div className="mb-3">
-          <p className="text-sm font-semibold">401(k) / IRA / Roth IRA</p>
-          <p className="text-xs text-muted-foreground">Core retirement accounts — enter balances and contributions</p>
+          <p className="text-sm font-semibold">Current 401(k) / IRA / Roth IRA</p>
+          <p className="text-xs text-muted-foreground">Active retirement accounts with current employer</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          {/* 401(k) */}
           <div className="space-y-2 rounded-lg bg-muted/30 p-3">
             <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">401(k)</p>
             <CurrencyField
@@ -382,7 +547,6 @@ function RetirementSection({
               }}
             />
           </div>
-          {/* Traditional IRA */}
           <div className="space-y-2 rounded-lg bg-muted/30 p-3">
             <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Traditional IRA</p>
             <CurrencyField
@@ -396,7 +560,6 @@ function RetirementSection({
               onChange={(v) => update({ ira: { ...data.ira, hasIRA: true, annualContribution: v } })}
             />
           </div>
-          {/* Roth IRA */}
           <div className="space-y-2 rounded-lg bg-muted/30 p-3">
             <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Roth IRA</p>
             <CurrencyField
@@ -412,6 +575,70 @@ function RetirementSection({
           </div>
         </div>
       </div>
+
+      {/* Previous 401(k)s from prior employers */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-amber-400")}>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">Previous 401(k) Accounts</p>
+            <p className="text-xs text-muted-foreground">
+              401(k) plans from prior employers
+              {totalPrevBalance > 0 && (
+                <span className="ml-2 font-medium text-amber-600 dark:text-amber-400">
+                  — Total: ${totalPrevBalance.toLocaleString()}
+                </span>
+              )}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/30"
+            onClick={addPrev401k}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Previous 401(k)
+          </Button>
+        </div>
+
+        {prev401ks.length === 0 ? (
+          <p className="py-3 text-center text-xs text-muted-foreground">
+            No previous 401(k) accounts added. Click above to add one.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {prev401ks.map((p, idx) => (
+              <div key={p.id} className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
+                <div className="flex-1 grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Former employer</Label>
+                    <Input className="h-8 text-sm" placeholder="e.g. Amazon"
+                      value={p.employerName ?? ""}
+                      onChange={(e) => updateOnePrev(idx, { employerName: e.target.value })}
+                    />
+                  </div>
+                  <CurrencyField
+                    label="Balance"
+                    value={p.balance}
+                    onChange={(v) => updateOnePrev(idx, { balance: v })}
+                  />
+                  <div className="space-y-1">
+                    <Label className="text-xs">What did you do with it?</Label>
+                    <Select value={p.action ?? ""} onValueChange={(v) => updateOnePrev(idx, { action: v as Previous401k["action"] })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select action" /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(ACTION_LABELS).map(([val, lbl]) => (
+                          <SelectItem key={val} value={val}>{lbl}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" className="mt-5 h-7 w-7 text-muted-foreground hover:text-destructive shrink-0" onClick={() => removePrev(idx)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <AccountCard
         name="Pension / Defined Benefit"
         description="Employer-sponsored guaranteed income"
@@ -443,90 +670,69 @@ function InvestmentsSection({
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <AccountCard
-        name="Brokerage Account"
-        description="Taxable investment account (stocks, ETFs, mutual funds)"
-        accent="border-l-emerald-500"
-        balance={data.brokerage?.currentValue}
-        onBalanceChange={(v) => update({ brokerage: { ...data.brokerage, hasBrokerage: true, currentValue: v } })}
-      />
-      <AccountCard
-        name="Bond Holdings"
-        description="Municipal, Treasury, Corporate bonds & bond funds"
-        accent="border-l-emerald-500"
-        balance={(() => {
-          const b = data.bonds;
-          return b ? (b.municipalBondValue ?? 0) + (b.treasuryBondValue ?? 0) +
-            (b.corporateBondValue ?? 0) + (b.bondFundValue ?? 0) || undefined : undefined;
-        })()}
-        onBalanceChange={(v) => update({ bonds: { ...data.bonds, hasBonds: true, municipalBondValue: v } })}
-      />
-      <AccountCard
-        name="Annuities"
-        description="Insurance-based investment / income products"
-        accent="border-l-emerald-500"
-        balance={data.annuity?.currentValue}
-        onBalanceChange={(v) => update({ annuity: { ...data.annuity, hasAnnuity: true, currentValue: v } })}
-      />
-      <AccountCard
-        name="Stock Options / RSUs / ESPP"
-        description="Employer equity compensation"
-        accent="border-l-emerald-500"
-        balance={(() => {
-          const e = data.equityCompensation;
-          return e ? (e.vestedOptionsValue ?? 0) + (e.vestedRSUValue ?? 0) || undefined : undefined;
-        })()}
-        onBalanceChange={(v) => update({ equityCompensation: { ...data.equityCompensation, hasEquityComp: true, vestedRSUValue: v } })}
-      />
-      <AccountCard
-        name="Cryptocurrency"
-        description="Bitcoin, Ethereum & digital assets"
-        accent="border-l-emerald-500"
-        balance={data.crypto?.totalValue}
-        onBalanceChange={(v) => update({ crypto: { ...data.crypto, hasCrypto: true, totalValue: v } })}
-      />
-      <AccountCard
-        name="Cash on Hand"
-        description="Checking & savings account balances"
-        accent="border-l-amber-400"
-        balance={(data.cashOnHand?.checkingBalance ?? 0) + (data.cashOnHand?.savingsBalance ?? 0) || undefined}
-        onBalanceChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, checkingBalance: v } })}
-      >
-        <div className="grid gap-3 sm:grid-cols-3">
+    <div className="space-y-4">
+      {/* Investment Accounts — compact 2-col grid */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-emerald-500")}>
+        <div className="mb-3">
+          <p className="text-sm font-semibold">Investment Accounts</p>
+          <p className="text-xs text-muted-foreground">Brokerage, bonds, annuities, equity compensation & crypto</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <CurrencyField label="Brokerage" value={data.brokerage?.currentValue}
+            onChange={(v) => update({ brokerage: { ...data.brokerage, hasBrokerage: true, currentValue: v } })} />
+          <CurrencyField label="Bond Holdings" value={(() => {
+            const b = data.bonds;
+            return b ? (b.municipalBondValue ?? 0) + (b.treasuryBondValue ?? 0) + (b.corporateBondValue ?? 0) + (b.bondFundValue ?? 0) || undefined : undefined;
+          })()}
+            onChange={(v) => update({ bonds: { ...data.bonds, hasBonds: true, municipalBondValue: v } })} />
+          <CurrencyField label="Annuities" value={data.annuity?.currentValue}
+            onChange={(v) => update({ annuity: { ...data.annuity, hasAnnuity: true, currentValue: v } })} />
+          <CurrencyField label="RSUs / Stock Options" value={(() => {
+            const e = data.equityCompensation;
+            return e ? (e.vestedOptionsValue ?? 0) + (e.vestedRSUValue ?? 0) || undefined : undefined;
+          })()}
+            onChange={(v) => update({ equityCompensation: { ...data.equityCompensation, hasEquityComp: true, vestedRSUValue: v } })} />
+          <CurrencyField label="Cryptocurrency" value={data.crypto?.totalValue}
+            onChange={(v) => update({ crypto: { ...data.crypto, hasCrypto: true, totalValue: v } })} />
+        </div>
+      </div>
+
+      {/* Cash & Savings — compact 2-col grid */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-amber-400")}>
+        <div className="mb-3">
+          <p className="text-sm font-semibold">Cash & Savings</p>
+          <p className="text-xs text-muted-foreground">Checking, savings, HSA, CDs, 529, and emergency fund</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <CurrencyField label="Checking" value={data.cashOnHand?.checkingBalance}
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, checkingBalance: v } })} />
           <CurrencyField label="Savings" value={data.cashOnHand?.savingsBalance}
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, savingsBalance: v } })} />
+          <CurrencyField label="HSA" value={data.hsa?.currentBalance}
+            onChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })} />
+          <CurrencyField label="CDs" value={data.cd?.totalValue}
+            onChange={(v) => update({ cd: { ...data.cd, hasCDs: true, totalValue: v } })} />
+          <CurrencyField label="529 Education" value={data.education529?.totalBalance}
+            onChange={(v) => update({ education529: { ...data.education529, has529: true, totalBalance: v } })} />
           <CurrencyField label="Emergency Fund (months)" value={data.cashOnHand?.emergencyFundMonths}
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, emergencyFundMonths: v } })}
             placeholder="e.g. 6" />
         </div>
-      </AccountCard>
-      <AccountCard
-        name="HSA / CDs / 529"
-        description="Health savings, certificates of deposit, education savings"
-        accent="border-l-amber-400"
-        balance={(data.hsa?.currentBalance ?? 0) + (data.cd?.totalValue ?? 0) + (data.education529?.totalBalance ?? 0) || undefined}
-        onBalanceChange={() => {}}
-      >
-        <div className="grid gap-3 sm:grid-cols-3">
-          <CurrencyField label="HSA Balance" value={data.hsa?.currentBalance}
-            onChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })} />
-          <CurrencyField label="CDs Total" value={data.cd?.totalValue}
-            onChange={(v) => update({ cd: { ...data.cd, hasCDs: true, totalValue: v } })} />
-          <CurrencyField label="529 Balance" value={data.education529?.totalBalance}
-            onChange={(v) => update({ education529: { ...data.education529, has529: true, totalBalance: v } })} />
+      </div>
+
+      {/* Social Security — single inline row */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-violet-400")}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold">Social Security Estimate</p>
+            <p className="text-xs text-muted-foreground">Projected monthly benefit at full retirement age</p>
+          </div>
+          <div className="w-40">
+            <CurrencyField label="Monthly at FRA" value={data.socialSecurity?.estimatedMonthlyBenefitFRA}
+              onChange={(v) => update({ socialSecurity: { ...data.socialSecurity, hasEstimate: true, estimatedMonthlyBenefitFRA: v } })} />
+          </div>
         </div>
-      </AccountCard>
-      <AccountCard
-        name="Social Security Estimate"
-        description="Projected government retirement benefit"
-        accent="border-l-violet-400"
-        contribution={data.socialSecurity?.estimatedMonthlyBenefitFRA}
-        onContributionChange={(v) => update({ socialSecurity: { ...data.socialSecurity, hasEstimate: true, estimatedMonthlyBenefitFRA: v } })}
-        contributionLabel="Monthly at FRA"
-      />
+      </div>
     </div>
   );
 }
@@ -573,6 +779,23 @@ function RealEstateSection({
   );
 }
 
+const DEBT_TYPE_META: Record<DebtType, { label: string; icon: string }> = {
+  mortgage: { label: "Mortgage", icon: "🏠" },
+  "auto-loan": { label: "Auto Loan", icon: "🚗" },
+  "student-loan": { label: "Student Loan", icon: "🎓" },
+  "credit-card": { label: "Credit Card", icon: "💳" },
+  "personal-loan": { label: "Personal Loan", icon: "💰" },
+  heloc: { label: "HELOC", icon: "🏡" },
+  "medical-debt": { label: "Medical Debt", icon: "🏥" },
+  "tax-debt": { label: "Tax Debt", icon: "🏛️" },
+  "business-loan": { label: "Business Loan", icon: "🏢" },
+  other: { label: "Other", icon: "📋" },
+};
+
+function makeDebtId() {
+  return `debt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
 function DebtsSection({
   data,
   update,
@@ -580,66 +803,148 @@ function DebtsSection({
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
+  const entries: DebtEntry[] = data.debts?.entries ?? [];
+
+  const updateEntries = useCallback(
+    (next: DebtEntry[]) => {
+      update({ debts: { ...data.debts, entries: next } });
+    },
+    [data.debts, update]
+  );
+
+  const addDebt = useCallback(
+    (type: DebtType) => {
+      updateEntries([...entries, { id: makeDebtId(), type }]);
+    },
+    [entries, updateEntries]
+  );
+
+  const updateOne = useCallback(
+    (idx: number, patch: Partial<DebtEntry>) => {
+      updateEntries(entries.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
+    },
+    [entries, updateEntries]
+  );
+
+  const removeOne = useCallback(
+    (idx: number) => {
+      updateEntries(entries.filter((_, i) => i !== idx));
+    },
+    [entries, updateEntries]
+  );
+
+  const totalBalance = useMemo(() => entries.reduce((s, e) => s + (e.balance ?? 0), 0), [entries]);
+  const totalPayment = useMemo(() => entries.reduce((s, e) => s + (e.monthlyPayment ?? 0), 0), [entries]);
+
+  const usedTypes = useMemo(() => new Set(entries.map((e) => e.type)), [entries]);
+
   return (
-    <div className="space-y-3">
-      <AccountCard
-        name="Mortgage"
-        description="Primary home mortgage balance"
-        accent="border-l-red-400"
-        balance={data.debts?.mortgageBalance}
-        onBalanceChange={(v) => update({ debts: { ...data.debts, mortgageBalance: v } })}
-        contribution={data.debts?.mortgageMonthlyPayment}
-        onContributionChange={(v) => update({ debts: { ...data.debts, mortgageMonthlyPayment: v } })}
-        contributionLabel="Monthly Payment"
-      />
-      <AccountCard
-        name="Auto Loans"
-        description="Car payments and vehicle financing"
-        accent="border-l-red-400"
-        balance={data.debts?.autoLoanBalance}
-        onBalanceChange={(v) => update({ debts: { ...data.debts, autoLoanBalance: v } })}
-        contribution={data.debts?.autoLoanMonthlyPayment}
-        onContributionChange={(v) => update({ debts: { ...data.debts, autoLoanMonthlyPayment: v } })}
-        contributionLabel="Monthly Payment"
-      />
-      <AccountCard
-        name="Student Loans"
-        description="Federal and private student loan debt"
-        accent="border-l-red-400"
-        balance={data.debts?.studentLoanBalance}
-        onBalanceChange={(v) => update({ debts: { ...data.debts, studentLoanBalance: v } })}
-        contribution={data.debts?.studentLoanMonthlyPayment}
-        onContributionChange={(v) => update({ debts: { ...data.debts, studentLoanMonthlyPayment: v } })}
-        contributionLabel="Monthly Payment"
-      />
-      <AccountCard
-        name="Credit Card Debt"
-        description="Outstanding revolving credit balances"
-        accent="border-l-red-400"
-        balance={data.debts?.creditCardBalance}
-        onBalanceChange={(v) => update({ debts: { ...data.debts, creditCardBalance: v } })}
-        contribution={data.debts?.creditCardMinPayment}
-        onContributionChange={(v) => update({ debts: { ...data.debts, creditCardMinPayment: v } })}
-        contributionLabel="Min Payment"
-      />
-      <AccountCard
-        name="Other Loans"
-        description="Personal loans, HELOC, or other debts"
-        accent="border-l-red-400"
-        balance={data.debts?.otherLoanBalance}
-        onBalanceChange={(v) => update({ debts: { ...data.debts, otherLoanBalance: v } })}
-        contribution={data.debts?.otherLoanMonthlyPayment}
-        onContributionChange={(v) => update({ debts: { ...data.debts, otherLoanMonthlyPayment: v } })}
-        contributionLabel="Monthly Payment"
-      >
-        <div className="space-y-1">
-          <Label className="text-xs">Description</Label>
-          <Input className="h-8 text-sm" placeholder="e.g. HELOC, Personal loan"
-            value={data.debts?.otherLoanDescription ?? ""}
-            onChange={(e) => update({ debts: { ...data.debts, otherLoanDescription: e.target.value } })}
-          />
+    <div className="space-y-4">
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-red-400")}>
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <p className="text-sm font-semibold">Debts & Liabilities</p>
+            <p className="text-xs text-muted-foreground">Select debt types and enter balances</p>
+          </div>
+          {entries.length > 0 && (
+            <div className="text-right">
+              <p className="text-[10px] text-muted-foreground">Total debt</p>
+              <p className="text-sm font-bold text-red-600 dark:text-red-400">${totalBalance.toLocaleString()}</p>
+            </div>
+          )}
         </div>
-      </AccountCard>
+
+        {/* Add debt dropdown */}
+        <div className="mb-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-9 w-full justify-start gap-2 border-dashed border-red-200 text-sm text-muted-foreground hover:border-red-400 hover:bg-red-50/50 dark:border-red-800 dark:hover:border-red-600 dark:hover:bg-red-950/20">
+                <Plus className="h-3.5 w-3.5" />
+                Add a debt...
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              {(Object.entries(DEBT_TYPE_META) as [DebtType, { label: string; icon: string }][]).map(
+                ([type, meta]) => {
+                  const alreadyAdded = usedTypes.has(type) && type !== "credit-card" && type !== "other";
+                  return (
+                    <DropdownMenuItem
+                      key={type}
+                      disabled={alreadyAdded}
+                      onClick={() => addDebt(type)}
+                      className="gap-2"
+                    >
+                      <span>{meta.icon}</span>
+                      <span>{meta.label}</span>
+                      {alreadyAdded && (
+                        <span className="ml-auto text-[10px] text-muted-foreground">(added)</span>
+                      )}
+                    </DropdownMenuItem>
+                  );
+                }
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Debt entries */}
+        {entries.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            No debts added yet. Use the dropdown above to add a debt type.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {/* Header row */}
+            <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2rem] gap-3 px-3 sm:grid">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Debt Type</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Balance</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Monthly Payment</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Interest Rate</span>
+              <span />
+            </div>
+
+            {entries.map((entry, idx) => {
+              const meta = DEBT_TYPE_META[entry.type];
+              return (
+                <div key={entry.id} className="grid items-center gap-3 rounded-lg border bg-muted/10 px-3 py-2.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2rem]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{meta.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold">{meta.label}</p>
+                      {(entry.type === "other" || entry.type === "personal-loan" || entry.type === "business-loan") && (
+                        <Input className="mt-1 h-7 text-xs" placeholder="Description..."
+                          value={entry.description ?? ""}
+                          onChange={(e) => updateOne(idx, { description: e.target.value })}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <CurrencyField label="" value={entry.balance} onChange={(v) => updateOne(idx, { balance: v })} />
+                  <CurrencyField label="" value={entry.monthlyPayment} onChange={(v) => updateOne(idx, { monthlyPayment: v })} />
+                  <div className="space-y-1">
+                    <Input className="h-8 text-sm" type="number" min={0} max={100} step={0.1} placeholder="%"
+                      value={entry.interestRate ?? ""}
+                      onChange={(e) => updateOne(idx, { interestRate: e.target.value ? Number(e.target.value) : undefined })}
+                    />
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeOne(idx)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+
+            {/* Totals row */}
+            <div className="grid items-center gap-3 rounded-lg bg-red-50/50 px-3 py-2.5 dark:bg-red-950/10 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2rem]">
+              <span className="text-xs font-bold">Total</span>
+              <p className="text-xs font-bold text-red-600 dark:text-red-400">${totalBalance.toLocaleString()}</p>
+              <p className="text-xs font-bold text-red-600 dark:text-red-400">${totalPayment.toLocaleString()}/mo</p>
+              <span />
+              <span />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -718,9 +1023,9 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
     role,
     yearsInCountry: 0,
     countryOfResidence: "US",
-    income: {},
+    income: { incomeSources: [] },
     monthlyExpenses: {},
-    retirement401k: { has401k: false },
+    retirement401k: { has401k: false, previous401ks: [] },
     employmentHistory: [],
     hsa: { hasHSA: false },
     ira: { hasIRA: false },
@@ -739,7 +1044,7 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
     socialSecurity: { hasEstimate: false },
     systematicInvestments: { hasSystematicInvestments: false },
     fundsAbroad: { sendsFundsAbroad: false },
-    debts: {},
+    debts: { entries: [] },
     lifeInsurance: {},
     estate: {},
   };
@@ -747,26 +1052,30 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
 
 export interface FinancialBgLayoutProps {
   clientNames: string;
+  caseId: string;
   defaultValues?: PersonFinancialBackground;
   role: "primary" | "spouse";
   healthScore?: FinancialHealthScore | null;
   onSubmit: (data: PersonFinancialBackground) => void | Promise<void>;
   isSubmitting?: boolean;
+  /** Called when all sub-sections are done and user clicks "Save & Continue" on the last one */
+  onComplete?: () => void;
 }
 
 export function FinancialBgLayout({
   clientNames,
+  caseId,
   defaultValues,
   role,
   healthScore,
   onSubmit,
   isSubmitting = false,
+  onComplete,
 }: FinancialBgLayoutProps) {
   const [data, setData] = useState<PersonFinancialBackground>(
     defaultValues ?? makeEmptyData(role)
   );
   const [activeSection, setActiveSection] = useState<SubSection>("employment");
-  const [showInsights, setShowInsights] = useState(false);
 
   const update = useCallback((patch: Partial<PersonFinancialBackground>) => {
     setData((prev) => ({ ...prev, ...patch }));
@@ -787,13 +1096,18 @@ export function FinancialBgLayout({
   const handleNext = () => {
     if (currentIdx < SUB_SECTIONS.length - 1) {
       setActiveSection(SUB_SECTIONS[currentIdx + 1].id);
-    } else {
-      setShowInsights(true);
+    } else if (onComplete) {
+      onComplete();
     }
   };
   const handleSaveAndNext = async () => {
-    await onSubmit(data);
-    handleNext();
+    try {
+      await onSubmit(data);
+      handleNext();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save";
+      console.error("Save failed:", message);
+    }
   };
 
   const meta = SECTION_META[activeSection];
@@ -803,36 +1117,27 @@ export function FinancialBgLayout({
   return (
     <div className="flex flex-col gap-0">
       {/* ── Top header bar ── */}
-      <div className="flex flex-wrap items-center gap-3 rounded-t-xl border bg-muted/30 px-4 py-2.5">
+      <div className={cn(
+        "flex flex-wrap items-center gap-3 rounded-t-xl border px-4 py-2.5",
+        role === "primary"
+          ? "bg-violet-50/50 dark:bg-violet-950/10"
+          : "bg-rose-50/50 dark:bg-rose-950/10"
+      )}>
         <h2 className="text-base font-bold">Financial Background</h2>
-        <span className="rounded-full border bg-background px-3 py-0.5 text-xs font-medium">
-          {clientNames}
+        <span className={cn(
+          "rounded-full px-3 py-0.5 text-xs font-semibold",
+          role === "primary"
+            ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+            : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+        )}>
+          {role === "primary" ? "Primary Client" : "Spouse"} — {clientNames}
         </span>
         <div className="flex flex-1 items-center gap-2">
           <Progress value={progressPercent} className="h-1.5 flex-1" />
           <span className="text-xs font-medium text-muted-foreground">{progressPercent}%</span>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-xs"
-          onClick={() => setShowInsights(!showInsights)}
-        >
-          {showInsights ? (
-            <><FileText className="size-3.5" /> Form &larr; toggle</>
-          ) : (
-            <><BarChart3 className="size-3.5" /> Insights &rarr; toggle</>
-          )}
-        </Button>
       </div>
 
-      {showInsights ? (
-        <FinancialBgInsights
-          healthScore={healthScore}
-          onContinue={() => onSubmit(data)}
-          isSubmitting={isSubmitting}
-        />
-      ) : (
         <div className="flex min-h-[500px] rounded-b-xl border border-t-0">
           {/* ── Left sidebar ── */}
           <div className="hidden w-56 shrink-0 border-r bg-muted/10 p-4 md:block">
@@ -928,6 +1233,14 @@ export function FinancialBgLayout({
               <h3 className="flex items-center gap-2 text-lg font-bold">
                 <span>{SECTION_ICONS[activeSection]}</span>
                 {meta.title}
+                <span className={cn(
+                  "ml-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                  role === "primary"
+                    ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                    : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                )}>
+                  {role === "primary" ? "Primary Client" : "Spouse"}
+                </span>
               </h3>
               <p className="text-sm text-muted-foreground">{meta.description}</p>
             </div>
@@ -961,13 +1274,37 @@ export function FinancialBgLayout({
                   ? "Saving..."
                   : currentIdx < SUB_SECTIONS.length - 1
                     ? "Save & Next Section"
-                    : "Save & View Insights"}
+                    : "Save & Continue"}
                 <ChevronRight className="size-3.5" />
               </Button>
             </div>
+
+            {/* ── Debug: API URL & JSON Payload ── */}
+            <div className="mt-6 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
+              <p className="mb-2 text-xs font-bold text-amber-700 dark:text-amber-400">🛠 Debug — API Info</p>
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">API URL</Label>
+                  <Input readOnly className="mt-0.5 h-8 font-mono text-xs bg-white dark:bg-black"
+                    value={`PUT ${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/cases/${caseId}/discovery/`}
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">JSON Payload</Label>
+                  <textarea readOnly rows={10}
+                    className="mt-0.5 w-full rounded-md border bg-white p-2 font-mono text-[11px] leading-relaxed dark:bg-black"
+                    value={JSON.stringify({
+                      financial_profile: {
+                        [role === "primary" ? "primary_background" : "spouse_background"]: data,
+                      },
+                    }, null, 2)}
+                  />
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
-      )}
     </div>
   );
 }

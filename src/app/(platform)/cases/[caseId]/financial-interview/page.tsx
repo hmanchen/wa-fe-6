@@ -79,26 +79,16 @@ export default function FinancialInterviewPage() {
 
   const handlePrimarySave = useCallback(
     async (data: PersonFinancialBackground) => {
-      try {
-        await saveBackground.mutateAsync({ role: "primary", data });
-        toast.success("Primary client financial background saved");
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        toast.error(`Failed to save: ${message}`);
-      }
+      await saveBackground.mutateAsync({ role: "primary", data });
+      toast.success("Primary client financial background saved");
     },
     [saveBackground]
   );
 
   const handleSpouseSave = useCallback(
     async (data: PersonFinancialBackground) => {
-      try {
-        await saveBackground.mutateAsync({ role: "spouse", data });
-        toast.success("Spouse financial background saved");
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        toast.error(`Failed to save: ${message}`);
-      }
+      await saveBackground.mutateAsync({ role: "spouse", data });
+      toast.success("Spouse financial background saved");
     },
     [saveBackground]
   );
@@ -194,22 +184,26 @@ export default function FinancialInterviewPage() {
             <TabsContent value="primary">
               <FinancialBgLayout
                 clientNames={clientNames}
+                caseId={caseId}
                 defaultValues={interviewData?.primaryBackground}
                 role="primary"
                 healthScore={healthScore}
                 onSubmit={handlePrimarySave}
                 isSubmitting={saveBackground.isPending}
+                onComplete={() => setCurrentSection("income-replacement-risk")}
               />
             </TabsContent>
 
             <TabsContent value="spouse">
               <FinancialBgLayout
                 clientNames={clientNames}
+                caseId={caseId}
                 defaultValues={interviewData?.spouseBackground}
                 role="spouse"
                 healthScore={healthScore}
                 onSubmit={handleSpouseSave}
                 isSubmitting={saveBackground.isPending}
+                onComplete={() => setCurrentSection("income-replacement-risk")}
               />
             </TabsContent>
           </Tabs>
@@ -240,6 +234,7 @@ export default function FinancialInterviewPage() {
             <TabsContent value="primary">
               <ProtectionEstateScreen
                 clientNames={clientNames}
+                caseId={caseId}
                 defaultValues={interviewData?.primaryBackground}
                 role="primary"
                 onSubmit={handlePrimarySave}
@@ -251,6 +246,7 @@ export default function FinancialInterviewPage() {
             <TabsContent value="spouse">
               <ProtectionEstateScreen
                 clientNames={clientNames}
+                caseId={caseId}
                 defaultValues={interviewData?.spouseBackground}
                 role="spouse"
                 onSubmit={handleSpouseSave}
