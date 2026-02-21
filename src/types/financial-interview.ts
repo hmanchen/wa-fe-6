@@ -252,6 +252,68 @@ export interface Retirement401kDetails {
   old401kAction?: "rolled-over" | "left-with-employer" | "cashed-out" | "converted-to-roth";
 }
 
+export interface DebtsLiabilities {
+  /** Primary mortgage */
+  mortgageBalance?: number;
+  mortgageMonthlyPayment?: number;
+  /** Auto loans */
+  autoLoanBalance?: number;
+  autoLoanMonthlyPayment?: number;
+  /** Student loans */
+  studentLoanBalance?: number;
+  studentLoanMonthlyPayment?: number;
+  /** Credit card debt */
+  creditCardBalance?: number;
+  creditCardMinPayment?: number;
+  /** Personal / other loans */
+  otherLoanBalance?: number;
+  otherLoanMonthlyPayment?: number;
+  otherLoanDescription?: string;
+}
+
+export interface LifeInsuranceCoverage {
+  /** Employer-provided group life */
+  hasGroupLife?: boolean;
+  groupLifeAmount?: number;
+  /** Individual term life */
+  hasTermLife?: boolean;
+  termLifeAmount?: number;
+  termLifePremium?: number;
+  termLengthYears?: number;
+  /** Whole / universal / IUL */
+  hasPermLife?: boolean;
+  permLifeType?: "whole-life" | "universal" | "iul" | "other";
+  permLifeAmount?: number;
+  permLifePremium?: number;
+  permLifeCashValue?: number;
+  /** Total coverage */
+  totalCoverageAmount?: number;
+  /** Disability insurance */
+  hasDisabilityInsurance?: boolean;
+  disabilityMonthlyBenefit?: number;
+  /** Long-term care */
+  hasLongTermCare?: boolean;
+  /** Umbrella policy */
+  hasUmbrellaPolicy?: boolean;
+  umbrellaCoverageAmount?: number;
+}
+
+export interface EstatePlanning {
+  /** Will */
+  hasWill?: boolean;
+  willLastUpdated?: string;
+  /** Trust */
+  hasTrust?: boolean;
+  trustType?: "revocable" | "irrevocable" | "other";
+  /** Power of Attorney */
+  hasPowerOfAttorney?: boolean;
+  /** Healthcare Directive / Living Will */
+  hasHealthcareDirective?: boolean;
+  /** Beneficiary designations current? */
+  beneficiaryDesignationsCurrent?: boolean;
+  notes?: string;
+}
+
 export interface PersonFinancialBackground {
   /** "primary" or "spouse" */
   role: "primary" | "spouse";
@@ -278,6 +340,9 @@ export interface PersonFinancialBackground {
   socialSecurity: SocialSecurityDetails;
   systematicInvestments: SystematicInvestment;
   fundsAbroad: FundsAbroad;
+  debts: DebtsLiabilities;
+  lifeInsurance: LifeInsuranceCoverage;
+  estate: EstatePlanning;
 }
 
 // ── Section 2: Life Insurance & Will/Trust Education ─────────
@@ -428,10 +493,12 @@ export interface FinancialHealthScore {
 export type FinancialInterviewSection =
   | "financial-background"
   | "income-replacement-risk"
-  | "life-insurance-education"
+  | "protection-estate"
+  | "analysis-dashboard"
   | "financial-home"
   | "financial-x-curve"
-  | "tax-diversification";
+  | "recommendations"
+  | "delivery";
 
 export type FinancialInterviewStatus = "not-started" | "in-progress" | "completed";
 

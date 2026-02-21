@@ -63,6 +63,9 @@ function makeEmptyBackground(role: "primary" | "spouse"): PersonFinancialBackgro
     socialSecurity: { hasEstimate: false },
     systematicInvestments: { hasSystematicInvestments: false },
     fundsAbroad: { sendsFundsAbroad: false },
+    debts: {},
+    lifeInsurance: {},
+    estate: {},
   };
 }
 

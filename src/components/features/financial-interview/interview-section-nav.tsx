@@ -22,9 +22,14 @@ const SECTIONS: SectionDef[] = [
     shortLabel: "Risk",
   },
   {
-    id: "life-insurance-education",
-    label: "Life Insurance & Will/Trust",
-    shortLabel: "Insurance",
+    id: "protection-estate",
+    label: "Protection & Estate",
+    shortLabel: "Protection",
+  },
+  {
+    id: "analysis-dashboard",
+    label: "Analysis Dashboard",
+    shortLabel: "Analysis",
   },
   {
     id: "financial-home",
@@ -37,9 +42,14 @@ const SECTIONS: SectionDef[] = [
     shortLabel: "X Curve",
   },
   {
-    id: "tax-diversification",
-    label: "Tax Diversification",
-    shortLabel: "Tax Div",
+    id: "recommendations",
+    label: "Recommendations",
+    shortLabel: "Recs",
+  },
+  {
+    id: "delivery",
+    label: "Delivery",
+    shortLabel: "Deliver",
   },
 ];
 

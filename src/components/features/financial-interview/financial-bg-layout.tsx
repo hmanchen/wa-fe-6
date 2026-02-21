@@ -5,9 +5,9 @@ import {
   Briefcase,
   Landmark,
   TrendingUp,
-  Wallet,
-  GraduationCap,
-  Globe,
+  Home,
+  CreditCard,
+  Receipt,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -35,9 +35,9 @@ type SubSection =
   | "employment"
   | "retirement"
   | "investments"
-  | "savings"
-  | "education"
-  | "international";
+  | "realEstate"
+  | "debts"
+  | "expenses";
 
 interface SubSectionDef {
   id: SubSection;
@@ -49,10 +49,10 @@ interface SubSectionDef {
 const SUB_SECTIONS: SubSectionDef[] = [
   { id: "employment", label: "Employment & Income", icon: Briefcase, fieldCount: 5 },
   { id: "retirement", label: "Retirement Accounts", icon: Landmark, fieldCount: 5 },
-  { id: "investments", label: "Investments & Assets", icon: TrendingUp, fieldCount: 6 },
-  { id: "savings", label: "Savings & Liquidity", icon: Wallet, fieldCount: 4 },
-  { id: "education", label: "Education & Future", icon: GraduationCap, fieldCount: 3 },
-  { id: "international", label: "International & Other", icon: Globe, fieldCount: 2 },
+  { id: "investments", label: "Investments & Assets", icon: TrendingUp, fieldCount: 8 },
+  { id: "realEstate", label: "Real Estate", icon: Home, fieldCount: 3 },
+  { id: "debts", label: "Debts & Liabilities", icon: CreditCard, fieldCount: 5 },
+  { id: "expenses", label: "Monthly Expenses", icon: Receipt, fieldCount: 9 },
 ];
 
 // ── Reusable account card ────────────────────────────────────
@@ -163,7 +163,7 @@ function CurrencyField({
 function isSectionComplete(section: SubSection, data: PersonFinancialBackground): boolean {
   switch (section) {
     case "employment":
-      return (data.income?.annualSalary ?? 0) > 0;
+      return (data.income?.annualSalary ?? 0) > 0 || (data.income?.businessIncome ?? 0) > 0 || (data.income?.otherIncome ?? 0) > 0;
     case "retirement":
       return !!(
         data.retirement401k?.currentBalance ||
@@ -175,19 +175,20 @@ function isSectionComplete(section: SubSection, data: PersonFinancialBackground)
         data.brokerage?.currentValue ||
         data.bonds?.municipalBondValue ||
         data.equityCompensation?.vestedRSUValue ||
-        data.realEstate?.primaryHomeEquity
-      );
-    case "savings":
-      return !!(
         data.cashOnHand?.checkingBalance ||
-        data.cashOnHand?.savingsBalance ||
-        data.hsa?.currentBalance ||
-        data.cd?.totalValue
+        data.hsa?.currentBalance
       );
-    case "education":
-      return !!(data.education529?.totalBalance || data.socialSecurity?.estimatedMonthlyBenefitFRA);
-    case "international":
-      return !!(data.fundsAbroad?.monthlyAmount || data.monthlyExpenses?.housing);
+    case "realEstate":
+      return !!(data.realEstate?.primaryHomeEquity);
+    case "debts":
+      return !!(
+        data.debts?.mortgageBalance ||
+        data.debts?.autoLoanBalance ||
+        data.debts?.studentLoanBalance ||
+        data.debts?.creditCardBalance
+      );
+    case "expenses":
+      return !!(data.monthlyExpenses?.housing);
     default:
       return false;
   }
@@ -339,41 +340,6 @@ function EmploymentSection({
         </AccountCard>
       )}
 
-      {/* Monthly expenses — always shown */}
-      <AccountCard
-        name="Monthly Expenses"
-        description="Total household monthly spending"
-        accent="border-l-orange-400"
-        balance={(() => {
-          const e = data.monthlyExpenses ?? {};
-          return (e.housing ?? 0) + (e.utilities ?? 0) + (e.transportation ?? 0) +
-            (e.groceries ?? 0) + (e.insurance ?? 0) + (e.childcare ?? 0) +
-            (e.entertainment ?? 0) + (e.diningOut ?? 0) + (e.subscriptions ?? 0) + (e.otherExpenses ?? 0) || undefined;
-        })()}
-        onBalanceChange={() => {}}
-        contributionLabel=""
-      >
-        <div className="grid gap-3 sm:grid-cols-3">
-          <CurrencyField label="Housing" value={data.monthlyExpenses?.housing}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, housing: v } })} />
-          <CurrencyField label="Utilities" value={data.monthlyExpenses?.utilities}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, utilities: v } })} />
-          <CurrencyField label="Transportation" value={data.monthlyExpenses?.transportation}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, transportation: v } })} />
-          <CurrencyField label="Groceries" value={data.monthlyExpenses?.groceries}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, groceries: v } })} />
-          <CurrencyField label="Insurance" value={data.monthlyExpenses?.insurance}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, insurance: v } })} />
-          <CurrencyField label="Childcare / Schooling / Education" value={data.monthlyExpenses?.childcare}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, childcare: v } })} />
-          <CurrencyField label="Entertainment" value={data.monthlyExpenses?.entertainment}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, entertainment: v } })} />
-          <CurrencyField label="Dining out" value={data.monthlyExpenses?.diningOut}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, diningOut: v } })} />
-          <CurrencyField label="Other" value={data.monthlyExpenses?.otherExpenses}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, otherExpenses: v } })} />
-        </div>
-      </AccountCard>
     </div>
   );
 }
@@ -514,35 +480,12 @@ function InvestmentsSection({
         onBalanceChange={(v) => update({ equityCompensation: { ...data.equityCompensation, hasEquityComp: true, vestedRSUValue: v } })}
       />
       <AccountCard
-        name="Real Estate"
-        description="Primary home equity & investment properties"
-        accent="border-l-emerald-500"
-        balance={data.realEstate?.primaryHomeEquity}
-        onBalanceChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, primaryHomeEquity: v } })}
-        contribution={data.realEstate?.monthlyRentalIncome}
-        onContributionChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, monthlyRentalIncome: v } })}
-        contributionLabel="Rental Income"
-      />
-      <AccountCard
         name="Cryptocurrency"
         description="Bitcoin, Ethereum & digital assets"
         accent="border-l-emerald-500"
         balance={data.crypto?.totalValue}
         onBalanceChange={(v) => update({ crypto: { ...data.crypto, hasCrypto: true, totalValue: v } })}
       />
-    </div>
-  );
-}
-
-function SavingsSection({
-  data,
-  update,
-}: {
-  data: PersonFinancialBackground;
-  update: (patch: Partial<PersonFinancialBackground>) => void;
-}) {
-  return (
-    <div className="space-y-3">
       <AccountCard
         name="Cash on Hand"
         description="Checking & savings account balances"
@@ -550,68 +493,32 @@ function SavingsSection({
         balance={(data.cashOnHand?.checkingBalance ?? 0) + (data.cashOnHand?.savingsBalance ?? 0) || undefined}
         onBalanceChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, checkingBalance: v } })}
       >
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <CurrencyField label="Checking" value={data.cashOnHand?.checkingBalance}
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, checkingBalance: v } })} />
           <CurrencyField label="Savings" value={data.cashOnHand?.savingsBalance}
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, savingsBalance: v } })} />
+          <CurrencyField label="Emergency Fund (months)" value={data.cashOnHand?.emergencyFundMonths}
+            onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, emergencyFundMonths: v } })}
+            placeholder="e.g. 6" />
         </div>
       </AccountCard>
       <AccountCard
-        name="Health Savings Account (HSA)"
-        description="Triple tax-advantaged medical savings"
+        name="HSA / CDs / 529"
+        description="Health savings, certificates of deposit, education savings"
         accent="border-l-amber-400"
-        balance={data.hsa?.currentBalance}
-        onBalanceChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })}
-        contribution={data.hsa?.annualContribution}
-        onContributionChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, annualContribution: v } })}
-      />
-      <AccountCard
-        name="Certificates of Deposit (CDs)"
-        description="Fixed-term, FDIC-insured savings"
-        accent="border-l-amber-400"
-        balance={data.cd?.totalValue}
-        onBalanceChange={(v) => update({ cd: { ...data.cd, hasCDs: true, totalValue: v } })}
-      />
-      <AccountCard
-        name="Emergency Fund"
-        description="Target months of expenses as reserve"
-        accent="border-l-amber-400"
-        balance={undefined}
-        contribution={undefined}
+        balance={(data.hsa?.currentBalance ?? 0) + (data.cd?.totalValue ?? 0) + (data.education529?.totalBalance ?? 0) || undefined}
+        onBalanceChange={() => {}}
       >
-        <div className="space-y-1">
-          <Label className="text-xs">Emergency fund target (months)</Label>
-          <Input type="number" min={0} max={24} className="h-8 w-32 text-sm" placeholder="e.g. 6"
-            value={data.cashOnHand?.emergencyFundMonths ?? ""}
-            onChange={(e) =>
-              update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, emergencyFundMonths: e.target.value === "" ? undefined : parseInt(e.target.value, 10) } })
-            }
-          />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <CurrencyField label="HSA Balance" value={data.hsa?.currentBalance}
+            onChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })} />
+          <CurrencyField label="CDs Total" value={data.cd?.totalValue}
+            onChange={(v) => update({ cd: { ...data.cd, hasCDs: true, totalValue: v } })} />
+          <CurrencyField label="529 Balance" value={data.education529?.totalBalance}
+            onChange={(v) => update({ education529: { ...data.education529, has529: true, totalBalance: v } })} />
         </div>
       </AccountCard>
-    </div>
-  );
-}
-
-function EducationSection({
-  data,
-  update,
-}: {
-  data: PersonFinancialBackground;
-  update: (patch: Partial<PersonFinancialBackground>) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <AccountCard
-        name="529 Education Savings"
-        description="Tax-advantaged savings for education expenses"
-        accent="border-l-violet-400"
-        balance={data.education529?.totalBalance}
-        onBalanceChange={(v) => update({ education529: { ...data.education529, has529: true, totalBalance: v } })}
-        contribution={data.education529?.annualContribution}
-        onContributionChange={(v) => update({ education529: { ...data.education529, has529: true, annualContribution: v } })}
-      />
       <AccountCard
         name="Social Security Estimate"
         description="Projected government retirement benefit"
@@ -620,21 +527,11 @@ function EducationSection({
         onContributionChange={(v) => update({ socialSecurity: { ...data.socialSecurity, hasEstimate: true, estimatedMonthlyBenefitFRA: v } })}
         contributionLabel="Monthly at FRA"
       />
-      <AccountCard
-        name="Systematic Investments"
-        description="SIPs, recurring deposits, or regular investments"
-        accent="border-l-violet-400"
-        balance={data.systematicInvestments?.currentValue}
-        onBalanceChange={(v) => update({ systematicInvestments: { ...data.systematicInvestments, hasSystematicInvestments: true, currentValue: v } })}
-        contribution={data.systematicInvestments?.monthlyAmount}
-        onContributionChange={(v) => update({ systematicInvestments: { ...data.systematicInvestments, hasSystematicInvestments: true, monthlyAmount: v } })}
-        contributionLabel="Monthly"
-      />
     </div>
   );
 }
 
-function InternationalSection({
+function RealEstateSection({
   data,
   update,
 }: {
@@ -644,38 +541,152 @@ function InternationalSection({
   return (
     <div className="space-y-3">
       <AccountCard
-        name="Funds Sent Abroad"
-        description="Regular remittances or transfers to another country"
-        accent="border-l-teal-400"
-        contribution={data.fundsAbroad?.monthlyAmount}
-        onContributionChange={(v) => update({ fundsAbroad: { ...data.fundsAbroad, sendsFundsAbroad: true, monthlyAmount: v } })}
-        contributionLabel="Monthly"
+        name="Primary Home"
+        description="Primary residence equity (market value minus mortgage)"
+        accent="border-l-sky-500"
+        balance={data.realEstate?.primaryHomeEquity}
+        onBalanceChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, primaryHomeEquity: v } })}
+      />
+      <AccountCard
+        name="Investment Properties"
+        description="Rental properties and other real estate investments"
+        accent="border-l-sky-500"
+        balance={data.realEstate?.totalMarketValue}
+        onBalanceChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, totalMarketValue: v } })}
+        contribution={data.realEstate?.monthlyRentalIncome}
+        onContributionChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, monthlyRentalIncome: v } })}
+        contributionLabel="Rental Income"
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
-            <Label className="text-xs">Destination country</Label>
-            <Input className="h-8 text-sm" placeholder="e.g. India"
-              value={data.fundsAbroad?.country ?? ""}
-              onChange={(e) => update({ fundsAbroad: { ...data.fundsAbroad, sendsFundsAbroad: true, country: e.target.value } })}
+            <Label className="text-xs">Number of properties</Label>
+            <Input type="number" min={0} className="h-8 w-32 text-sm" placeholder="0"
+              value={data.realEstate?.numberOfProperties ?? ""}
+              onChange={(e) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, numberOfProperties: e.target.value === "" ? undefined : parseInt(e.target.value, 10) } })}
             />
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Purpose</Label>
-            <Input className="h-8 text-sm" placeholder="Family support, investment"
-              value={data.fundsAbroad?.purpose ?? ""}
-              onChange={(e) => update({ fundsAbroad: { ...data.fundsAbroad, sendsFundsAbroad: true, purpose: e.target.value } })}
-            />
-          </div>
+          <CurrencyField label="Total mortgage on investments" value={data.realEstate?.totalMortgageBalance}
+            onChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, totalMortgageBalance: v } })} />
         </div>
       </AccountCard>
+    </div>
+  );
+}
+
+function DebtsSection({
+  data,
+  update,
+}: {
+  data: PersonFinancialBackground;
+  update: (patch: Partial<PersonFinancialBackground>) => void;
+}) {
+  return (
+    <div className="space-y-3">
       <AccountCard
-        name="Other Income Sources"
-        description="Side business, freelance, or passive income"
-        accent="border-l-teal-400"
-        contribution={data.income?.otherIncome}
-        onContributionChange={(v) => update({ income: { ...data.income, otherIncome: v } })}
-        contributionLabel="Annual"
+        name="Mortgage"
+        description="Primary home mortgage balance"
+        accent="border-l-red-400"
+        balance={data.debts?.mortgageBalance}
+        onBalanceChange={(v) => update({ debts: { ...data.debts, mortgageBalance: v } })}
+        contribution={data.debts?.mortgageMonthlyPayment}
+        onContributionChange={(v) => update({ debts: { ...data.debts, mortgageMonthlyPayment: v } })}
+        contributionLabel="Monthly Payment"
       />
+      <AccountCard
+        name="Auto Loans"
+        description="Car payments and vehicle financing"
+        accent="border-l-red-400"
+        balance={data.debts?.autoLoanBalance}
+        onBalanceChange={(v) => update({ debts: { ...data.debts, autoLoanBalance: v } })}
+        contribution={data.debts?.autoLoanMonthlyPayment}
+        onContributionChange={(v) => update({ debts: { ...data.debts, autoLoanMonthlyPayment: v } })}
+        contributionLabel="Monthly Payment"
+      />
+      <AccountCard
+        name="Student Loans"
+        description="Federal and private student loan debt"
+        accent="border-l-red-400"
+        balance={data.debts?.studentLoanBalance}
+        onBalanceChange={(v) => update({ debts: { ...data.debts, studentLoanBalance: v } })}
+        contribution={data.debts?.studentLoanMonthlyPayment}
+        onContributionChange={(v) => update({ debts: { ...data.debts, studentLoanMonthlyPayment: v } })}
+        contributionLabel="Monthly Payment"
+      />
+      <AccountCard
+        name="Credit Card Debt"
+        description="Outstanding revolving credit balances"
+        accent="border-l-red-400"
+        balance={data.debts?.creditCardBalance}
+        onBalanceChange={(v) => update({ debts: { ...data.debts, creditCardBalance: v } })}
+        contribution={data.debts?.creditCardMinPayment}
+        onContributionChange={(v) => update({ debts: { ...data.debts, creditCardMinPayment: v } })}
+        contributionLabel="Min Payment"
+      />
+      <AccountCard
+        name="Other Loans"
+        description="Personal loans, HELOC, or other debts"
+        accent="border-l-red-400"
+        balance={data.debts?.otherLoanBalance}
+        onBalanceChange={(v) => update({ debts: { ...data.debts, otherLoanBalance: v } })}
+        contribution={data.debts?.otherLoanMonthlyPayment}
+        onContributionChange={(v) => update({ debts: { ...data.debts, otherLoanMonthlyPayment: v } })}
+        contributionLabel="Monthly Payment"
+      >
+        <div className="space-y-1">
+          <Label className="text-xs">Description</Label>
+          <Input className="h-8 text-sm" placeholder="e.g. HELOC, Personal loan"
+            value={data.debts?.otherLoanDescription ?? ""}
+            onChange={(e) => update({ debts: { ...data.debts, otherLoanDescription: e.target.value } })}
+          />
+        </div>
+      </AccountCard>
+    </div>
+  );
+}
+
+function MonthlyExpensesSection({
+  data,
+  update,
+}: {
+  data: PersonFinancialBackground;
+  update: (patch: Partial<PersonFinancialBackground>) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <AccountCard
+        name="Monthly Expenses"
+        description="Total household monthly spending"
+        accent="border-l-orange-400"
+        balance={(() => {
+          const e = data.monthlyExpenses ?? {};
+          return (e.housing ?? 0) + (e.utilities ?? 0) + (e.transportation ?? 0) +
+            (e.groceries ?? 0) + (e.insurance ?? 0) + (e.childcare ?? 0) +
+            (e.entertainment ?? 0) + (e.diningOut ?? 0) + (e.subscriptions ?? 0) + (e.otherExpenses ?? 0) || undefined;
+        })()}
+        onBalanceChange={() => {}}
+        contributionLabel=""
+      >
+        <div className="grid gap-3 sm:grid-cols-3">
+          <CurrencyField label="Housing" value={data.monthlyExpenses?.housing}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, housing: v } })} />
+          <CurrencyField label="Utilities" value={data.monthlyExpenses?.utilities}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, utilities: v } })} />
+          <CurrencyField label="Transportation" value={data.monthlyExpenses?.transportation}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, transportation: v } })} />
+          <CurrencyField label="Groceries" value={data.monthlyExpenses?.groceries}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, groceries: v } })} />
+          <CurrencyField label="Insurance" value={data.monthlyExpenses?.insurance}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, insurance: v } })} />
+          <CurrencyField label="Childcare / Schooling / Education" value={data.monthlyExpenses?.childcare}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, childcare: v } })} />
+          <CurrencyField label="Entertainment" value={data.monthlyExpenses?.entertainment}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, entertainment: v } })} />
+          <CurrencyField label="Dining out" value={data.monthlyExpenses?.diningOut}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, diningOut: v } })} />
+          <CurrencyField label="Other" value={data.monthlyExpenses?.otherExpenses}
+            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, otherExpenses: v } })} />
+        </div>
+      </AccountCard>
     </div>
   );
 }
@@ -683,21 +694,21 @@ function InternationalSection({
 // ── Section title & description ──────────────────────────────
 
 const SECTION_META: Record<SubSection, { title: string; description: string }> = {
-  employment: { title: "Employment & Income", description: "Enter salary, bonus, and monthly expenses" },
-  retirement: { title: "Retirement Accounts", description: "Enter all retirement accounts for both spouses" },
-  investments: { title: "Investments & Assets", description: "Enter taxable investment accounts and assets" },
-  savings: { title: "Savings & Liquidity", description: "Enter cash reserves, HSA, and liquid savings" },
-  education: { title: "Education & Future", description: "Enter education savings and projected benefits" },
-  international: { title: "International & Other", description: "Enter international transfers and other sources" },
+  employment: { title: "Employment & Income", description: "Enter salary, bonus, and income sources" },
+  retirement: { title: "Retirement Accounts", description: "Enter all retirement accounts" },
+  investments: { title: "Investments & Assets", description: "Enter investment accounts, savings, and liquid assets" },
+  realEstate: { title: "Real Estate", description: "Enter primary home and investment property details" },
+  debts: { title: "Debts & Liabilities", description: "Enter mortgage, auto loans, student loans, and other debts" },
+  expenses: { title: "Monthly Expenses", description: "Enter monthly household spending" },
 };
 
 const SECTION_ICONS: Record<SubSection, string> = {
   employment: "💼",
   retirement: "🏦",
   investments: "📈",
-  savings: "💰",
-  education: "🎓",
-  international: "🌍",
+  realEstate: "🏠",
+  debts: "💳",
+  expenses: "🧾",
 };
 
 // ── Main Layout ──────────────────────────────────────────────
@@ -728,6 +739,9 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
     socialSecurity: { hasEstimate: false },
     systematicInvestments: { hasSystematicInvestments: false },
     fundsAbroad: { sendsFundsAbroad: false },
+    debts: {},
+    lifeInsurance: {},
+    estate: {},
   };
 }
 
@@ -921,9 +935,9 @@ export function FinancialBgLayout({
             {activeSection === "employment" && <EmploymentSection data={data} update={update} />}
             {activeSection === "retirement" && <RetirementSection data={data} update={update} />}
             {activeSection === "investments" && <InvestmentsSection data={data} update={update} />}
-            {activeSection === "savings" && <SavingsSection data={data} update={update} />}
-            {activeSection === "education" && <EducationSection data={data} update={update} />}
-            {activeSection === "international" && <InternationalSection data={data} update={update} />}
+            {activeSection === "realEstate" && <RealEstateSection data={data} update={update} />}
+            {activeSection === "debts" && <DebtsSection data={data} update={update} />}
+            {activeSection === "expenses" && <MonthlyExpensesSection data={data} update={update} />}
 
             {/* ── Bottom navigation ── */}
             <div className="mt-8 flex items-center justify-between">

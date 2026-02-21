@@ -12,6 +12,7 @@ import {
   Users,
   PanelTopClose,
   PanelTopOpen,
+  ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,8 @@ import { useFinancialInterview, useFinancialHealthScore, useSaveFinancialBackgro
 import { InterviewSectionNav } from "@/components/features/financial-interview/interview-section-nav";
 import { FinancialBgLayout } from "@/components/features/financial-interview/financial-bg-layout";
 import { IncomeReplacementScreen } from "@/components/features/financial-interview/income-replacement-screen";
+import { ProtectionEstateScreen } from "@/components/features/financial-interview/protection-estate-screen";
+import { FinancialBgInsights } from "@/components/features/financial-interview/financial-bg-insights";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
 
@@ -174,7 +177,7 @@ export default function FinancialInterviewPage() {
           )}
         </div>
 
-        {/* ── Section content ── */}
+        {/* ── PHASE 2: Financial Background ── */}
         {currentSection === "financial-background" && (
           <Tabs defaultValue="primary" className="w-full">
             <TabsList className="mb-2 justify-start">
@@ -212,73 +215,141 @@ export default function FinancialInterviewPage() {
           </Tabs>
         )}
 
-        {/* ── Income Replacement Risk — full-width education ── */}
+        {/* ── Income Replacement Risk — educational interlude ── */}
         {currentSection === "income-replacement-risk" && (
           <IncomeReplacementScreen
-            onContinue={() => setCurrentSection("life-insurance-education")}
-            onSkip={() => setCurrentSection("life-insurance-education")}
+            onContinue={() => setCurrentSection("protection-estate")}
+            onSkip={() => setCurrentSection("protection-estate")}
           />
         )}
 
-        {/* Placeholder for other sections */}
-        {currentSection === "life-insurance-education" && (
-          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="rounded-full bg-muted p-4">
-              <Pencil className="size-8 text-muted-foreground" />
+        {/* ── PHASE 3: Protection & Estate ── */}
+        {currentSection === "protection-estate" && (
+          <Tabs defaultValue="primary" className="w-full">
+            <TabsList className="mb-2 justify-start">
+              <TabsTrigger value="primary" className="gap-1.5">
+                <User className="size-3.5" />
+                Primary Client
+              </TabsTrigger>
+              <TabsTrigger value="spouse" className="gap-1.5">
+                <Users className="size-3.5" />
+                Spouse
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="primary">
+              <ProtectionEstateScreen
+                clientNames={clientNames}
+                defaultValues={interviewData?.primaryBackground}
+                role="primary"
+                onSubmit={handlePrimarySave}
+                isSubmitting={saveBackground.isPending}
+                onContinue={() => setCurrentSection("analysis-dashboard")}
+              />
+            </TabsContent>
+
+            <TabsContent value="spouse">
+              <ProtectionEstateScreen
+                clientNames={clientNames}
+                defaultValues={interviewData?.spouseBackground}
+                role="spouse"
+                onSubmit={handleSpouseSave}
+                isSubmitting={saveBackground.isPending}
+                onContinue={() => setCurrentSection("analysis-dashboard")}
+              />
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {/* ── PHASE 4: Analysis Dashboard ── */}
+        {currentSection === "analysis-dashboard" && (
+          <div className="rounded-xl border">
+            <div className="flex items-center gap-3 rounded-t-xl border-b bg-muted/30 px-4 py-2.5">
+              <h2 className="text-base font-bold">Analysis Dashboard</h2>
+              <span className="rounded-full border bg-background px-3 py-0.5 text-xs font-medium">
+                {clientNames}
+              </span>
+              <span className="text-xs text-muted-foreground">Full Health Score (0–100, all 5 categories)</span>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold">
-                Life Insurance & Will/Trust Education
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                This section will cover Term vs. Perm policies, IUL, and
-                Will & Trust concepts. Coming next.
-              </p>
-            </div>
+            <FinancialBgInsights
+              healthScore={healthScore}
+              onContinue={() => setCurrentSection("financial-home")}
+              isSubmitting={false}
+            />
           </div>
         )}
 
+        {/* ── PHASE 5: Financial Home ── */}
         {currentSection === "financial-home" && (
           <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="rounded-full bg-muted p-4">
-              <Pencil className="size-8 text-muted-foreground" />
+            <div className="rounded-full bg-primary/10 p-4">
+              <Pencil className="size-8 text-primary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold">Financial Home</h2>
               <p className="text-sm text-muted-foreground">
-                Interactive Financial Home triangle diagram with levels for
-                income, protection, goals, and wealth transfer. Coming soon.
+                AI-powered narratives: Background Summary, Health Narrative,
+                Protection Gaps, Estate Urgency, and Background Gaps.
               </p>
+              <p className="mt-1 text-xs text-muted-foreground/70">Coming soon — Phase 5</p>
             </div>
+            <Button size="sm" onClick={() => setCurrentSection("financial-x-curve")} className="gap-1.5">
+              Continue to X Curve <ChevronRight className="size-3.5" />
+            </Button>
           </div>
         )}
 
+        {/* ── PHASE 6: Financial X Curve ── */}
         {currentSection === "financial-x-curve" && (
           <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="rounded-full bg-muted p-4">
-              <Pencil className="size-8 text-muted-foreground" />
+            <div className="rounded-full bg-primary/10 p-4">
+              <Pencil className="size-8 text-primary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold">Financial X Curve</h2>
               <p className="text-sm text-muted-foreground">
-                DIME & FIME analysis with interactive X Curve diagram. Coming
-                soon.
+                X-Curve Visualization, AI Narration, and Tax Narrative.
               </p>
+              <p className="mt-1 text-xs text-muted-foreground/70">Coming soon — Phase 6</p>
             </div>
+            <Button size="sm" onClick={() => setCurrentSection("recommendations")} className="gap-1.5">
+              Continue to Recommendations <ChevronRight className="size-3.5" />
+            </Button>
           </div>
         )}
 
-        {currentSection === "tax-diversification" && (
+        {/* ── PHASE 7: Recommendations ── */}
+        {currentSection === "recommendations" && (
           <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="rounded-full bg-muted p-4">
-              <Pencil className="size-8 text-muted-foreground" />
+            <div className="rounded-full bg-primary/10 p-4">
+              <Pencil className="size-8 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Tax Diversification</h2>
+              <h2 className="text-lg font-semibold">Recommendations</h2>
               <p className="text-sm text-muted-foreground">
-                Tax Later, Tax Advantage, Tax Now concepts with interactive
-                triangle diagram. Coming soon.
+                AI Recommendations (3 tiers), Projections (IUL, 529, 401k comparison),
+                and Product Recommendations.
               </p>
+              <p className="mt-1 text-xs text-muted-foreground/70">Coming soon — Phase 7</p>
+            </div>
+            <Button size="sm" onClick={() => setCurrentSection("delivery")} className="gap-1.5">
+              Continue to Delivery <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        )}
+
+        {/* ── PHASE 8: Delivery ── */}
+        {currentSection === "delivery" && (
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+            <div className="rounded-full bg-primary/10 p-4">
+              <Pencil className="size-8 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Delivery</h2>
+              <p className="text-sm text-muted-foreground">
+                Generate PDF / Presentation for client delivery.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground/70">Coming soon — Phase 8</p>
             </div>
           </div>
         )}
