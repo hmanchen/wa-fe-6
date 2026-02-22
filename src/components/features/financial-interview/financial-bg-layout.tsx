@@ -32,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore, IncomeSource, IncomeSourceType, Previous401k, DebtEntry, DebtType } from "@/types/financial-interview";
+import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore, IncomeSource, IncomeSourceType, Previous401k, DebtEntry, DebtType, ContributionLimitsData, ContributionLimitPlan } from "@/types/financial-interview";
 
 // ── Sub-section definitions ──────────────────────────────────
 
@@ -478,12 +478,33 @@ const ACTION_LABELS: Record<string, string> = {
   "converted-to-roth": "Converted to Roth",
 };
 
+function findLimit(
+  plans: ContributionLimitPlan[] | undefined,
+  planType: string,
+  coverageType: string,
+  ageGroup: string
+): number | null {
+  if (!plans) return null;
+  const plan = plans.find((p) => p.planType === planType);
+  if (!plan) return null;
+  const row = plan.limits.find(
+    (l) => l.coverageType === coverageType && l.ageGroup === ageGroup
+  );
+  return row?.limitAmount ?? null;
+}
+
+function formatLimit(amount: number | null): string {
+  return amount != null ? `$${amount.toLocaleString()}` : "—";
+}
+
 function RetirementSection({
   data,
   update,
+  limits,
 }: {
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
+  limits?: ContributionLimitsData | null;
 }) {
   const prev401ks: Previous401k[] = data.retirement401k?.previous401ks ?? [];
 
@@ -517,66 +538,217 @@ function RetirementSection({
     [prev401ks]
   );
 
+  const TaxBadge = ({ type }: { type: "pre-tax" | "post-tax" | "after-tax" | "roth" | "employer" }) => {
+    const styles: Record<string, string> = {
+      "pre-tax": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+      "post-tax": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+      "after-tax": "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+      roth: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+      employer: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+    };
+    const labels: Record<string, string> = {
+      "pre-tax": "Pre-Tax",
+      "post-tax": "Roth / Post-Tax",
+      "after-tax": "After-Tax",
+      roth: "Roth",
+      employer: "Employer Match",
+    };
+    return (
+      <span className={cn("ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide", styles[type])}>
+        {labels[type]}
+      </span>
+    );
+  };
+
+  const plans = limits?.plans;
+  const taxYear = limits?.taxYear ?? new Date().getFullYear();
+
+  const k401Base = findLimit(plans, "401k", "individual", "all_ages") ?? findLimit(plans, "401k", "individual", "under_50");
+  const k401Age50 = findLimit(plans, "401k", "individual", "age_50_plus");
+  const k401Age60 = findLimit(plans, "401k", "individual", "age_60_63");
+  const k401Total = findLimit(plans, "401k", "total_annual_additions", "all_ages");
+  const roth401kBase = findLimit(plans, "roth_401k", "individual", "under_50");
+  const afterTax401kTotal = findLimit(plans, "after_tax_401k", "total_annual_additions", "under_50");
+  const iraBase = findLimit(plans, "traditional_ira", "individual", "under_50");
+  const iraAge50 = findLimit(plans, "traditional_ira", "individual", "age_50_plus");
+  const hsaIndiv = findLimit(plans, "hsa", "individual", "under_50");
+  const hsaFamily = findLimit(plans, "hsa", "family", "under_50");
+  const hsaAge55 = findLimit(plans, "hsa", "individual", "age_55_plus");
+
   return (
     <div className="space-y-3">
-      {/* Current 401(k), Traditional IRA & Roth IRA — grouped */}
+      {/* ── 401(k) Pre-Tax + Employer Match ── */}
       <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-indigo-400")}>
-        <div className="mb-3">
-          <p className="text-sm font-semibold">Current 401(k) / IRA / Roth IRA</p>
-          <p className="text-xs text-muted-foreground">Active retirement accounts with current employer</p>
+        <div className="mb-3 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">401(k) Plan & Employer Match</p>
+            <p className="text-xs text-muted-foreground">Traditional pre-tax 401(k) with employer matching</p>
+          </div>
+          <div className="shrink-0 rounded-lg border bg-indigo-50/70 px-3 py-1.5 text-right dark:bg-indigo-950/20">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">{taxYear} Max Contribution</p>
+            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Individual: {formatLimit(k401Base)}</p>
+            <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Age 50+: {formatLimit(k401Age50)} · Age 60-63: {formatLimit(k401Age60)}</p>
+            <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Total w/ employer: {formatLimit(k401Total)} (§415c)</p>
+          </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2 rounded-lg bg-muted/30 p-3">
-            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">401(k)</p>
-            <CurrencyField
-              label="Balance"
-              value={data.retirement401k?.currentBalance}
-              onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, currentBalance: v } })}
-            />
-            <CurrencyField
-              label="Contribution"
-              value={(() => {
-                const pct = data.retirement401k?.employeeContributionPercent ?? 0;
-                const salary = data.income?.annualSalary ?? 0;
-                return pct > 0 && salary > 0 ? Math.round((pct / 100) * salary) : undefined;
-              })()}
-              onChange={(v) => {
-                const salary = data.income?.annualSalary ?? 0;
-                const pct = salary > 0 && v ? Math.round((v / salary) * 100) : undefined;
-                update({ retirement401k: { ...data.retirement401k, has401k: true, employeeContributionPercent: pct } });
-              }}
-            />
+            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+              401(k) Pre-Tax <TaxBadge type="pre-tax" />
+            </p>
+            <CurrencyField label="Balance" value={data.retirement401k?.currentBalance}
+              onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, currentBalance: v } })} />
+            <CurrencyField label="Employee Contribution (per pay)" value={data.retirement401k?.employeePreTaxContribution}
+              onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, employeePreTaxContribution: v } })} />
           </div>
-          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
-            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Traditional IRA</p>
-            <CurrencyField
-              label="Balance"
-              value={data.ira?.currentBalance}
-              onChange={(v) => update({ ira: { ...data.ira, hasIRA: true, currentBalance: v } })}
-            />
-            <CurrencyField
-              label="Annual Contribution"
-              value={data.ira?.annualContribution}
-              onChange={(v) => update({ ira: { ...data.ira, hasIRA: true, annualContribution: v } })}
-            />
-          </div>
-          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
-            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Roth IRA</p>
-            <CurrencyField
-              label="Balance"
-              value={data.rothIRA?.currentBalance}
-              onChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, currentBalance: v } })}
-            />
-            <CurrencyField
-              label="Annual Contribution"
-              value={data.rothIRA?.annualContribution}
-              onChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, annualContribution: v } })}
-            />
+          <div className="space-y-2 rounded-lg bg-violet-50/50 p-3 dark:bg-violet-950/10 border border-violet-200 dark:border-violet-800">
+            <p className="text-xs font-semibold text-violet-600 dark:text-violet-400">
+              Employer Match <TaxBadge type="employer" />
+            </p>
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Company Match %</Label>
+                <Input className="h-8 text-sm" type="number" min={0} max={100} step={0.5} placeholder="e.g. 6"
+                  value={data.retirement401k?.employerMatchPercent ?? ""}
+                  onChange={(e) => update({ retirement401k: { ...data.retirement401k, has401k: true, employerMatchPercent: e.target.value ? Number(e.target.value) : undefined } })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Calculated Match (per pay)</Label>
+                <div className="flex h-8 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium">
+                  ${(() => {
+                    const contrib = data.retirement401k?.employeePreTaxContribution ?? 0;
+                    const pct = data.retirement401k?.employerMatchPercent ?? 0;
+                    return contrib > 0 && pct > 0 ? Math.round((contrib * pct) / 100).toLocaleString() : "—";
+                  })()}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Previous 401(k)s from prior employers */}
+      {/* ── Roth 401(k) + After-Tax 401(k) ── */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-emerald-400")}>
+        <div className="mb-3 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">Roth 401(k) & After-Tax 401(k)</p>
+            <p className="text-xs text-muted-foreground">Post-tax and after-tax 401(k) contribution buckets</p>
+          </div>
+          <div className="shrink-0 rounded-lg border bg-emerald-50/70 px-3 py-1.5 text-right dark:bg-emerald-950/20">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">{taxYear} Limits</p>
+            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Roth 401(k): shares {formatLimit(roth401kBase ?? k401Base)} w/ Pre-Tax</p>
+            <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">After-Tax: up to {formatLimit(afterTax401kTotal ?? k401Total)} total (§415c)</p>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              Roth 401(k) <TaxBadge type="post-tax" />
+            </p>
+            <p className="text-[10px] text-muted-foreground">Contributions are post-tax, growth is tax-free</p>
+            <CurrencyField label="Balance" value={data.retirement401k?.roth401kBalance}
+              onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, roth401kBalance: v } })} />
+            <CurrencyField label="Contribution (per pay)" value={data.retirement401k?.roth401kContribution}
+              onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, roth401kContribution: v } })} />
+          </div>
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+              401(k) After-Tax <TaxBadge type="after-tax" />
+            </p>
+            <p className="text-[10px] text-muted-foreground">Mega backdoor Roth eligible</p>
+            <CurrencyField label="Balance" value={data.retirement401k?.afterTaxBalance}
+              onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, afterTaxBalance: v } })} />
+            <CurrencyField label="Contribution (per pay)" value={data.retirement401k?.afterTaxContribution}
+              onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, afterTaxContribution: v } })} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── IRA Section — Traditional, Roth, Backdoor Roth ── */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-indigo-400")}>
+        <div className="mb-3 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">Individual Retirement Accounts (IRA)</p>
+            <p className="text-xs text-muted-foreground">Traditional, Roth, and Backdoor Roth IRAs</p>
+          </div>
+          <div className="shrink-0 rounded-lg border bg-indigo-50/70 px-3 py-1.5 text-right dark:bg-indigo-950/20">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">{taxYear} Max Contribution</p>
+            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Individual: {formatLimit(iraBase)}</p>
+            <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Age 50+: {formatLimit(iraAge50)} (combined Trad + Roth)</p>
+            <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Backdoor Roth: no income limit</p>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+              Traditional IRA <TaxBadge type="pre-tax" />
+            </p>
+            <CurrencyField label="Balance" value={data.ira?.currentBalance}
+              onChange={(v) => update({ ira: { ...data.ira, hasIRA: true, currentBalance: v } })} />
+            <CurrencyField label="Annual Contribution" value={data.ira?.annualContribution}
+              onChange={(v) => update({ ira: { ...data.ira, hasIRA: true, annualContribution: v } })} />
+          </div>
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              Roth IRA <TaxBadge type="roth" />
+            </p>
+            <CurrencyField label="Balance" value={data.rothIRA?.currentBalance}
+              onChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, currentBalance: v } })} />
+            <CurrencyField label="Annual Contribution" value={data.rothIRA?.annualContribution}
+              onChange={(v) => update({ rothIRA: { ...data.rothIRA, hasRothIRA: true, annualContribution: v } })} />
+          </div>
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <p className="text-xs font-semibold text-teal-600 dark:text-teal-400">
+              Backdoor Roth IRA <TaxBadge type="roth" />
+            </p>
+            <p className="text-[10px] text-muted-foreground">Non-deductible Traditional → Roth conversion</p>
+            <CurrencyField label="Balance" value={data.backdoorRothIRA?.currentBalance}
+              onChange={(v) => update({ backdoorRothIRA: { ...data.backdoorRothIRA, hasBackdoorRoth: true, currentBalance: v } })} />
+            <CurrencyField label="Annual Contribution" value={data.backdoorRothIRA?.annualContribution}
+              onChange={(v) => update({ backdoorRothIRA: { ...data.backdoorRothIRA, hasBackdoorRoth: true, annualContribution: v } })} />
+            <label className="flex items-center gap-2 text-[10px] cursor-pointer text-muted-foreground">
+              <input type="checkbox" className="h-3 w-3 rounded accent-amber-600"
+                checked={data.backdoorRothIRA?.hasProRataIssue ?? false}
+                onChange={(e) => update({ backdoorRothIRA: { ...data.backdoorRothIRA, hasBackdoorRoth: true, hasProRataIssue: e.target.checked } })} />
+              Has pro-rata issue (existing pre-tax IRA balance)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* ── HSA ── */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-teal-400")}>
+        <div className="mb-3 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">
+              Health Savings Account (HSA) <TaxBadge type="pre-tax" />
+            </p>
+            <p className="text-xs text-muted-foreground">Triple tax-advantaged — pre-tax in, tax-free growth, tax-free withdrawal for medical</p>
+          </div>
+          <div className="shrink-0 rounded-lg border bg-teal-50/70 px-3 py-1.5 text-right dark:bg-teal-950/20">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-teal-500">{taxYear} Max Contribution</p>
+            <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">Individual: {formatLimit(hsaIndiv)}</p>
+            <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">Family: {formatLimit(hsaFamily)}</p>
+            <p className="text-[10px] text-teal-600/70 dark:text-teal-400/70">Age 55+: {formatLimit(hsaAge55)} (w/ catch-up)</p>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <CurrencyField label="Current Balance" value={data.hsa?.currentBalance}
+            onChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })} />
+          <CurrencyField label="Annual Contribution" value={data.hsa?.annualContribution}
+            onChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, annualContribution: v } })} />
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <input type="checkbox" className="h-3.5 w-3.5 rounded accent-teal-600"
+                checked={data.hsa?.isMaxedOut ?? false}
+                onChange={(e) => update({ hsa: { ...data.hsa, hasHSA: true, isMaxedOut: e.target.checked } })} />
+              Maxing out contributions
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Previous 401(k)s from prior employers ── */}
       <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-amber-400")}>
         <div className="mb-3 flex items-center justify-between">
           <div>
@@ -610,14 +782,10 @@ function RetirementSection({
                     <Label className="text-xs">Former employer</Label>
                     <Input className="h-8 text-sm" placeholder="e.g. Amazon"
                       value={p.employerName ?? ""}
-                      onChange={(e) => updateOnePrev(idx, { employerName: e.target.value })}
-                    />
+                      onChange={(e) => updateOnePrev(idx, { employerName: e.target.value })} />
                   </div>
-                  <CurrencyField
-                    label="Balance"
-                    value={p.balance}
-                    onChange={(v) => updateOnePrev(idx, { balance: v })}
-                  />
+                  <CurrencyField label="Balance" value={p.balance}
+                    onChange={(v) => updateOnePrev(idx, { balance: v })} />
                   <div className="space-y-1">
                     <Label className="text-xs">What did you do with it?</Label>
                     <Select value={p.action ?? ""} onValueChange={(v) => updateOnePrev(idx, { action: v as Previous401k["action"] })}>
@@ -639,6 +807,7 @@ function RetirementSection({
         )}
       </div>
 
+      {/* ── Pension & 403(b)/457(b) ── */}
       <AccountCard
         name="Pension / Defined Benefit"
         description="Employer-sponsored guaranteed income"
@@ -786,6 +955,7 @@ const DEBT_TYPE_META: Record<DebtType, { label: string; icon: string }> = {
   "credit-card": { label: "Credit Card", icon: "💳" },
   "personal-loan": { label: "Personal Loan", icon: "💰" },
   heloc: { label: "HELOC", icon: "🏡" },
+  "401k-loan": { label: "401(k) Loan", icon: "🏦" },
   "medical-debt": { label: "Medical Debt", icon: "🏥" },
   "tax-debt": { label: "Tax Debt", icon: "🏛️" },
   "business-loan": { label: "Business Loan", icon: "🏢" },
@@ -866,7 +1036,7 @@ function DebtsSection({
             <DropdownMenuContent align="start" className="w-56">
               {(Object.entries(DEBT_TYPE_META) as [DebtType, { label: string; icon: string }][]).map(
                 ([type, meta]) => {
-                  const alreadyAdded = usedTypes.has(type) && type !== "credit-card" && type !== "other";
+                  const alreadyAdded = usedTypes.has(type) && type !== "credit-card" && type !== "401k-loan" && type !== "other";
                   return (
                     <DropdownMenuItem
                       key={type}
@@ -1030,6 +1200,7 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
     hsa: { hasHSA: false },
     ira: { hasIRA: false },
     rothIRA: { hasRothIRA: false },
+    backdoorRothIRA: { hasBackdoorRoth: false },
     pension: { hasPension: false },
     plan403b457b: { hasPlan: false },
     brokerage: { hasBrokerage: false },
@@ -1056,6 +1227,7 @@ export interface FinancialBgLayoutProps {
   defaultValues?: PersonFinancialBackground;
   role: "primary" | "spouse";
   healthScore?: FinancialHealthScore | null;
+  contributionLimits?: ContributionLimitsData | null;
   onSubmit: (data: PersonFinancialBackground) => void | Promise<void>;
   isSubmitting?: boolean;
   /** Called when all sub-sections are done and user clicks "Save & Continue" on the last one */
@@ -1068,6 +1240,7 @@ export function FinancialBgLayout({
   defaultValues,
   role,
   healthScore,
+  contributionLimits,
   onSubmit,
   isSubmitting = false,
   onComplete,
@@ -1246,7 +1419,7 @@ export function FinancialBgLayout({
             </div>
 
             {activeSection === "employment" && <EmploymentSection data={data} update={update} />}
-            {activeSection === "retirement" && <RetirementSection data={data} update={update} />}
+            {activeSection === "retirement" && <RetirementSection data={data} update={update} limits={contributionLimits} />}
             {activeSection === "investments" && <InvestmentsSection data={data} update={update} />}
             {activeSection === "realEstate" && <RealEstateSection data={data} update={update} />}
             {activeSection === "debts" && <DebtsSection data={data} update={update} />}

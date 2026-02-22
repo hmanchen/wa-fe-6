@@ -5,9 +5,10 @@ import {
   getFinancialInterviewData,
   saveFinancialBackground,
   getFinancialHealthScore,
+  getContributionLimits,
   type FinancialInterviewPayload,
 } from "@/lib/api/financial-interview";
-import type { PersonFinancialBackground, FinancialHealthScore } from "@/types/financial-interview";
+import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimitsData } from "@/types/financial-interview";
 
 export function useFinancialInterview(caseId: string | null) {
   return useQuery<FinancialInterviewPayload>({
@@ -24,6 +25,14 @@ export function useFinancialHealthScore(caseId: string | null) {
     queryFn: () => getFinancialHealthScore(caseId!),
     enabled: !!caseId,
     staleTime: 10_000,
+  });
+}
+
+export function useContributionLimits(taxYear: number) {
+  return useQuery<ContributionLimitsData>({
+    queryKey: ["contribution-limits", taxYear],
+    queryFn: () => getContributionLimits(taxYear),
+    staleTime: 60 * 60 * 1000, // 1 hour — limits don't change often
   });
 }
 

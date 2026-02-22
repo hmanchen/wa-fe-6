@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import type { ApiResponse } from "@/types";
-import type { PersonFinancialBackground, FinancialHealthScore } from "@/types/financial-interview";
+import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimitsData } from "@/types/financial-interview";
 
 /**
  * Financial interview data is persisted via the discovery endpoint's
@@ -119,4 +119,15 @@ export async function getFinancialHealthScore(
   );
   const raw = data?.data ?? data;
   return deepConvertKeys(raw, toCamelCase) as FinancialHealthScore;
+}
+
+export async function getContributionLimits(
+  taxYear: number
+): Promise<ContributionLimitsData> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await apiClient.get<ApiResponse<any>>(
+    `/contribution-limits/${taxYear}`
+  );
+  const raw = data?.data ?? data;
+  return deepConvertKeys(raw, toCamelCase) as ContributionLimitsData;
 }

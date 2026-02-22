@@ -331,6 +331,7 @@ export function ProtectionEstateScreen({
       hsa: { hasHSA: false },
       ira: { hasIRA: false },
       rothIRA: { hasRothIRA: false },
+      backdoorRothIRA: { hasBackdoorRoth: false },
       pension: { hasPension: false },
       plan403b457b: { hasPlan: false },
       brokerage: { hasBrokerage: false },

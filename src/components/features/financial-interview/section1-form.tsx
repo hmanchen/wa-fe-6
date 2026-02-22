@@ -49,6 +49,7 @@ function makeEmptyBackground(role: "primary" | "spouse"): PersonFinancialBackgro
     hsa: { hasHSA: false },
     ira: { hasIRA: false },
     rothIRA: { hasRothIRA: false },
+    backdoorRothIRA: { hasBackdoorRoth: false },
     pension: { hasPension: false },
     plan403b457b: { hasPlan: false },
     brokerage: { hasBrokerage: false },

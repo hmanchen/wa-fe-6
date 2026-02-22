@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCase } from "@/hooks/use-cases";
-import { useFinancialInterview, useFinancialHealthScore, useSaveFinancialBackground } from "@/hooks/use-financial-interview";
+import { useFinancialInterview, useFinancialHealthScore, useSaveFinancialBackground, useContributionLimits } from "@/hooks/use-financial-interview";
 import { InterviewSectionNav } from "@/components/features/financial-interview/interview-section-nav";
 import { FinancialBgLayout } from "@/components/features/financial-interview/financial-bg-layout";
 import { IncomeReplacementScreen } from "@/components/features/financial-interview/income-replacement-screen";
@@ -43,6 +43,7 @@ export default function FinancialInterviewPage() {
   const { data: interviewData } = useFinancialInterview(caseId);
   const { data: healthScore } = useFinancialHealthScore(caseId);
   const saveBackground = useSaveFinancialBackground(caseId);
+  const { data: contributionLimits } = useContributionLimits(new Date().getFullYear());
 
   // ── Section-level state ──────────────────────────────────
   const [currentSection, setCurrentSection] =
@@ -188,6 +189,7 @@ export default function FinancialInterviewPage() {
                 defaultValues={interviewData?.primaryBackground}
                 role="primary"
                 healthScore={healthScore}
+                contributionLimits={contributionLimits}
                 onSubmit={handlePrimarySave}
                 isSubmitting={saveBackground.isPending}
                 onComplete={() => setCurrentSection("income-replacement-risk")}
@@ -201,6 +203,7 @@ export default function FinancialInterviewPage() {
                 defaultValues={interviewData?.spouseBackground}
                 role="spouse"
                 healthScore={healthScore}
+                contributionLimits={contributionLimits}
                 onSubmit={handleSpouseSave}
                 isSubmitting={saveBackground.isPending}
                 onComplete={() => setCurrentSection("income-replacement-risk")}

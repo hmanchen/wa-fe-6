@@ -5,6 +5,32 @@
  * captures detailed financial data while educating the client.
  */
 
+// ── Contribution Limits ─────────────────────────────────────
+
+export interface ContributionLimitRow {
+  id: string;
+  taxYear: number;
+  planType: string;
+  coverageType: string;
+  ageGroup: string;
+  limitAmount: number;
+  description: string;
+  notes: string | null;
+  source: string;
+}
+
+export interface ContributionLimitPlan {
+  planType: string;
+  planDisplayName: string;
+  limits: ContributionLimitRow[];
+}
+
+export interface ContributionLimitsData {
+  taxYear: number;
+  totalRecords: number;
+  plans: ContributionLimitPlan[];
+}
+
 // ── Section 1: Financial Background ──────────────────────────
 
 export interface EmploymentRecord {
@@ -269,17 +295,41 @@ export interface Previous401k {
 
 export interface Retirement401kDetails {
   has401k: boolean;
-  /** Current employer plan */
+  /** Current employer plan — Pre-tax (Traditional 401k) */
   currentBalance?: number;
   employerMatchPercent?: number;
   employeeContributionPercent?: number;
+  /** Employer matching contribution (annual) */
+  employerMatchAmount?: number;
+  /** Employee pre-tax contribution (per pay period) */
+  employeePreTaxContribution?: number;
   isMaxedOut?: boolean;
+  /** 401(k) After-tax contributions (mega backdoor eligible) */
+  afterTaxBalance?: number;
+  afterTaxContribution?: number;
+  /** Roth 401(k) / Post-tax contributions */
+  roth401kBalance?: number;
+  roth401kContribution?: number;
+  /** Outstanding 401(k) loans */
+  hasLoan?: boolean;
+  loanBalance?: number;
+  loanPaymentAmount?: number;
   /** Has an old/previous 401(k) from a prior employer */
   hasOld401k?: boolean;
   old401kBalance?: number;
   old401kAction?: "rolled-over" | "left-with-employer" | "cashed-out" | "converted-to-roth";
   /** Multiple previous 401(k) accounts */
   previous401ks?: Previous401k[];
+}
+
+export interface BackdoorRothIRADetails {
+  hasBackdoorRoth: boolean;
+  /** Annual contribution to traditional IRA (non-deductible) then converted */
+  annualContribution?: number;
+  /** Current balance after conversions */
+  currentBalance?: number;
+  /** Has pro-rata issue (existing pre-tax IRA balances) */
+  hasProRataIssue?: boolean;
 }
 
 export type DebtType =
@@ -289,6 +339,7 @@ export type DebtType =
   | "credit-card"
   | "personal-loan"
   | "heloc"
+  | "401k-loan"
   | "medical-debt"
   | "tax-debt"
   | "business-loan"
@@ -379,6 +430,7 @@ export interface PersonFinancialBackground {
   hsa: HSADetails;
   ira: IRADetails;
   rothIRA: RothIRADetails;
+  backdoorRothIRA: BackdoorRothIRADetails;
   pension: PensionDetails;
   plan403b457b: Plan403b457bDetails;
   brokerage: BrokerageDetails;
