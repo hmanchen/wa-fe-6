@@ -32,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore, IncomeSource, IncomeSourceType, Previous401k, DebtEntry, DebtType, ContributionLimitsData, ContributionLimitPlan } from "@/types/financial-interview";
+import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore, IncomeSource, IncomeSourceType, Previous401k, DebtEntry, DebtType, ContributionLimitsData, ContributionLimitPlan, MarketSnapshot } from "@/types/financial-interview";
 
 // ── Sub-section definitions ──────────────────────────────────
 
@@ -831,6 +831,86 @@ function RetirementSection({
   );
 }
 
+function MarketSnapshotCard({ snapshot }: { snapshot: MarketSnapshot }) {
+  const isUp = snapshot.changePercent >= 0;
+  const arrow = isUp ? "▲" : "▼";
+  const sentimentColor =
+    snapshot.sentiment === "positive"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : snapshot.sentiment === "negative"
+        ? "text-red-600 dark:text-red-400"
+        : "text-gray-500";
+  const sentimentBg =
+    snapshot.sentiment === "positive"
+      ? "bg-emerald-50/70 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800"
+      : snapshot.sentiment === "negative"
+        ? "bg-red-50/70 border-red-200 dark:bg-red-950/20 dark:border-red-800"
+        : "bg-gray-50/70 border-gray-200 dark:bg-gray-900/20 dark:border-gray-700";
+
+  const trendArrow =
+    snapshot.trend.direction === "up" ? "▲" : snapshot.trend.direction === "down" ? "▼" : "▬";
+  const trendSign = snapshot.trend.changePercent > 0 ? "+" : "";
+
+  const statusDot =
+    snapshot.marketStatus === "open"
+      ? "bg-emerald-500"
+      : snapshot.marketStatus === "closed"
+        ? "bg-gray-400"
+        : "bg-yellow-500";
+  const statusLabel =
+    snapshot.marketStatus === "open"
+      ? "Open"
+      : snapshot.marketStatus === "closed"
+        ? "Closed"
+        : snapshot.marketStatus === "pre_market"
+          ? "Pre-Market"
+          : "After Hours";
+
+  let formattedTime = "";
+  try {
+    formattedTime = new Date(snapshot.lastUpdated).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/New_York",
+    });
+  } catch {
+    formattedTime = "—";
+  }
+
+  return (
+    <div className={cn("rounded-lg border px-4 py-3 shadow-sm", sentimentBg)}>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          📊 Market Snapshot
+        </span>
+        <span className="text-xs font-medium text-muted-foreground">{snapshot.name}</span>
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-lg font-bold">
+          {snapshot.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+        <span className={cn("text-xs font-semibold", sentimentColor)}>
+          {arrow} {isUp ? "+" : ""}{snapshot.changePercent.toFixed(2)}% today
+        </span>
+      </div>
+      <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>
+          {snapshot.trend.days}-day trend: <span className={sentimentColor}>{trendArrow} {trendSign}{snapshot.trend.changePercent.toFixed(2)}%</span>
+        </span>
+        <span className="text-muted-foreground/50">·</span>
+        <span className={sentimentColor}>{snapshot.sentimentLabel}</span>
+      </div>
+      <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/70">
+        <span>Last updated: {formattedTime} ET</span>
+        <span className="flex items-center gap-1">
+          <span className={cn("inline-block h-1.5 w-1.5 rounded-full", statusDot)} />
+          {statusLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function InvestmentsSection({
   data,
   update,
@@ -1228,6 +1308,7 @@ export interface FinancialBgLayoutProps {
   role: "primary" | "spouse";
   healthScore?: FinancialHealthScore | null;
   contributionLimits?: ContributionLimitsData | null;
+  marketSnapshot?: MarketSnapshot | null;
   onSubmit: (data: PersonFinancialBackground) => void | Promise<void>;
   isSubmitting?: boolean;
   /** Called when all sub-sections are done and user clicks "Save & Continue" on the last one */
@@ -1241,6 +1322,7 @@ export function FinancialBgLayout({
   role,
   healthScore,
   contributionLimits,
+  marketSnapshot,
   onSubmit,
   isSubmitting = false,
   onComplete,
@@ -1402,20 +1484,27 @@ export function FinancialBgLayout({
 
           {/* ── Main form area ── */}
           <div className="flex-1 p-6">
-            <div className="mb-5">
-              <h3 className="flex items-center gap-2 text-lg font-bold">
-                <span>{SECTION_ICONS[activeSection]}</span>
-                {meta.title}
-                <span className={cn(
-                  "ml-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                  role === "primary"
-                    ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
-                    : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                )}>
-                  {role === "primary" ? "Primary Client" : "Spouse"}
-                </span>
-              </h3>
-              <p className="text-sm text-muted-foreground">{meta.description}</p>
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="flex items-center gap-2 text-lg font-bold">
+                  <span>{SECTION_ICONS[activeSection]}</span>
+                  {meta.title}
+                  <span className={cn(
+                    "ml-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                    role === "primary"
+                      ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                      : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                  )}>
+                    {role === "primary" ? "Primary Client" : "Spouse"}
+                  </span>
+                </h3>
+                <p className="text-sm text-muted-foreground">{meta.description}</p>
+              </div>
+              {activeSection === "investments" && marketSnapshot && (
+                <div className="shrink-0 w-[280px]">
+                  <MarketSnapshotCard snapshot={marketSnapshot} />
+                </div>
+              )}
             </div>
 
             {activeSection === "employment" && <EmploymentSection data={data} update={update} />}

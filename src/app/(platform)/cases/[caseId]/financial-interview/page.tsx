@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCase } from "@/hooks/use-cases";
-import { useFinancialInterview, useFinancialHealthScore, useSaveFinancialBackground, useContributionLimits } from "@/hooks/use-financial-interview";
+import { useFinancialInterview, useFinancialHealthScore, useSaveFinancialBackground, useContributionLimits, useMarketSnapshot } from "@/hooks/use-financial-interview";
 import { InterviewSectionNav } from "@/components/features/financial-interview/interview-section-nav";
 import { FinancialBgLayout } from "@/components/features/financial-interview/financial-bg-layout";
 import { IncomeReplacementScreen } from "@/components/features/financial-interview/income-replacement-screen";
@@ -51,6 +51,8 @@ export default function FinancialInterviewPage() {
   const [completedSections, setCompletedSections] = useState<
     FinancialInterviewSection[]
   >([]);
+
+  const { data: marketSnapshot } = useMarketSnapshot(currentSection === "financial-background");
 
   // ── Derived display name ────────────────────────────────
   const clientNames = (() => {
@@ -190,6 +192,7 @@ export default function FinancialInterviewPage() {
                 role="primary"
                 healthScore={healthScore}
                 contributionLimits={contributionLimits}
+                marketSnapshot={marketSnapshot}
                 onSubmit={handlePrimarySave}
                 isSubmitting={saveBackground.isPending}
                 onComplete={() => setCurrentSection("income-replacement-risk")}
@@ -204,6 +207,7 @@ export default function FinancialInterviewPage() {
                 role="spouse"
                 healthScore={healthScore}
                 contributionLimits={contributionLimits}
+                marketSnapshot={marketSnapshot}
                 onSubmit={handleSpouseSave}
                 isSubmitting={saveBackground.isPending}
                 onComplete={() => setCurrentSection("income-replacement-risk")}

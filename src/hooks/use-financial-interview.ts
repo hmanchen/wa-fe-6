@@ -6,9 +6,10 @@ import {
   saveFinancialBackground,
   getFinancialHealthScore,
   getContributionLimits,
+  getMarketSnapshot,
   type FinancialInterviewPayload,
 } from "@/lib/api/financial-interview";
-import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimitsData } from "@/types/financial-interview";
+import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimitsData, MarketSnapshot } from "@/types/financial-interview";
 
 export function useFinancialInterview(caseId: string | null) {
   return useQuery<FinancialInterviewPayload>({
@@ -33,6 +34,17 @@ export function useContributionLimits(taxYear: number) {
     queryKey: ["contribution-limits", taxYear],
     queryFn: () => getContributionLimits(taxYear),
     staleTime: 60 * 60 * 1000, // 1 hour — limits don't change often
+  });
+}
+
+export function useMarketSnapshot(enabled: boolean) {
+  return useQuery<MarketSnapshot | null>({
+    queryKey: ["market-snapshot"],
+    queryFn: getMarketSnapshot,
+    enabled,
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
   });
 }
 

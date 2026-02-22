@@ -31,6 +31,32 @@ export interface ContributionLimitsData {
   plans: ContributionLimitPlan[];
 }
 
+// ── Market Snapshot ─────────────────────────────────────────
+
+export interface MarketTrend {
+  days: number;
+  startPrice: number;
+  endPrice: number;
+  changePercent: number;
+  direction: "up" | "down" | "flat";
+}
+
+export interface MarketSnapshot {
+  symbol: string;
+  name: string;
+  currentPrice: number;
+  previousClose: number;
+  changeAmount: number;
+  changePercent: number;
+  trend: MarketTrend;
+  sentiment: "positive" | "negative" | "neutral";
+  sentimentLabel: string;
+  marketStatus: "open" | "closed" | "pre_market" | "after_hours";
+  lastUpdated: string;
+  source: string;
+  cached: boolean;
+}
+
 // ── Section 1: Financial Background ──────────────────────────
 
 export interface EmploymentRecord {
