@@ -24,6 +24,10 @@ import { FinancialBgLayout } from "@/components/features/financial-interview/fin
 import { IncomeReplacementScreen } from "@/components/features/financial-interview/income-replacement-screen";
 import { ProtectionEstateScreen } from "@/components/features/financial-interview/protection-estate-screen";
 import { FinancialBgInsights } from "@/components/features/financial-interview/financial-bg-insights";
+import { FinancialHomeScreen } from "@/components/features/financial-interview/financial-home-screen";
+import { XCurveScreen } from "@/components/features/financial-interview/xcurve-screen";
+import { RecommendationsScreen } from "@/components/features/financial-interview/recommendations-screen";
+import { DeliveryScreen } from "@/components/features/financial-interview/delivery-screen";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
 
@@ -284,77 +288,31 @@ export default function FinancialInterviewPage() {
 
         {/* ── PHASE 5: Financial Home ── */}
         {currentSection === "financial-home" && (
-          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="rounded-full bg-primary/10 p-4">
-              <Pencil className="size-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Financial Home</h2>
-              <p className="text-sm text-muted-foreground">
-                AI-powered narratives: Background Summary, Health Narrative,
-                Protection Gaps, Estate Urgency, and Background Gaps.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground/70">Coming soon — Phase 5</p>
-            </div>
-            <Button size="sm" onClick={() => setCurrentSection("financial-x-curve")} className="gap-1.5">
-              Continue to X Curve <ChevronRight className="size-3.5" />
-            </Button>
-          </div>
+          <FinancialHomeScreen
+            caseId={caseId}
+            onContinue={() => setCurrentSection("financial-x-curve")}
+          />
         )}
 
         {/* ── PHASE 6: Financial X Curve ── */}
         {currentSection === "financial-x-curve" && (
-          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="rounded-full bg-primary/10 p-4">
-              <Pencil className="size-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Financial X Curve</h2>
-              <p className="text-sm text-muted-foreground">
-                X-Curve Visualization, AI Narration, and Tax Narrative.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground/70">Coming soon — Phase 6</p>
-            </div>
-            <Button size="sm" onClick={() => setCurrentSection("recommendations")} className="gap-1.5">
-              Continue to Recommendations <ChevronRight className="size-3.5" />
-            </Button>
-          </div>
+          <XCurveScreen
+            caseId={caseId}
+            onContinue={() => setCurrentSection("recommendations")}
+          />
         )}
 
         {/* ── PHASE 7: Recommendations ── */}
         {currentSection === "recommendations" && (
-          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="rounded-full bg-primary/10 p-4">
-              <Pencil className="size-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Recommendations</h2>
-              <p className="text-sm text-muted-foreground">
-                AI Recommendations (3 tiers), Projections (IUL, 529, 401k comparison),
-                and Product Recommendations.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground/70">Coming soon — Phase 7</p>
-            </div>
-            <Button size="sm" onClick={() => setCurrentSection("delivery")} className="gap-1.5">
-              Continue to Delivery <ChevronRight className="size-3.5" />
-            </Button>
-          </div>
+          <RecommendationsScreen
+            caseId={caseId}
+            onContinue={() => setCurrentSection("delivery")}
+          />
         )}
 
         {/* ── PHASE 8: Delivery ── */}
         {currentSection === "delivery" && (
-          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="rounded-full bg-primary/10 p-4">
-              <Pencil className="size-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Delivery</h2>
-              <p className="text-sm text-muted-foreground">
-                Generate PDF / Presentation for client delivery.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground/70">Coming soon — Phase 8</p>
-            </div>
-          </div>
+          <DeliveryScreen caseId={caseId} clientNames={clientNames} />
         )}
       </div>
     </>
