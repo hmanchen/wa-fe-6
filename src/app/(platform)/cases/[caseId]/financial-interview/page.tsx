@@ -279,6 +279,7 @@ export default function FinancialInterviewPage() {
               <span className="text-xs text-muted-foreground">Full Health Score (0–100, all 5 categories)</span>
             </div>
             <FinancialBgInsights
+              caseId={caseId}
               healthScore={healthScore}
               onContinue={() => setCurrentSection("financial-home")}
               isSubmitting={false}
