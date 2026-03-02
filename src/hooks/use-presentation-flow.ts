@@ -19,10 +19,10 @@ import {
 
 // ── Compute hooks ────────────────────────────────────────────
 
-export function useFullAnalysis(caseId: string | null) {
+export function useFullAnalysis(caseId: string | null, clientState = "unknown") {
   return useMutation({
     mutationKey: ["full-analysis", caseId],
-    mutationFn: () => computeFullAnalysis(caseId!),
+    mutationFn: () => computeFullAnalysis(caseId!, clientState),
   });
 }
 

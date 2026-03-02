@@ -4,7 +4,7 @@ import type { ApiResponse } from "@/types";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 function toCamelCase(str: string): string {
-  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+  return str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 }
 
 function deepConvertKeys(obj: any, converter: (s: string) => string): any {
@@ -30,7 +30,7 @@ function extract(data: any): any {
 
 // ── Compute endpoints ────────────────────────────────────────
 
-export async function computeFullAnalysis(caseId: string, state = "GA") {
+export async function computeFullAnalysis(caseId: string, state: string) {
   const { data } = await apiClient.post<ApiResponse<any>>(
     "/compute/financial/full-analysis",
     { case_id: caseId, state }
@@ -86,7 +86,7 @@ export async function computeCollegeFunding(params: {
       child_name: params.childName,
       child_age: params.childAge,
       monthly_contribution: params.monthlyContribution,
-      state: params.state ?? "GA",
+      state: params.state ?? "unknown",
       iul_monthly_premium: params.iulMonthlyPremium,
       iul_death_benefit: params.iulDeathBenefit ?? 500000,
     }

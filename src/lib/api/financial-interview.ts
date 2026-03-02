@@ -16,11 +16,14 @@ import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimit
 // ── Helpers: camelCase ↔ snake_case conversion ───────────────
 
 function toSnakeCase(str: string): string {
-  return str.replace(/([A-Z])/g, "_$1").toLowerCase();
+  return str
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/([a-zA-Z])(\d)/g, "$1_$2")
+    .toLowerCase();
 }
 
 function toCamelCase(str: string): string {
-  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+  return str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,7 +58,7 @@ export async function getFinancialInterviewData(
   const raw = data?.data ?? data;
   const fp = raw?.financial_profile ?? raw?.financialProfile ?? {};
 
-  return {
+  const result = {
     primaryBackground: fp.primary_background
       ? deepConvertKeys(fp.primary_background, toCamelCase)
       : undefined,
@@ -63,6 +66,20 @@ export async function getFinancialInterviewData(
       ? deepConvertKeys(fp.spouse_background, toCamelCase)
       : undefined,
   };
+
+  console.log("[getFinancialInterviewData] Loaded →", {
+    fpKeys: Object.keys(fp),
+    hasPrimaryBg: !!fp.primary_background,
+    primaryRetirementKeys: fp.primary_background
+      ? Object.keys(fp.primary_background).filter(k => k.includes("retirement") || k.includes("401"))
+      : "NO primary_background",
+    convertedRetirementKeys: result.primaryBackground
+      ? Object.keys(result.primaryBackground).filter(k => k.includes("retirement") || k.includes("401"))
+      : "NO primaryBackground",
+    retirementBalance: result.primaryBackground?.retirement401k?.currentBalance,
+  });
+
+  return result;
 }
 
 export async function saveFinancialBackground(
@@ -70,8 +87,6 @@ export async function saveFinancialBackground(
   role: "primary" | "spouse",
   backgroundData: PersonFinancialBackground
 ): Promise<FinancialInterviewPayload> {
-  // Fetch current data first so we don't overwrite the other role's data.
-  // The backend merges at the section level (financial_profile), not deep.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: currentData } = await apiClient.get<ApiResponse<any>>(
     `/cases/${caseId}/discovery/`
@@ -83,6 +98,14 @@ export async function saveFinancialBackground(
   const snakeCaseData = deepConvertKeys(backgroundData, toSnakeCase);
   const fieldKey =
     role === "primary" ? "primary_background" : "spouse_background";
+
+  console.log("[saveFinancialBackground] Before save →", {
+    role,
+    fieldKey,
+    retirementKeys: Object.keys(snakeCaseData.retirement401k ?? snakeCaseData.retirement_401k ?? {}),
+    retirementBalance: snakeCaseData.retirement401k?.current_balance ?? snakeCaseData.retirement_401k?.current_balance,
+    originalRetirementBalance: backgroundData.retirement401k?.currentBalance,
+  });
 
   const payload = {
     financial_profile: {
@@ -100,7 +123,7 @@ export async function saveFinancialBackground(
   const raw = data?.data ?? data;
   const fp = raw?.financial_profile ?? raw?.financialProfile ?? {};
 
-  return {
+  const result = {
     primaryBackground: fp.primary_background
       ? deepConvertKeys(fp.primary_background, toCamelCase)
       : undefined,
@@ -108,6 +131,16 @@ export async function saveFinancialBackground(
       ? deepConvertKeys(fp.spouse_background, toCamelCase)
       : undefined,
   };
+
+  console.log("[saveFinancialBackground] After save ←", {
+    role,
+    fpKeys: Object.keys(fp),
+    primaryBgKeys: fp.primary_background ? Object.keys(fp.primary_background) : "UNDEFINED",
+    resultRetirementKeys: Object.keys(result.primaryBackground?.retirement401k ?? {}),
+    resultRetirementBalance: result.primaryBackground?.retirement401k?.currentBalance,
+  });
+
+  return result;
 }
 
 export async function getFinancialHealthScore(
@@ -141,4 +174,63 @@ export async function getMarketSnapshot(): Promise<MarketSnapshot | null> {
   } catch {
     return null;
   }
+}
+
+// ── 401(k) Calculate API ──────────────────────────────────────
+
+export interface Calculate401kRequest {
+  salary: number;
+  payFrequency: number;
+  age: number;
+  empContribPct: number;
+  currentBalance: number;
+  matchType: number;
+  matchRate?: number;
+  matchCapPct?: number;
+  dollarCap?: number;
+  yearsOfService?: number;
+  tiers?: { matchRate: number; capPct: number }[];
+  tenureTiers?: { maxYears: number; matchRate: number }[];
+  autoContribPct?: number;
+  autoContribType?: string;
+  ageBrackets?: { maxAge: number; pct: number }[];
+}
+
+export interface Calculate401kAlert {
+  type: "success" | "warning" | "danger" | "info";
+  code: string;
+  message: string;
+}
+
+export interface Calculate401kResponse {
+  empAnnual: number;
+  empPerPay: number;
+  employerMatchAnnual: number;
+  employerMatchPerPay: number;
+  autoContribAnnual: number;
+  autoContribPerPay: number;
+  totalAnnual: number;
+  totalPerPay: number;
+  effectiveMatchPct: number;
+  irsLimitStatus: {
+    limit: number;
+    empAnnual: number;
+    isNearLimit: boolean;
+    isOverLimit: boolean;
+    catchUpEligible: boolean;
+  };
+  unclaimedMatch: number;
+  alerts: Calculate401kAlert[];
+}
+
+export async function calculate401k(
+  payload: Calculate401kRequest
+): Promise<Calculate401kResponse> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await apiClient.post<ApiResponse<any>>(
+    "/401k/calculate",
+    payload
+  );
+  const raw = data?.data ?? data;
+  return deepConvertKeys(raw, toCamelCase) as Calculate401kResponse;
 }

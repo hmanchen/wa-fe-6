@@ -319,15 +319,55 @@ export interface Previous401k {
   action?: "rolled-over" | "left-with-employer" | "cashed-out" | "converted-to-roth";
 }
 
+export type MatchStructureType = "simple" | "tiered" | "dollar_capped" | "tenure" | "auto_plus_match";
+
+export interface TenureTier {
+  matchRatePercent?: number;
+  upToYears?: number;
+}
+
 export interface Retirement401kDetails {
   has401k: boolean;
   /** Current employer plan — Pre-tax (Traditional 401k) */
   currentBalance?: number;
-  employerMatchPercent?: number;
+  /** % of salary the employee contributes pre-tax */
   employeeContributionPercent?: number;
-  /** Employer matching contribution (annual) */
+  /** Pay periods per year: 12 (monthly), 24 (semi-monthly), 26 (bi-weekly), 52 (weekly) */
+  payFrequency?: number;
+
+  /** Employer match structure type */
+  matchStructureType?: MatchStructureType;
+
+  /** Tier 1 match rate (all types) */
+  employerMatchPercent?: number;
+  /** Tier 1 cap % of salary (all types) */
+  employerMatchCapPercent?: number;
+
+  /** Tiered match — Tier 2 */
+  tier2MatchRatePercent?: number;
+  tier2CapPercent?: number;
+  /** Tiered match — Tier 3 (optional) */
+  tier3MatchRatePercent?: number;
+  tier3CapPercent?: number;
+
+  /** Dollar-capped match */
+  maxEmployerMatchDollars?: number;
+
+  /** Tenure-based match */
+  yearsOfService?: number;
+  tenureTiers?: TenureTier[];
+
+  /** Auto + match */
+  autoContributionPercent?: number;
+  autoContributionType?: "flat" | "age_based" | "performance_bonus";
+  ageBracketUnder30?: number;
+  ageBracket30to39?: number;
+  ageBracket40to49?: number;
+  ageBracket50Plus?: number;
+
+  /** Employer matching contribution (annual, computed) */
   employerMatchAmount?: number;
-  /** Employee pre-tax contribution (per pay period) */
+  /** Employee pre-tax contribution (per pay period, legacy) */
   employeePreTaxContribution?: number;
   isMaxedOut?: boolean;
   /** 401(k) After-tax contributions (mega backdoor eligible) */

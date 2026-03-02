@@ -7,7 +7,10 @@ import {
   getFinancialHealthScore,
   getContributionLimits,
   getMarketSnapshot,
+  calculate401k,
   type FinancialInterviewPayload,
+  type Calculate401kRequest,
+  type Calculate401kResponse,
 } from "@/lib/api/financial-interview";
 import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimitsData, MarketSnapshot } from "@/types/financial-interview";
 
@@ -44,6 +47,16 @@ export function useMarketSnapshot(enabled: boolean) {
     enabled,
     refetchInterval: 5 * 60 * 1000,
     staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useCalculate401k(payload: Calculate401kRequest | null) {
+  return useQuery<Calculate401kResponse>({
+    queryKey: ["401k-calculate", payload],
+    queryFn: () => calculate401k(payload!),
+    enabled: !!payload && payload.salary > 0 && payload.empContribPct > 0,
+    staleTime: 30_000,
     retry: 1,
   });
 }

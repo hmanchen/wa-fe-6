@@ -8,6 +8,7 @@ import { useAiRecommendations, useFullAnalysis } from "@/hooks/use-presentation-
 
 interface RecommendationsScreenProps {
   caseId: string;
+  clientState?: string;
   onContinue: () => void;
 }
 
@@ -22,9 +23,9 @@ const TIER_COLORS = [
   { bg: "bg-purple-50/50 dark:bg-purple-950/20", border: "border-purple-400", text: "text-purple-700 dark:text-purple-300", badge: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
 ];
 
-export function RecommendationsScreen({ caseId, onContinue }: RecommendationsScreenProps) {
+export function RecommendationsScreen({ caseId, clientState, onContinue }: RecommendationsScreenProps) {
   const { data: recs, isLoading, isError } = useAiRecommendations(caseId);
-  const fullAnalysis = useFullAnalysis(caseId);
+  const fullAnalysis = useFullAnalysis(caseId, clientState);
   const [analysisRan, setAnalysisRan] = useState(false);
 
   const handleRunAnalysis = () => {

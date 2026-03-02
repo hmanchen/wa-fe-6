@@ -70,6 +70,17 @@ export default function FinancialInterviewPage() {
     return spouse ? `${primary} & ${spouse}` : primary;
   })();
 
+  const clientAge = (() => {
+    const dob = caseData?.clientPersonalInfo?.dateOfBirth;
+    if (!dob) return undefined;
+    const birth = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
+  })();
+
   // ── Annotation overlay ───────────────────────────────────
   const [annotationActive, setAnnotationActive] = useState(false);
 
@@ -197,6 +208,7 @@ export default function FinancialInterviewPage() {
                 healthScore={healthScore}
                 contributionLimits={contributionLimits}
                 marketSnapshot={marketSnapshot}
+                clientAge={clientAge}
                 onSubmit={handlePrimarySave}
                 isSubmitting={saveBackground.isPending}
                 onComplete={() => setCurrentSection("income-replacement-risk")}
@@ -212,6 +224,7 @@ export default function FinancialInterviewPage() {
                 healthScore={healthScore}
                 contributionLimits={contributionLimits}
                 marketSnapshot={marketSnapshot}
+                clientAge={clientAge}
                 onSubmit={handleSpouseSave}
                 isSubmitting={saveBackground.isPending}
                 onComplete={() => setCurrentSection("income-replacement-risk")}
@@ -281,6 +294,7 @@ export default function FinancialInterviewPage() {
             <FinancialBgInsights
               caseId={caseId}
               healthScore={healthScore}
+              clientState={caseData?.clientPersonalInfo?.address?.province}
               onContinue={() => setCurrentSection("financial-home")}
               isSubmitting={false}
             />
@@ -307,6 +321,7 @@ export default function FinancialInterviewPage() {
         {currentSection === "recommendations" && (
           <RecommendationsScreen
             caseId={caseId}
+            clientState={caseData?.clientPersonalInfo?.address?.province}
             onContinue={() => setCurrentSection("delivery")}
           />
         )}

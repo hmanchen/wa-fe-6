@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -15,11 +15,45 @@ import {
   RefreshCw,
   Banknote,
   CreditCard,
+  Bug,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { FinancialHealthScore } from "@/types/financial-interview";
-import { computeFullAnalysis } from "@/lib/api/presentation-flow";
+import { apiClient } from "@/lib/api/client";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+function toCamelCase(str: string): string {
+  return str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
+}
+
+function deepConvertKeys(obj: any, converter: (s: string) => string): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map((item) => deepConvertKeys(item, converter));
+  if (typeof obj === "object" && !(obj instanceof Date)) {
+    const result: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[converter(key)] = deepConvertKeys(value, converter);
+    }
+    return result;
+  }
+  return obj;
+}
+
+interface DebugLog {
+  label: string;
+  url: string;
+  method: string;
+  input?: any;
+  rawResponse?: any;
+  transformedResponse?: any;
+  error?: string;
+  timestamp: string;
+  durationMs?: number;
+}
 
 function fmtDollars(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -29,35 +63,119 @@ function fmtDollars(n: number): string {
 
 export function FinancialBgInsights({
   caseId,
-  healthScore,
+  healthScore: healthScoreProp,
+  clientState,
   onContinue,
   isSubmitting,
 }: {
   caseId: string;
   healthScore?: FinancialHealthScore | null;
+  clientState?: string;
   onContinue: () => void | Promise<void>;
   isSubmitting?: boolean;
 }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [fullAnalysis, setFullAnalysis] = useState<any>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [freshHealthScore, setFreshHealthScore] = useState<FinancialHealthScore | null>(null);
+  const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const hasRun = useRef(false);
+
+  const healthScore = freshHealthScore ?? healthScoreProp ?? null;
+
+  const addDebugLog = (log: DebugLog) => {
+    setDebugLogs((prev) => [...prev, log]);
+  };
+
+  const fetchHealthScore = async () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const hsUrl = `${apiBase}/api/v1/cases/${caseId}/financial-health-score/`;
+    const start = Date.now();
+
+    try {
+      const { data } = await apiClient.get<any>(
+        `/cases/${caseId}/financial-health-score/`
+      );
+      const elapsed = Date.now() - start;
+      const rawExtracted = data?.data ?? data;
+      const transformed = deepConvertKeys(rawExtracted, toCamelCase) as FinancialHealthScore;
+      setFreshHealthScore(transformed);
+
+      addDebugLog({
+        label: "Health Score (fresh fetch)",
+        url: hsUrl,
+        method: "GET",
+        rawResponse: rawExtracted,
+        transformedResponse: transformed,
+        timestamp: new Date().toISOString(),
+        durationMs: elapsed,
+      });
+    } catch (err: any) {
+      const elapsed = Date.now() - start;
+      addDebugLog({
+        label: "Health Score (fresh fetch)",
+        url: hsUrl,
+        method: "GET",
+        error: err.message || "Health score fetch failed",
+        timestamp: new Date().toISOString(),
+        durationMs: elapsed,
+      });
+    }
+  };
 
   const runFullAnalysis = async () => {
     setAnalysisLoading(true);
     setAnalysisError(null);
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const fullUrl = `${apiBase}/api/v1/compute/financial/full-analysis`;
+    const resolvedState = clientState || "unknown";
+    const inputPayload = { case_id: caseId, state: resolvedState };
+    const start = Date.now();
+
     try {
-      const result = await computeFullAnalysis(caseId);
-      setFullAnalysis(result);
+      const { data } = await apiClient.post<any>(
+        "/compute/financial/full-analysis",
+        inputPayload
+      );
+      const elapsed = Date.now() - start;
+      const rawExtracted = data?.data ?? data;
+      const transformed = deepConvertKeys(rawExtracted, toCamelCase);
+      setFullAnalysis(transformed);
+
+      addDebugLog({
+        label: "Full Analysis",
+        url: fullUrl,
+        method: "POST",
+        input: inputPayload,
+        rawResponse: rawExtracted,
+        transformedResponse: transformed,
+        timestamp: new Date().toISOString(),
+        durationMs: elapsed,
+      });
     } catch (err: any) {
-      setAnalysisError(err.message || "Full analysis failed");
+      const elapsed = Date.now() - start;
+      const msg = err.message || "Full analysis failed";
+      setAnalysisError(msg);
+      addDebugLog({
+        label: "Full Analysis",
+        url: fullUrl,
+        method: "POST",
+        input: inputPayload,
+        error: msg,
+        timestamp: new Date().toISOString(),
+        durationMs: elapsed,
+      });
     } finally {
       setAnalysisLoading(false);
     }
   };
 
   useEffect(() => {
-    if (caseId) {
+    if (caseId && !hasRun.current) {
+      hasRun.current = true;
+      fetchHealthScore();
       runFullAnalysis();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,8 +183,59 @@ export function FinancialBgInsights({
 
   if (!healthScore) {
     return (
-      <div className="flex items-center justify-center rounded-b-xl border border-t-0 p-12">
-        <p className="text-sm text-muted-foreground">Loading insights...</p>
+      <div className="space-y-4 rounded-b-xl border border-t-0 p-5">
+        <div className="flex items-center justify-center p-12">
+          <Loader2 className="mr-2 size-4 animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading insights — fetching health score &amp; running analysis...</p>
+        </div>
+
+        {/* Debug Panel still visible during loading */}
+        <div className="rounded-lg border border-dashed border-orange-300 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/10">
+          <button
+            onClick={() => setDebugOpen((p) => !p)}
+            className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400"
+          >
+            <Bug className="size-4" />
+            Debug: API Calls ({debugLogs.length})
+            {debugOpen ? <ChevronUp className="ml-auto size-4" /> : <ChevronDown className="ml-auto size-4" />}
+          </button>
+          {debugOpen && (
+            <div className="space-y-3 px-4 pb-4">
+              {debugLogs.length === 0 && (
+                <p className="text-xs text-muted-foreground">No API calls logged yet.</p>
+              )}
+              {debugLogs.map((log, idx) => (
+                <div key={idx} className="rounded-lg border bg-white p-3 dark:bg-slate-900">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className={cn(
+                      "rounded px-1.5 py-0.5 text-[10px] font-bold",
+                      log.method === "POST" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
+                    )}>
+                      {log.method}
+                    </span>
+                    <span className="text-xs font-semibold">{log.label}</span>
+                    {log.error && <span className="text-[10px] font-bold text-red-500">ERROR</span>}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">URL</p>
+                    <pre className="mt-0.5 overflow-x-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">{log.url}</pre>
+                  </div>
+                  {log.error && (
+                    <pre className="mt-1 rounded bg-red-50 p-2 text-[11px] text-red-700 dark:bg-red-950/30">{log.error}</pre>
+                  )}
+                  {log.rawResponse && (
+                    <div className="mt-1">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Raw Response</p>
+                      <pre className="mt-0.5 max-h-40 overflow-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
+                        {JSON.stringify(log.rawResponse, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -169,10 +338,17 @@ export function FinancialBgInsights({
                 const cat = categories[key];
                 if (!cat || cat.score === null || cat.score === undefined) return null;
                 const pct = cat.maxScore > 0 ? (cat.score / cat.maxScore) * 100 : 0;
+                const displayLabels: Record<string, string> = {
+                  retirement: "Retirement",
+                  education: "Education/Systematic Investments",
+                  tax: "Tax",
+                  protection: "Protection",
+                  estate: "Estate",
+                };
                 return (
                   <div key={key}>
                     <div className="mb-0.5 flex items-center justify-between">
-                      <span className="text-[10px] font-medium capitalize">{key}</span>
+                      <span className="text-[10px] font-medium">{displayLabels[key] ?? key}</span>
                       <span className="text-[10px] font-bold">{cat.score}/{cat.maxScore}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -350,6 +526,90 @@ export function FinancialBgInsights({
           </div>
 
         </div>
+      </div>
+
+      {/* ── Debug Panel ── */}
+      <div className="rounded-lg border border-dashed border-orange-300 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/10">
+        <button
+          onClick={() => setDebugOpen((p) => !p)}
+          className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400"
+        >
+          <Bug className="size-4" />
+          Debug: API Calls ({debugLogs.length})
+          {debugOpen ? <ChevronUp className="ml-auto size-4" /> : <ChevronDown className="ml-auto size-4" />}
+        </button>
+        {debugOpen && (
+          <div className="space-y-3 px-4 pb-4">
+            {debugLogs.length === 0 && (
+              <p className="text-xs text-muted-foreground">No API calls logged yet.</p>
+            )}
+            {debugLogs.map((log, idx) => (
+              <div key={idx} className="rounded-lg border bg-white p-3 dark:bg-slate-900">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className={cn(
+                    "rounded px-1.5 py-0.5 text-[10px] font-bold",
+                    log.method === "POST" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
+                  )}>
+                    {log.method}
+                  </span>
+                  <span className="text-xs font-semibold text-foreground">{log.label}</span>
+                  {log.durationMs != null && (
+                    <span className="text-[10px] text-muted-foreground">({log.durationMs}ms)</span>
+                  )}
+                  {log.error && <span className="text-[10px] font-bold text-red-500">ERROR</span>}
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">URL</p>
+                    <pre className="mt-0.5 overflow-x-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
+                      {log.url}
+                    </pre>
+                  </div>
+
+                  {log.input && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Input Payload</p>
+                      <pre className="mt-0.5 max-h-40 overflow-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
+                        {JSON.stringify(log.input, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {log.error && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-red-500">Error</p>
+                      <pre className="mt-0.5 overflow-x-auto rounded bg-red-50 p-2 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
+                        {log.error}
+                      </pre>
+                    </div>
+                  )}
+
+                  {log.rawResponse && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Raw Response from Backend</p>
+                      <pre className="mt-0.5 max-h-60 overflow-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
+                        {JSON.stringify(log.rawResponse, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {log.transformedResponse && log.rawResponse !== log.transformedResponse && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Transformed (camelCase) — Used by UI</p>
+                      <pre className="mt-0.5 max-h-60 overflow-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
+                        {JSON.stringify(log.transformedResponse, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Continue button */}
