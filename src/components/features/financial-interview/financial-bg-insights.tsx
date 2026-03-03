@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE_URL } from "@/lib/config";
 import { useEffect, useState, useRef } from "react";
 import {
   ArrowRight,
@@ -89,8 +90,7 @@ export function FinancialBgInsights({
   };
 
   const fetchHealthScore = async () => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    const hsUrl = `${apiBase}/api/v1/cases/${caseId}/financial-health-score/`;
+    const hsUrl = `${API_BASE_URL}/api/v1/cases/${caseId}/financial-health-score/`;
     const start = Date.now();
 
     try {
@@ -128,8 +128,7 @@ export function FinancialBgInsights({
     setAnalysisLoading(true);
     setAnalysisError(null);
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    const fullUrl = `${apiBase}/api/v1/compute/financial/full-analysis`;
+    const fullUrl = `${API_BASE_URL}/api/v1/compute/financial/full-analysis`;
     const resolvedState = clientState || "unknown";
     const inputPayload = { case_id: caseId, state: resolvedState };
     const start = Date.now();

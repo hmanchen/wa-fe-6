@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE_URL } from "@/lib/config";
 import { useState, useCallback } from "react";
 import {
   Shield,
@@ -478,7 +479,7 @@ export function ProtectionEstateScreen({
               <div>
                 <Label className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">API URL</Label>
                 <Input readOnly className="mt-0.5 h-8 font-mono text-xs bg-white dark:bg-black"
-                  value={`PUT ${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/cases/${caseId}/discovery/`}
+                  value={`PUT ${API_BASE_URL}/api/v1/cases/${caseId}/discovery/`}
                 />
               </div>
               <div>
