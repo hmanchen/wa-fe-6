@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
+import { API_BASE_URL } from '@/lib/config'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = API_BASE_URL
 
 class ApiClient {
   private async getAuthHeaders(): Promise<HeadersInit> {
