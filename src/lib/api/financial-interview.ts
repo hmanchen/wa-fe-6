@@ -1,6 +1,7 @@
 import { apiClient } from "./client";
 import type { ApiResponse } from "@/types";
 import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimitsData, MarketSnapshot } from "@/types/financial-interview";
+import { deepConvertKeys, toCamelCase, toSnakeCase } from "./key-utils";
 
 /**
  * Financial interview data is persisted via the discovery endpoint's
@@ -12,34 +13,6 @@ import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimit
  *   spouse_background:  { ...PersonFinancialBackground },
  * }
  */
-
-// ── Helpers: camelCase ↔ snake_case conversion ───────────────
-
-function toSnakeCase(str: string): string {
-  return str
-    .replace(/([a-z])([A-Z])/g, "$1_$2")
-    .replace(/([a-zA-Z])(\d)/g, "$1_$2")
-    .toLowerCase();
-}
-
-function toCamelCase(str: string): string {
-  return str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function deepConvertKeys(obj: any, converter: (s: string) => string): any {
-  if (obj === null || obj === undefined) return obj;
-  if (Array.isArray(obj)) return obj.map((item) => deepConvertKeys(item, converter));
-  if (typeof obj === "object" && !(obj instanceof Date)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: Record<string, any> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      result[converter(key)] = deepConvertKeys(value, converter);
-    }
-    return result;
-  }
-  return obj;
-}
 
 // ── API functions ────────────────────────────────────────────
 
@@ -67,18 +40,6 @@ export async function getFinancialInterviewData(
       : undefined,
   };
 
-  console.log("[getFinancialInterviewData] Loaded →", {
-    fpKeys: Object.keys(fp),
-    hasPrimaryBg: !!fp.primary_background,
-    primaryRetirementKeys: fp.primary_background
-      ? Object.keys(fp.primary_background).filter(k => k.includes("retirement") || k.includes("401"))
-      : "NO primary_background",
-    convertedRetirementKeys: result.primaryBackground
-      ? Object.keys(result.primaryBackground).filter(k => k.includes("retirement") || k.includes("401"))
-      : "NO primaryBackground",
-    retirementBalance: result.primaryBackground?.retirement401k?.currentBalance,
-  });
-
   return result;
 }
 
@@ -98,14 +59,6 @@ export async function saveFinancialBackground(
   const snakeCaseData = deepConvertKeys(backgroundData, toSnakeCase);
   const fieldKey =
     role === "primary" ? "primary_background" : "spouse_background";
-
-  console.log("[saveFinancialBackground] Before save →", {
-    role,
-    fieldKey,
-    retirementKeys: Object.keys(snakeCaseData.retirement401k ?? snakeCaseData.retirement_401k ?? {}),
-    retirementBalance: snakeCaseData.retirement401k?.current_balance ?? snakeCaseData.retirement_401k?.current_balance,
-    originalRetirementBalance: backgroundData.retirement401k?.currentBalance,
-  });
 
   const payload = {
     financial_profile: {
@@ -131,14 +84,6 @@ export async function saveFinancialBackground(
       ? deepConvertKeys(fp.spouse_background, toCamelCase)
       : undefined,
   };
-
-  console.log("[saveFinancialBackground] After save ←", {
-    role,
-    fpKeys: Object.keys(fp),
-    primaryBgKeys: fp.primary_background ? Object.keys(fp.primary_background) : "UNDEFINED",
-    resultRetirementKeys: Object.keys(result.primaryBackground?.retirement401k ?? {}),
-    resultRetirementBalance: result.primaryBackground?.retirement401k?.currentBalance,
-  });
 
   return result;
 }

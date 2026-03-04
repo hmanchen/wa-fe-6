@@ -1,24 +1,8 @@
 import { apiClient } from "./client";
 import type { ApiResponse } from "@/types";
+import { deepConvertKeys, toCamelCase } from "./key-utils";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-function toCamelCase(str: string): string {
-  return str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
-}
-
-function deepConvertKeys(obj: any, converter: (s: string) => string): any {
-  if (obj === null || obj === undefined) return obj;
-  if (Array.isArray(obj)) return obj.map((item) => deepConvertKeys(item, converter));
-  if (typeof obj === "object" && !(obj instanceof Date)) {
-    const result: Record<string, any> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      result[converter(key)] = deepConvertKeys(value, converter);
-    }
-    return result;
-  }
-  return obj;
-}
 
 function camelify<T>(raw: any): T {
   return deepConvertKeys(raw, toCamelCase) as T;

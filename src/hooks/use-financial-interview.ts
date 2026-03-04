@@ -19,7 +19,7 @@ export function useFinancialInterview(caseId: string | null) {
     queryKey: ["financial-interview", caseId],
     queryFn: () => getFinancialInterviewData(caseId!),
     enabled: !!caseId,
-    staleTime: 30_000,
+    staleTime: 5 * 60 * 1000, // 5 min — data only changes on explicit save (mutation invalidates)
   });
 }
 
@@ -28,7 +28,7 @@ export function useFinancialHealthScore(caseId: string | null) {
     queryKey: ["financial-health-score", caseId],
     queryFn: () => getFinancialHealthScore(caseId!),
     enabled: !!caseId,
-    staleTime: 10_000,
+    staleTime: 5 * 60 * 1000, // 5 min — recalculated on save; mutation invalidates this key
   });
 }
 
@@ -36,7 +36,7 @@ export function useContributionLimits(taxYear: number) {
   return useQuery<ContributionLimitsData>({
     queryKey: ["contribution-limits", taxYear],
     queryFn: () => getContributionLimits(taxYear),
-    staleTime: 60 * 60 * 1000, // 1 hour — limits don't change often
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours — IRS limits change once per year
   });
 }
 
@@ -46,7 +46,7 @@ export function useMarketSnapshot(enabled: boolean) {
     queryFn: getMarketSnapshot,
     enabled,
     refetchInterval: 5 * 60 * 1000,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // match refetchInterval
     retry: 1,
   });
 }
@@ -56,7 +56,7 @@ export function useCalculate401k(payload: Calculate401kRequest | null) {
     queryKey: ["401k-calculate", payload],
     queryFn: () => calculate401k(payload!),
     enabled: !!payload && payload.salary > 0 && payload.empContribPct > 0,
-    staleTime: 30_000,
+    staleTime: 5 * 60 * 1000, // deterministic: same inputs = same output
     retry: 1,
   });
 }
