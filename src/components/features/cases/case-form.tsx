@@ -37,6 +37,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { formatDateOnly, parseDateOnly } from "@/lib/formatters/date";
 import { createCaseSchema, type CreateCaseInput } from "@/lib/validators/case";
 import type { Case } from "@/types/case";
 
@@ -130,6 +131,8 @@ function DOBField({
   onChange: (val: string) => void;
   label: string;
 }) {
+  const selectedDate = parseDateOnly(value);
+
   return (
     <FormItem>
       <FormLabel>
@@ -146,7 +149,7 @@ function DOBField({
                 !value && "text-muted-foreground"
               )}
             >
-              {value ? format(new Date(value), "PPP") : <span>Pick a date</span>}
+              {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
               <CalendarIcon className="ml-auto size-4 opacity-50" />
             </Button>
           </FormControl>
@@ -155,9 +158,9 @@ function DOBField({
           <Calendar
             mode="single"
             captionLayout="dropdown"
-            selected={value ? new Date(value) : undefined}
-            onSelect={(date) => onChange(date ? date.toISOString().split("T")[0] : "")}
-            defaultMonth={value ? new Date(value) : new Date(1980, 0)}
+            selected={selectedDate}
+            onSelect={(date) => onChange(date ? formatDateOnly(date) : "")}
+            defaultMonth={selectedDate ?? new Date(1980, 0)}
             startMonth={new Date(1930, 0)}
             endMonth={new Date()}
             disabled={(date) => date > new Date() || date < new Date("1930-01-01")}
@@ -239,7 +242,6 @@ export function CaseForm({
   });
 
   const maritalStatus = form.watch("maritalStatus");
-  const dateOfBirth = form.watch("dateOfBirth");
   const partnerDateOfBirth = form.watch("partnerDateOfBirth");
   const selectedCountry = form.watch("country");
   const isMarried = maritalStatus === "married";
@@ -609,7 +611,7 @@ export function CaseForm({
                   control={form.control}
                   name="meetingDate"
                   render={({ field }) => {
-                    const selected = field.value ? new Date(field.value) : undefined;
+                    const selected = parseDateOnly(field.value);
                     return (
                       <FormItem>
                         <FormLabel>Meeting Date <span className="text-muted-foreground font-normal">(Optional)</span></FormLabel>
@@ -632,7 +634,7 @@ export function CaseForm({
                             <Calendar
                               mode="single"
                               selected={selected}
-                              onSelect={(date) => field.onChange(date ? date.toISOString() : "")}
+                              onSelect={(date) => field.onChange(date ? formatDateOnly(date) : "")}
                               initialFocus
                             />
                           </PopoverContent>

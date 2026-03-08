@@ -18,9 +18,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCase } from "@/hooks/use-cases";
-import { useFinancialInterview, useFinancialHealthScore, useSaveFinancialBackground, useContributionLimits, useMarketSnapshot } from "@/hooks/use-financial-interview";
+import {
+  useFinancialInterview,
+  useFinancialHealthScore,
+  useSaveFinancialBackground,
+  useGoalsDiscovery,
+  useSaveGoalsDiscovery,
+  useCompleteDiscoveryStep,
+  useContributionLimits,
+  useMarketSnapshot,
+} from "@/hooks/use-financial-interview";
 import { InterviewSectionNav } from "@/components/features/financial-interview/interview-section-nav";
 import { FinancialBgLayout } from "@/components/features/financial-interview/financial-bg-layout";
+import { GoalsDiscoveryScreen } from "@/components/features/financial-interview/goals-discovery-screen";
 import { IncomeReplacementScreen } from "@/components/features/financial-interview/income-replacement-screen";
 import { ProtectionEstateScreen } from "@/components/features/financial-interview/protection-estate-screen";
 import { FinancialBgInsights } from "@/components/features/financial-interview/financial-bg-insights";
@@ -28,8 +38,10 @@ import { FinancialHomeScreen } from "@/components/features/financial-interview/f
 import { XCurveScreen } from "@/components/features/financial-interview/xcurve-screen";
 import { RecommendationsScreen } from "@/components/features/financial-interview/recommendations-screen";
 import { DeliveryScreen } from "@/components/features/financial-interview/delivery-screen";
+import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
+import type { GoalsDiscoveryData } from "@/types/financial-interview";
 
 // Lazy-load the annotation overlay since it's heavy (canvas-based)
 const AnnotationOverlay = dynamic(
@@ -43,11 +55,14 @@ const AnnotationOverlay = dynamic(
 export default function FinancialInterviewPage() {
   const params = useParams();
   const caseId = params.caseId as string;
-  const { data: caseData } = useCase(caseId);
-  const { data: interviewData } = useFinancialInterview(caseId);
-  const { data: healthScore } = useFinancialHealthScore(caseId);
+  const { data: caseData, isLoading: isCaseLoading } = useCase(caseId);
+  const { data: interviewData, isLoading: isInterviewLoading } = useFinancialInterview(caseId);
+  const { data: healthScore, isLoading: isHealthScoreLoading } = useFinancialHealthScore(caseId);
   const saveBackground = useSaveFinancialBackground(caseId);
-  const { data: contributionLimits } = useContributionLimits(new Date().getFullYear());
+  const { data: goalsDiscoveryData, isLoading: isGoalsDiscoveryLoading } = useGoalsDiscovery(caseId);
+  const saveGoalsDiscovery = useSaveGoalsDiscovery(caseId);
+  const completeStep = useCompleteDiscoveryStep(caseId);
+  const { data: contributionLimits, isLoading: isContributionLimitsLoading } = useContributionLimits(new Date().getFullYear());
 
   // ── Section-level state ──────────────────────────────────
   const [currentSection, setCurrentSection] =
@@ -56,7 +71,7 @@ export default function FinancialInterviewPage() {
     FinancialInterviewSection[]
   >([]);
 
-  const { data: marketSnapshot } = useMarketSnapshot(currentSection === "financial-background");
+  const { data: marketSnapshot, isLoading: isMarketSnapshotLoading } = useMarketSnapshot(currentSection === "financial-background");
 
   // ── Derived display name ────────────────────────────────
   const clientNames = (() => {
@@ -79,6 +94,23 @@ export default function FinancialInterviewPage() {
     const m = today.getMonth() - birth.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
     return age;
+  })();
+
+  const spouseAge = (() => {
+    const dob = caseData?.clientPersonalInfo?.partnerDateOfBirth;
+    if (!dob) return undefined;
+    const birth = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
+  })();
+
+  const spouseName = (() => {
+    const pi = caseData?.clientPersonalInfo;
+    if (!pi?.partnerFirstName) return undefined;
+    return [pi.partnerFirstName, pi.partnerLastName].filter(Boolean).join(" ");
   })();
 
   // ── Annotation overlay ───────────────────────────────────
@@ -110,6 +142,58 @@ export default function FinancialInterviewPage() {
     },
     [saveBackground]
   );
+
+  const isCurrentSectionLoading = (() => {
+    if (currentSection === "financial-background") {
+      return (
+        isCaseLoading ||
+        isInterviewLoading ||
+        isHealthScoreLoading ||
+        isContributionLimitsLoading ||
+        isMarketSnapshotLoading
+      );
+    }
+    if (currentSection === "goals-discovery") {
+      return isCaseLoading || isInterviewLoading || isGoalsDiscoveryLoading;
+    }
+    if (currentSection === "protection-estate") {
+      return isCaseLoading || isInterviewLoading;
+    }
+    if (currentSection === "analysis-dashboard") {
+      return isCaseLoading || isHealthScoreLoading;
+    }
+    return false;
+  })();
+
+  const handleGoalsDiscoverySave = useCallback(
+    async (data: Partial<GoalsDiscoveryData>) => {
+      try {
+        await saveGoalsDiscovery.mutateAsync(data);
+        toast.success("Goals & Discovery saved", {
+          id: "goals-discovery-save",
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unable to save Goals & Discovery";
+        toast.error(message, { id: "goals-discovery-save" });
+        throw err;
+      }
+    },
+    [saveGoalsDiscovery]
+  );
+
+  const handleGoalsDiscoveryNext = useCallback(async () => {
+    try {
+      await completeStep.mutateAsync("goals-priorities");
+      toast.success("Goals & Discovery step completed");
+      setCurrentSection("income-replacement-risk");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to complete Goals & Discovery step";
+      toast.error(message);
+      throw err;
+    }
+  }, [completeStep]);
 
   return (
     <>
@@ -187,7 +271,8 @@ export default function FinancialInterviewPage() {
 
         {/* ── PHASE 2: Financial Background ── */}
         {currentSection === "financial-background" && (
-          <Tabs defaultValue="primary" className="w-full">
+          <div className="relative">
+            <Tabs defaultValue="primary" className="w-full">
             <TabsList className="mb-2 justify-start">
               <TabsTrigger value="primary" className="gap-1.5">
                 <User className="size-3.5" />
@@ -211,7 +296,7 @@ export default function FinancialInterviewPage() {
                 clientAge={clientAge}
                 onSubmit={handlePrimarySave}
                 isSubmitting={saveBackground.isPending}
-                onComplete={() => setCurrentSection("income-replacement-risk")}
+                onComplete={() => setCurrentSection("goals-discovery")}
               />
             </TabsContent>
 
@@ -227,10 +312,35 @@ export default function FinancialInterviewPage() {
                 clientAge={clientAge}
                 onSubmit={handleSpouseSave}
                 isSubmitting={saveBackground.isPending}
-                onComplete={() => setCurrentSection("income-replacement-risk")}
+                onComplete={() => setCurrentSection("goals-discovery")}
               />
             </TabsContent>
-          </Tabs>
+            </Tabs>
+            {isCurrentSectionLoading && (
+              <ScreenLoadingOverlay message="Loading Financial Background..." />
+            )}
+          </div>
+        )}
+
+        {/* ── PHASE 2B: Goals & Discovery ── */}
+        {currentSection === "goals-discovery" && (
+          <div className="relative">
+            <GoalsDiscoveryScreen
+              defaultValues={goalsDiscoveryData}
+              primaryBackground={interviewData?.primaryBackground}
+              primaryName={caseData?.clientPersonalInfo?.firstName || "Primary earner"}
+              spouseName={spouseName}
+              primaryAge={clientAge}
+              spouseAge={spouseAge}
+              onAutoSave={handleGoalsDiscoverySave}
+              isSaving={saveGoalsDiscovery.isPending}
+              onBack={() => setCurrentSection("financial-background")}
+              onNext={handleGoalsDiscoveryNext}
+            />
+            {isCurrentSectionLoading && (
+              <ScreenLoadingOverlay message="Loading Goals & Discovery..." />
+            )}
+          </div>
         )}
 
         {/* ── Income Replacement Risk — educational interlude ── */}
@@ -243,7 +353,8 @@ export default function FinancialInterviewPage() {
 
         {/* ── PHASE 3: Protection & Estate ── */}
         {currentSection === "protection-estate" && (
-          <Tabs defaultValue="primary" className="w-full">
+          <div className="relative">
+            <Tabs defaultValue="primary" className="w-full">
             <TabsList className="mb-2 justify-start">
               <TabsTrigger value="primary" className="gap-1.5">
                 <User className="size-3.5" />
@@ -278,12 +389,16 @@ export default function FinancialInterviewPage() {
                 onContinue={() => setCurrentSection("analysis-dashboard")}
               />
             </TabsContent>
-          </Tabs>
+            </Tabs>
+            {isCurrentSectionLoading && (
+              <ScreenLoadingOverlay message="Loading Protection & Estate..." />
+            )}
+          </div>
         )}
 
         {/* ── PHASE 4: Analysis Dashboard ── */}
         {currentSection === "analysis-dashboard" && (
-          <div className="rounded-xl border">
+          <div className="relative rounded-xl border">
             <div className="flex items-center gap-3 rounded-t-xl border-b bg-muted/30 px-4 py-2.5">
               <h2 className="text-base font-bold">Analysis Dashboard</h2>
               <span className="rounded-full border bg-background px-3 py-0.5 text-xs font-medium">
@@ -298,6 +413,9 @@ export default function FinancialInterviewPage() {
               onContinue={() => setCurrentSection("financial-home")}
               isSubmitting={false}
             />
+            {isCurrentSectionLoading && (
+              <ScreenLoadingOverlay message="Loading Analysis Dashboard..." />
+            )}
           </div>
         )}
 

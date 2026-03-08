@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
 import {
   useXCurveData,
   useXCurveNarration,
@@ -46,7 +47,13 @@ function XCurveTab({ caseId }: { caseId: string }) {
   const { data: curve, isLoading, isError } = useXCurveData(caseId);
   const { data: narration } = useXCurveNarration(caseId);
 
-  if (isLoading) return <div className="flex items-center gap-2 py-10"><Loader2 className="size-5 animate-spin" /> <span className="text-sm text-muted-foreground">Computing X-Curve...</span></div>;
+  if (isLoading) {
+    return (
+      <div className="relative min-h-[240px] rounded-xl border bg-card">
+        <ScreenLoadingOverlay message="Computing X-Curve..." className="rounded-xl" />
+      </div>
+    );
+  }
   if (isError || !curve) return <div className="py-10 text-center text-sm text-red-500">Could not compute X-Curve data.</div>;
 
   const maxVal = Math.max(
@@ -174,7 +181,13 @@ function XCurveTab({ caseId }: { caseId: string }) {
 function TaxBucketTab({ caseId }: { caseId: string }) {
   const { data: taxNarr, isLoading, isError } = useTaxNarrative(caseId);
 
-  if (isLoading) return <div className="flex items-center gap-2 py-10"><Loader2 className="size-5 animate-spin" /> <span className="text-sm text-muted-foreground">Generating tax narrative...</span></div>;
+  if (isLoading) {
+    return (
+      <div className="relative min-h-[240px] rounded-xl border bg-card">
+        <ScreenLoadingOverlay message="Generating tax narrative..." className="rounded-xl" />
+      </div>
+    );
+  }
   if (isError) return <div className="py-10 text-center text-sm text-red-500">Could not generate tax narrative.</div>;
 
   return (

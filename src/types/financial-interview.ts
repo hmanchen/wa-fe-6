@@ -450,6 +450,8 @@ export interface LifeInsuranceCoverage {
   termLifeAmount?: number;
   termLifePremium?: number;
   termLengthYears?: number;
+  /** Term policy includes living benefits rider */
+  hasLivingBenefits?: boolean;
   /** Whole / universal / IUL */
   hasPermLife?: boolean;
   permLifeType?: "whole-life" | "universal" | "iul" | "other";
@@ -482,6 +484,120 @@ export interface EstatePlanning {
   /** Beneficiary designations current? */
   beneficiaryDesignationsCurrent?: boolean;
   notes?: string;
+}
+
+// ── Section 2: Goals & Discovery ─────────────────────────────
+
+export type GoalOptionId =
+  | "retire_comfortably"
+  | "protect_family"
+  | "pay_off_debt"
+  | "fund_education"
+  | "tax_free_retirement"
+  | "protect_market_losses"
+  | "create_legacy"
+  | "emergency_cash_access"
+  | "generate_passive_income"
+  | "care_aging_parents"
+  | "grow_wealth_aggressively"
+  | "start_grow_business";
+
+export interface GoalRankingItem {
+  rank: number;
+  goalId: GoalOptionId;
+  label: string;
+}
+
+export interface PensionDiscoveryDetails {
+  who: "primary" | "spouse" | "both";
+  estimatedMonthlyAmount?: number;
+  startAge?: number;
+}
+
+export interface RetirementVision {
+  primaryRetirementAge?: number;
+  spouseRetirementAge?: number;
+  desiredMonthlyIncome?: number;
+  retirementConfidence?: number;
+  socialSecurityExpectation?:
+    | "full_benefits"
+    | "reduced_benefits"
+    | "no_social_security"
+    | "not_sure";
+  hasPension?: boolean;
+  pensionDetails?: PensionDiscoveryDetails | null;
+}
+
+export interface RiskProfile {
+  riskTolerance?: "conservative" | "moderate" | "aggressive";
+  timeHorizon?: "short_term" | "medium_term" | "long_term";
+  marketLossReaction?:
+    | "sell_everything"
+    | "sell_some"
+    | "hold_steady"
+    | "buy_more";
+  marketExperience?: string[];
+  downturnActionTaken?:
+    | "sell_everything"
+    | "sell_some"
+    | "hold_steady"
+    | "buy_more";
+}
+
+export interface DebtPayoffGoal {
+  enabled: boolean;
+  targetDebt?: string;
+  targetDate?: string;
+}
+
+export interface MajorPurchaseGoal {
+  type: string;
+  estimatedCost?: number;
+  targetYear?: number;
+}
+
+export interface EducationPreference {
+  childName: string;
+  childId: string;
+  preference:
+    | "public_university"
+    | "private_university"
+    | "community_college_first"
+    | "trade_school"
+    | "not_sure"
+    | "child_self_funded";
+}
+
+export interface LegacyGoal {
+  type?:
+    | "as_much_as_possible"
+    | "specific_amount"
+    | "not_a_priority"
+    | "not_thought_about";
+  specificAmount?: number | null;
+}
+
+export interface SpecificGoals {
+  debtPayoff?: DebtPayoffGoal;
+  majorPurchases?: MajorPurchaseGoal[];
+  educationPreferences?: EducationPreference[];
+  legacy?: LegacyGoal;
+  otherGoals?: string;
+}
+
+export interface DiscoveryConcerns {
+  financialFears?: string[];
+  recentTrigger?: string;
+  peaceOfMind?: string;
+  otherFearText?: string;
+}
+
+export interface GoalsDiscoveryData {
+  goalsRanking: GoalRankingItem[];
+  retirementVision: RetirementVision;
+  riskProfile: RiskProfile;
+  specificGoals: SpecificGoals;
+  concerns: DiscoveryConcerns;
 }
 
 export interface PersonFinancialBackground {
@@ -609,16 +725,27 @@ export interface TaxDiversificationData {
 // ── Financial Health Score (from backend) ─────────────────────
 
 export interface HealthScoreFactor {
+  id?: string;
   label: string;
   points: number;
   maxPoints: number;
   met: boolean;
+  notApplicable?: boolean;
+}
+
+export interface HealthScoreSubsection {
+  id: string;
+  label: string;
+  score: number;
+  maxScore: number;
+  factors: HealthScoreFactor[];
 }
 
 export interface HealthScoreCategory {
   score: number | null;
   maxScore: number;
   factors: HealthScoreFactor[];
+  subsections?: HealthScoreSubsection[];
 }
 
 export interface HealthScoreInsightCard {
@@ -663,6 +790,7 @@ export interface FinancialHealthScore {
 
 export type FinancialInterviewSection =
   | "financial-background"
+  | "goals-discovery"
   | "income-replacement-risk"
   | "protection-estate"
   | "analysis-dashboard"
@@ -684,15 +812,18 @@ export interface FinancialInterviewData {
   spouseBackground?: PersonFinancialBackground;
 
   /** Section 2 */
-  lifeInsuranceEducation?: LifeInsuranceEducation;
+  goalsDiscovery?: GoalsDiscoveryData;
 
   /** Section 3 */
-  financialHome?: FinancialHomeData;
+  lifeInsuranceEducation?: LifeInsuranceEducation;
 
   /** Section 4 */
-  financialXCurve?: FinancialXCurveData;
+  financialHome?: FinancialHomeData;
 
   /** Section 5 */
+  financialXCurve?: FinancialXCurveData;
+
+  /** Section 6 */
   taxDiversification?: TaxDiversificationData;
 
   lastUpdated: string;

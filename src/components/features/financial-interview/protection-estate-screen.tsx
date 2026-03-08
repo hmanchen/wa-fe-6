@@ -8,6 +8,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,12 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type SubTab = "life-insurance" | "will-trust";
 
@@ -147,6 +154,59 @@ function LifeInsuranceTab({
               value={ins.termLengthYears ?? ""}
               onChange={(e) => setIns({ termLengthYears: e.target.value === "" ? undefined : Number(e.target.value) })}
             />
+          </div>
+        </div>
+        <div className="mt-3 rounded-lg border bg-muted/20 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-medium">Does this policy include Living Benefits?</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex text-muted-foreground hover:text-foreground"
+                      aria-label="What are living benefits"
+                    >
+                      <Info className="size-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-sm p-2.5 text-[11px] leading-relaxed">
+                    Living Benefits allow access to part of the death benefit while the insured is alive.
+                    Common covered events include:
+                    Critical Illness (e.g., heart attack, stroke, cancer),
+                    Chronic Illness (unable to perform daily living activities long-term),
+                    and Terminal Illness (typically limited life expectancy).
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIns({ hasLivingBenefits: true })}
+                className={cn(
+                  "rounded-lg border-2 px-3 py-1 text-xs font-semibold transition-all",
+                  ins.hasLivingBenefits === true
+                    ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300"
+                    : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                )}
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => setIns({ hasLivingBenefits: false })}
+                className={cn(
+                  "rounded-lg border-2 px-3 py-1 text-xs font-semibold transition-all",
+                  ins.hasLivingBenefits === false
+                    ? "border-red-400 bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300"
+                    : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                )}
+              >
+                No
+              </button>
+            </div>
           </div>
         </div>
       </YesNoField>

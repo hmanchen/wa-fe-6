@@ -1,6 +1,12 @@
 import { apiClient } from "./client";
 import type { ApiResponse } from "@/types";
-import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimitsData, MarketSnapshot } from "@/types/financial-interview";
+import type {
+  PersonFinancialBackground,
+  FinancialHealthScore,
+  ContributionLimitsData,
+  MarketSnapshot,
+  GoalsDiscoveryData,
+} from "@/types/financial-interview";
 import { deepConvertKeys, toCamelCase, toSnakeCase } from "./key-utils";
 
 /**
@@ -19,6 +25,13 @@ import { deepConvertKeys, toCamelCase, toSnakeCase } from "./key-utils";
 export interface FinancialInterviewPayload {
   primaryBackground?: PersonFinancialBackground;
   spouseBackground?: PersonFinancialBackground;
+  goalsDiscovery?: GoalsDiscoveryData;
+}
+
+interface WrappedResponse<T> {
+  success?: boolean;
+  data: T;
+  meta?: unknown;
 }
 
 export async function getFinancialInterviewData(
@@ -37,6 +50,9 @@ export async function getFinancialInterviewData(
       : undefined,
     spouseBackground: fp.spouse_background
       ? deepConvertKeys(fp.spouse_background, toCamelCase)
+      : undefined,
+    goalsDiscovery: fp.goals_discovery
+      ? deepConvertKeys(fp.goals_discovery, toCamelCase)
       : undefined,
   };
 
@@ -83,9 +99,43 @@ export async function saveFinancialBackground(
     spouseBackground: fp.spouse_background
       ? deepConvertKeys(fp.spouse_background, toCamelCase)
       : undefined,
+    goalsDiscovery: fp.goals_discovery
+      ? deepConvertKeys(fp.goals_discovery, toCamelCase)
+      : undefined,
   };
 
   return result;
+}
+
+export async function saveGoalsDiscovery(
+  caseId: string,
+  goalsDiscoveryData: Partial<GoalsDiscoveryData>
+): Promise<GoalsDiscoveryData> {
+  const payload = deepConvertKeys(goalsDiscoveryData, toSnakeCase);
+  const { data } = await apiClient.put<WrappedResponse<Record<string, unknown>>>(
+    `/cases/${caseId}/discovery/goals-discovery/`,
+    payload
+  );
+  return deepConvertKeys(data?.data ?? {}, toCamelCase) as GoalsDiscoveryData;
+}
+
+export async function getGoalsDiscoveryData(
+  caseId: string
+): Promise<GoalsDiscoveryData> {
+  const { data } = await apiClient.get<WrappedResponse<Record<string, unknown>>>(
+    `/cases/${caseId}/discovery/goals-discovery/`
+  );
+  return deepConvertKeys(data?.data ?? {}, toCamelCase) as GoalsDiscoveryData;
+}
+
+export async function completeDiscoveryStep(
+  caseId: string,
+  step: "goals-priorities"
+): Promise<void> {
+  await apiClient.post<WrappedResponse<unknown>>(
+    `/cases/${caseId}/discovery/complete-step/`,
+    { step }
+  );
 }
 
 export async function getFinancialHealthScore(

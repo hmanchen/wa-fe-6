@@ -5,6 +5,7 @@ import { ChevronRight, Loader2, Star, ArrowRight, AlertTriangle, DollarSign, Che
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAiRecommendations, useFullAnalysis } from "@/hooks/use-presentation-flow";
+import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
 
 interface RecommendationsScreenProps {
   caseId: string;
@@ -34,7 +35,7 @@ export function RecommendationsScreen({ caseId, clientState, onContinue }: Recom
   };
 
   return (
-    <div className="space-y-0">
+    <div className="relative space-y-0">
       <div className="flex items-center justify-between gap-3 rounded-t-xl border-b bg-muted/30 px-4 py-2.5">
         <div className="flex items-center gap-3">
           <h2 className="text-base font-bold">Recommendations</h2>
@@ -195,6 +196,9 @@ export function RecommendationsScreen({ caseId, clientState, onContinue }: Recom
           </Button>
         </div>
       </div>
+      {isLoading && (
+        <ScreenLoadingOverlay message="Generating AI recommendations..." className="rounded-none" />
+      )}
     </div>
   );
 }

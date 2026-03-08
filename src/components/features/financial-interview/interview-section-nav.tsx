@@ -17,6 +17,11 @@ const SECTIONS: SectionDef[] = [
     shortLabel: "Background",
   },
   {
+    id: "goals-discovery",
+    label: "Goals & Discovery",
+    shortLabel: "Goals",
+  },
+  {
     id: "income-replacement-risk",
     label: "Income Replacement Risk",
     shortLabel: "Risk",

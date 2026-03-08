@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency, parseCurrencyInput } from "@/lib/formatters/currency";
+import { formatDateOnly, parseDateOnly } from "@/lib/formatters/date";
 import { cn } from "@/lib/utils";
 import {
   existingCoverageFormSchema,
@@ -105,7 +106,7 @@ function toExistingCoverageList(values: FormSchema): ExistingCoverage[] {
       policyNumber: c.policyNumber || undefined,
       coverageAmount: c.coverageAmount ?? 0,
       premium: c.premium ?? 0,
-      startDate: c.startDate || new Date().toISOString().split("T")[0],
+      startDate: c.startDate || formatDateOnly(new Date()),
       endDate: c.endDate || undefined,
       notes: c.notes || undefined,
     }));
@@ -179,6 +180,11 @@ export function ExistingCoverageForm({
   async function handleSubmit(values: FormSchema) {
     await onSubmit(toExistingCoverageList(values));
   }
+
+  const toDisplayDate = (value?: string) => {
+    const parsed = parseDateOnly(value);
+    return parsed ? format(parsed, "PPP") : "";
+  };
 
   return (
     <Form {...form}>
@@ -326,10 +332,7 @@ export function ExistingCoverageForm({
                                 )}
                               >
                                 {field.value ? (
-                                  format(
-                                    new Date(field.value),
-                                    "PPP"
-                                  )
+                                  toDisplayDate(field.value)
                                 ) : (
                                   <span>Pick a date</span>
                                 )}
@@ -344,16 +347,12 @@ export function ExistingCoverageForm({
                             <Calendar
                               mode="single"
                               selected={
-                                field.value
-                                  ? new Date(field.value)
-                                  : undefined
+                                parseDateOnly(field.value)
                               }
                               onSelect={(date) =>
                                 field.onChange(
                                   date
-                                    ? date
-                                        .toISOString()
-                                        .split("T")[0]
+                                    ? formatDateOnly(date)
                                     : ""
                                 )
                               }
@@ -382,10 +381,7 @@ export function ExistingCoverageForm({
                                 )}
                               >
                                 {field.value ? (
-                                  format(
-                                    new Date(field.value),
-                                    "PPP"
-                                  )
+                                  toDisplayDate(field.value)
                                 ) : (
                                   <span>Optional</span>
                                 )}
@@ -400,16 +396,12 @@ export function ExistingCoverageForm({
                             <Calendar
                               mode="single"
                               selected={
-                                field.value
-                                  ? new Date(field.value)
-                                  : undefined
+                                parseDateOnly(field.value)
                               }
                               onSelect={(date) =>
                                 field.onChange(
                                   date
-                                    ? date
-                                        .toISOString()
-                                        .split("T")[0]
+                                    ? formatDateOnly(date)
                                     : ""
                                 )
                               }

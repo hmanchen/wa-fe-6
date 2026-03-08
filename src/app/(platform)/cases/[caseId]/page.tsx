@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { CaseNav } from "@/components/layouts/case-nav";
 import { FullPageLoader } from "@/components/shared/loading-spinner";
 import { useCase } from "@/hooks/use-cases";
+import { useFinancialInterview } from "@/hooks/use-financial-interview";
 import { formatDate } from "@/lib/formatters/date";
 import { caseStatusConfig } from "@/lib/constants/case-status";
 import {
@@ -123,6 +124,7 @@ export default function CaseDetailPage() {
   const caseId = params.caseId as string;
 
   const { data: caseData, isLoading, isError } = useCase(caseId);
+  const { data: interviewData } = useFinancialInterview(caseId);
 
   if (isLoading) return <FullPageLoader />;
 
@@ -158,6 +160,14 @@ export default function CaseDetailPage() {
         : pi?.address?.country,
   ].filter(Boolean);
   const fullAddress = addressParts.length > 0 ? addressParts.join(", ") : null;
+  const hasInterviewData = Boolean(
+    interviewData?.primaryBackground ||
+      interviewData?.spouseBackground ||
+      interviewData?.goalsDiscovery
+  );
+  const interviewButtonLabel = hasInterviewData
+    ? "Continue Financial Interview"
+    : "Start Financial Interview";
 
   return (
     <div className="space-y-6 p-4 sm:space-y-8 sm:p-6">
@@ -167,7 +177,7 @@ export default function CaseDetailPage() {
       >
         <Button variant="outline" size="sm" asChild>
           <Link href={`/cases/${caseData.id}/financial-interview`}>
-            Start Interview
+            {interviewButtonLabel}
           </Link>
         </Button>
       </PageHeader>
@@ -341,7 +351,7 @@ export default function CaseDetailPage() {
                 <Button className="w-full justify-start" asChild>
                   <Link href={`/cases/${caseId}/financial-interview`}>
                     <Search className="mr-2 size-4" />
-                    Start Financial Interview
+                    {interviewButtonLabel}
                   </Link>
                 </Button>
               )}

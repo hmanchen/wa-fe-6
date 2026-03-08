@@ -34,6 +34,7 @@ import {
   type PersonalInfoInput,
 } from "@/lib/validators/discovery";
 import type { ClientPersonalInfo } from "@/types";
+import { formatDateOnly, parseDateOnly } from "@/lib/formatters/date";
 
 // ── Static data ──────────────────────────────────────────────
 
@@ -183,6 +184,8 @@ function DateOfBirthPicker({
   label: string;
   className?: string;
 }) {
+  const selectedDate = parseDateOnly(value);
+
   return (
     <FormItem className={className}>
       <FormLabel>{label}</FormLabel>
@@ -196,7 +199,7 @@ function DateOfBirthPicker({
                 !value && "text-muted-foreground"
               )}
             >
-              {value ? format(new Date(value), "PPP") : <span>Pick a date</span>}
+              {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
               <CalendarIcon className="ml-auto size-4 opacity-50" />
             </Button>
           </FormControl>
@@ -205,9 +208,9 @@ function DateOfBirthPicker({
           <Calendar
             mode="single"
             captionLayout="dropdown"
-            selected={value ? new Date(value) : undefined}
-            onSelect={(date) => onChange(date ? date.toISOString().split("T")[0] : "")}
-            defaultMonth={value ? new Date(value) : new Date(1980, 0)}
+            selected={selectedDate}
+            onSelect={(date) => onChange(date ? formatDateOnly(date) : "")}
+            defaultMonth={selectedDate ?? new Date(1980, 0)}
             startMonth={new Date(1930, 0)}
             endMonth={new Date()}
             disabled={(date) => date > new Date() || date < new Date("1930-01-01")}

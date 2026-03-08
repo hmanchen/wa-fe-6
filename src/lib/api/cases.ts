@@ -1,5 +1,7 @@
 import { apiClient } from "./client";
 import type { ApiResponse, Case, PaginatedResponse } from "@/types";
+import { isValid, parseISO } from "date-fns";
+import { formatDateOnly } from "@/lib/formatters/date";
 
 export interface GetCasesParams {
   page?: number;
@@ -51,6 +53,13 @@ export interface UpdateCaseData {
   caseType?: string;
   description?: string;
   status?: string;
+}
+
+export interface ArchiveCaseResult {
+  id: string;
+  caseNumber: string;
+  archived: boolean;
+  message: string;
 }
 
 /** Transform backend snake_case response to frontend camelCase */
@@ -114,7 +123,9 @@ function formatCaseType(caseType: string): string {
 function toDateString(isoDate?: string): string | undefined {
   if (!isoDate) return undefined;
   try {
-    return new Date(isoDate).toISOString().split("T")[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate;
+    const parsed = parseISO(isoDate);
+    return isValid(parsed) ? formatDateOnly(parsed) : undefined;
   } catch {
     return undefined;
   }
@@ -215,6 +226,13 @@ export async function updateCase(
   return fromBackendCase(raw);
 }
 
-export async function deleteCase(id: string): Promise<void> {
-  await apiClient.delete(`/cases/${id}/`);
+export async function deleteCase(id: string): Promise<ArchiveCaseResult> {
+  const { data } = await apiClient.delete<ApiResponse<Record<string, unknown>>>(`/cases/${id}`);
+  const raw = (data?.data ?? data) as Record<string, unknown>;
+  return {
+    id: String(raw.id ?? id),
+    caseNumber: String(raw.case_number ?? raw.caseNumber ?? ""),
+    archived: Boolean(raw.archived),
+    message: String(raw.message ?? "Case archived successfully."),
+  };
 }

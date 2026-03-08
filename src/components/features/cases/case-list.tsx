@@ -1,20 +1,22 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useCases } from "@/hooks/use-cases";
+import { useCases, useDeleteCase } from "@/hooks/use-cases";
 import { useDebounce } from "@/hooks/use-debounce";
 import { CaseFilters, type CaseFiltersValues } from "./case-filters";
 import { CaseCard } from "./case-card";
 import { DataTable } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatRelativeDate } from "@/lib/formatters/date";
 import type { Case } from "@/types/case";
-import { LayoutGrid, Table2, FileSpreadsheet } from "lucide-react";
+import { LayoutGrid, Table2, FileSpreadsheet, Archive } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 
 const DEFAULT_FILTERS: CaseFiltersValues = {
@@ -25,9 +27,12 @@ const DEFAULT_FILTERS: CaseFiltersValues = {
 
 export function CaseList() {
   const router = useRouter();
+  const deleteCase = useDeleteCase();
   const [filters, setFilters] = useState<CaseFiltersValues>(DEFAULT_FILTERS);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [page, setPage] = useState(1);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [selectedCase, setSelectedCase] = useState<Case | null>(null);
 
   const debouncedSearch = useDebounce(filters.search, 300);
 
@@ -79,7 +84,46 @@ export function CaseList() {
       ),
       className: "w-28",
     },
+    {
+      key: "actions",
+      header: "Actions",
+      cell: (item: Case) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 text-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedCase(item);
+            setArchiveDialogOpen(true);
+          }}
+          disabled={deleteCase.isPending}
+        >
+          <Archive className="size-3.5" />
+          Archive
+        </Button>
+      ),
+      className: "w-28",
+    },
   ];
+
+  const openArchiveDialog = useCallback((caseItem: Case) => {
+    setSelectedCase(caseItem);
+    setArchiveDialogOpen(true);
+  }, []);
+
+  const handleArchive = useCallback(async () => {
+    if (!selectedCase?.id) return;
+    try {
+      const archived = await deleteCase.mutateAsync(selectedCase.id);
+      toast.success(archived.message || "Case archived successfully.");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to archive case";
+      toast.error(message);
+      throw err;
+    }
+  }, [deleteCase, selectedCase]);
 
   return (
     <div className="space-y-6">
@@ -150,6 +194,8 @@ export function CaseList() {
                   ...caseItem,
                   description: caseItem.description,
                 }}
+                onArchive={(item) => openArchiveDialog(item as Case)}
+                isArchiving={deleteCase.isPending}
               />
             ))}
           </div>
@@ -215,6 +261,21 @@ export function CaseList() {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+        title="Archive this case?"
+        description={
+          selectedCase
+            ? `This will archive case ${selectedCase.caseNumber}. The data will be retained for compliance.`
+            : "This will archive the selected case."
+        }
+        onConfirm={handleArchive}
+        confirmText="Archive Case"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   );
 }

@@ -370,7 +370,13 @@ function EmploymentSection({
   );
 
   const totalIncome = useMemo(() => {
-    return sources.reduce((sum, s) => sum + (s.annualIncome ?? 0) + (s.annualBonus ?? 0), 0) + (data.income?.otherIncome ?? 0);
+    const activeSourceIncome = sources.reduce((sum, s) => {
+      // For employer rows, only include income when the source is currently active.
+      if (s.type === "employer" && !s.isCurrent) return sum;
+      return sum + (s.annualIncome ?? 0) + (s.annualBonus ?? 0);
+    }, 0);
+
+    return activeSourceIncome + (data.income?.otherIncome ?? 0);
   }, [sources, data.income?.otherIncome]);
 
   return (

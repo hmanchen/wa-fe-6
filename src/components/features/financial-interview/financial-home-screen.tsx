@@ -3,6 +3,7 @@
 import { ChevronRight, Loader2, FileText, Heart, Shield, Scale, AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
 import {
   useBackgroundSummary,
   useHealthNarrative,
@@ -40,9 +41,10 @@ export function FinancialHomeScreen({ caseId, onContinue }: FinancialHomeScreenP
   const { data: protGaps, isLoading: loadProt, isError: errProt } = useProtectionGaps(caseId);
   const { data: estateUrg, isLoading: loadEstate, isError: errEstate } = useEstateUrgency(caseId);
   const { data: bgGaps, isLoading: loadBgGaps, isError: errBgGaps } = useBackgroundGaps(caseId);
+  const isScreenLoading = loadBgSum || loadHealth || loadProt || loadEstate || loadBgGaps;
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
       <div className="flex items-center gap-3 rounded-t-xl border-b bg-muted/30 px-4 py-2.5">
         <h2 className="text-base font-bold">Financial Home</h2>
         <span className="text-xs text-muted-foreground">AI-Powered Financial Narratives</span>
@@ -229,6 +231,9 @@ export function FinancialHomeScreen({ caseId, onContinue }: FinancialHomeScreenP
           </Button>
         </div>
       </div>
+      {isScreenLoading && (
+        <ScreenLoadingOverlay message="Loading Financial Home..." />
+      )}
     </div>
   );
 }

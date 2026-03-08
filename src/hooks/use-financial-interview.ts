@@ -4,6 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getFinancialInterviewData,
   saveFinancialBackground,
+  getGoalsDiscoveryData,
+  saveGoalsDiscovery,
+  completeDiscoveryStep,
   getFinancialHealthScore,
   getContributionLimits,
   getMarketSnapshot,
@@ -12,7 +15,13 @@ import {
   type Calculate401kRequest,
   type Calculate401kResponse,
 } from "@/lib/api/financial-interview";
-import type { PersonFinancialBackground, FinancialHealthScore, ContributionLimitsData, MarketSnapshot } from "@/types/financial-interview";
+import type {
+  PersonFinancialBackground,
+  FinancialHealthScore,
+  ContributionLimitsData,
+  MarketSnapshot,
+  GoalsDiscoveryData,
+} from "@/types/financial-interview";
 
 export function useFinancialInterview(caseId: string | null) {
   return useQuery<FinancialInterviewPayload>({
@@ -81,5 +90,31 @@ export function useSaveFinancialBackground(caseId: string) {
         queryKey: ["financial-health-score", caseId],
       });
     },
+  });
+}
+
+export function useSaveGoalsDiscovery(caseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: Partial<GoalsDiscoveryData>) => saveGoalsDiscovery(caseId, data),
+    onSuccess: (result) => {
+      queryClient.setQueryData(["goals-discovery", caseId], result);
+    },
+  });
+}
+
+export function useGoalsDiscovery(caseId: string | null) {
+  return useQuery<GoalsDiscoveryData>({
+    queryKey: ["goals-discovery", caseId],
+    queryFn: () => getGoalsDiscoveryData(caseId!),
+    enabled: !!caseId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCompleteDiscoveryStep(caseId: string) {
+  return useMutation({
+    mutationFn: (step: "goals-priorities") => completeDiscoveryStep(caseId, step),
   });
 }
