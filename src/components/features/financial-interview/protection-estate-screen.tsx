@@ -124,6 +124,16 @@ function LifeInsuranceTab({
   const ins = data.lifeInsurance ?? {};
   const setIns = (patch: Partial<PersonFinancialBackground["lifeInsurance"]>) =>
     update({ lifeInsurance: { ...ins, ...patch } });
+  const annualIncomeForGroupLife = (() => {
+    const income = data.income ?? {};
+    const sources = Array.isArray(income.incomeSources) ? income.incomeSources : [];
+    let total = 0;
+    for (const src of sources) {
+      total += Number(src?.annualIncome ?? 0) + Number(src?.annualBonus ?? 0);
+    }
+    if (total > 0) return total;
+    return Number(income.annualSalary ?? 0) + Number(income.businessIncome ?? 0) + Number(income.otherIncome ?? 0);
+  })();
 
   return (
     <div className="space-y-3">
@@ -133,8 +143,100 @@ function LifeInsuranceTab({
         value={ins.hasGroupLife}
         onChange={(v) => setIns({ hasGroupLife: v })}
       >
-        <CurrencyField label="Coverage amount" value={ins.groupLifeAmount}
-          onChange={(v) => setIns({ groupLifeAmount: v })} />
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-medium">Coverage based on salary multiple?</p>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex text-muted-foreground hover:text-foreground"
+                        aria-label="How salary multiple works"
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-sm p-2.5 text-[11px] leading-relaxed">
+                      Group life is commonly elected as a multiple of annual salary (for example 5x).
+                      Coverage amount is auto-calculated as annual salary multiplied by the selected multiple.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIns({ groupLifeBasedOnSalary: true })}
+                  className={cn(
+                    "rounded-lg border-2 px-3 py-1 text-xs font-semibold transition-all",
+                    ins.groupLifeBasedOnSalary === true
+                      ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300"
+                      : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                  )}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIns({ groupLifeBasedOnSalary: false })}
+                  className={cn(
+                    "rounded-lg border-2 px-3 py-1 text-xs font-semibold transition-all",
+                    ins.groupLifeBasedOnSalary === false
+                      ? "border-red-400 bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-300"
+                      : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/70"
+                  )}
+                >
+                  No
+                </button>
+              </div>
+            </div>
+            {ins.groupLifeBasedOnSalary && (
+              <div className="mt-3 space-y-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Salary multiple</Label>
+                  <Select
+                    value={ins.groupLifeSalaryMultiple ? String(ins.groupLifeSalaryMultiple) : ""}
+                    onValueChange={(value) => {
+                      const multiple = Number(value);
+                      const computed = annualIncomeForGroupLife > 0 ? annualIncomeForGroupLife * multiple : undefined;
+                      setIns({
+                        groupLifeSalaryMultiple: multiple,
+                        groupLifeAmount: computed,
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select 1x to 10x" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((m) => (
+                        <SelectItem key={m} value={String(m)}>
+                          {m}x
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Base salary used for estimate: ${annualIncomeForGroupLife.toLocaleString()} per year.
+                </p>
+              </div>
+            )}
+          </div>
+          <CurrencyField
+            label="Coverage amount"
+            value={ins.groupLifeAmount}
+            onChange={(v) => setIns({ groupLifeAmount: v })}
+          />
+          <div className="rounded-md border border-amber-200 bg-amber-50/70 p-2.5 text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+            Group life insurance is employer-sponsored and may create taxable implications in some situations.
+            Employer-paid portions can trigger imputed taxable income, and policy payouts follow plan/tax rules.
+            Also, group life typically does not include Living Benefits riders for critical, chronic, or terminal illness.
+          </div>
+        </div>
       </YesNoField>
 
       <YesNoField

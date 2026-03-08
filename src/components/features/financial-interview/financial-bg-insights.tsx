@@ -151,6 +151,14 @@ export function FinancialBgInsights({
   const [freshHealthScore, setFreshHealthScore] = useState<FinancialHealthScore | null>(null);
   const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [expandedCashFlowSections, setExpandedCashFlowSections] = useState<{
+    netTakeHome: boolean;
+    expensesAndSurplus: boolean;
+  }>({
+    netTakeHome: false,
+    expensesAndSurplus: false,
+  });
+  const [hiddenMoneyDerivationExpanded, setHiddenMoneyDerivationExpanded] = useState(false);
   const hasRun = useRef(false);
 
   const healthScore = freshHealthScore ?? healthScoreProp ?? null;
@@ -158,6 +166,10 @@ export function FinancialBgInsights({
   const addDebugLog = (log: DebugLog) => {
     setDebugLogs((prev) => [...prev, log]);
   };
+  const toggleCashFlowSection = (section: "netTakeHome" | "expensesAndSurplus") =>
+    setExpandedCashFlowSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  const toggleHiddenMoneyDerivation = () =>
+    setHiddenMoneyDerivationExpanded((prev) => !prev);
 
   const fetchHealthScore = async () => {
     const hsUrl = `${API_BASE_URL}/api/v1/cases/${caseId}/financial-health-score/`;
@@ -407,9 +419,22 @@ export function FinancialBgInsights({
   const maxBarValue = Math.max(...netWorthBars.map((b) => b.value), 1);
 
   const taxBuckets = hsAny?.taxBuckets ?? hsAny?.goalTaxBucket ?? {};
-  const taxDeferred = Number(taxBuckets?.taxDeferred ?? taxBuckets?.tax_deferred_pct ?? 0);
-  const taxFree = Number(taxBuckets?.taxFree ?? taxBuckets?.tax_free_pct ?? 0);
-  const taxable = Number(taxBuckets?.taxable ?? taxBuckets?.taxable_pct ?? 0);
+  const taxDeferred = Number(taxBuckets?.taxDeferred ?? taxBuckets?.tax_deferred ?? 0);
+  const taxFree = Number(taxBuckets?.taxFree ?? taxBuckets?.tax_free ?? 0);
+  const taxable = Number(taxBuckets?.taxable ?? taxBuckets?.tax_now ?? 0);
+  const taxDeferredItems = (taxBuckets?.taxDeferredItems ?? taxBuckets?.tax_deferred_items ?? []) as Array<{ instrument?: string }>;
+  const taxFreeItems = (taxBuckets?.taxFreeItems ?? taxBuckets?.tax_free_items ?? []) as Array<{ instrument?: string }>;
+  const taxableItems = (taxBuckets?.taxableItems ?? taxBuckets?.taxable_items ?? []) as Array<{ instrument?: string }>;
+  const taxTotal = Math.max(taxDeferred + taxFree + taxable, 0);
+  const taxDeferredPct = taxTotal > 0 ? (taxDeferred / taxTotal) * 100 : 0;
+  const taxFreePct = taxTotal > 0 ? (taxFree / taxTotal) * 100 : 0;
+  const taxablePct = taxTotal > 0 ? (taxable / taxTotal) * 100 : 0;
+  const formatBucketInstruments = (items: Array<{ instrument?: string }>): string => {
+    const names = Array.from(new Set(items.map((i) => String(i?.instrument ?? "").trim()).filter(Boolean)));
+    if (names.length === 0) return "No instruments recorded";
+    const shown = names.slice(0, 3).join(", ");
+    return names.length > 3 ? `${shown} +${names.length - 3} more` : shown;
+  };
 
   const hiddenMoney =
     hsAny?.hiddenMoney ??
@@ -424,9 +449,70 @@ export function FinancialBgInsights({
   const unallocatedSurplus = Number(
     hiddenMoney?.unallocatedSurplus ?? hiddenMoney?.unallocated_surplus ?? 0
   );
+  const hiddenCalculationTrace = hiddenMoney?.calculationTrace ?? hiddenMoney?.calculation_trace ?? {};
+  const hiddenRetirementTrace = hiddenMoney?.retirementTrace ?? hiddenMoney?.retirement_trace ?? {};
+  const hiddenRetirementContribution = Number(
+    hiddenRetirementTrace?.employeeContributionMonthly ??
+      hiddenRetirementTrace?.employee_contribution_monthly ??
+      hiddenCalculationTrace?.retirementContributionMonthly ??
+      hiddenCalculationTrace?.retirement_contribution_monthly ??
+      0
+  );
+  const hiddenEmployerMatch = Number(
+    hiddenRetirementTrace?.employerMatchMonthly ??
+      hiddenRetirementTrace?.employer_match_monthly ??
+      hiddenCalculationTrace?.employerMatchMonthly ??
+      hiddenCalculationTrace?.employer_match_monthly ??
+      0
+  );
+  const hiddenExcessAboveMatch = Number(
+    hiddenRetirementTrace?.excessAboveMatchMonthly ??
+      hiddenRetirementTrace?.excess_above_match_monthly ??
+      hiddenCalculationTrace?.retirementExcessAboveMatchMonthly ??
+      hiddenCalculationTrace?.retirement_excess_above_match_monthly ??
+      0
+  );
+  const hiddenTaxableInvestmentMonthly = Number(
+    hiddenCalculationTrace?.taxableInvestmentMonthly ??
+      hiddenCalculationTrace?.taxable_investment_monthly ??
+      0
+  );
+  const hiddenCoverageGap = Number(hiddenCalculationTrace?.coverageGap ?? hiddenCalculationTrace?.coverage_gap ?? 0);
+  const hiddenUnclaimedMatchMonthly = Number(
+    hiddenCalculationTrace?.unclaimedMatchMonthlyOpportunity ??
+      hiddenCalculationTrace?.unclaimed_match_monthly_opportunity ??
+      0
+  );
+  const hiddenSourceTotal = hiddenSources.reduce(
+    (sum: number, s: any) => sum + Number(s?.amountMonthly ?? s?.monthly_amount ?? 0),
+    0
+  );
   const showHiddenMoney = hiddenRedirect > 0 || unallocatedSurplus > 0;
 
   const cashFlow = fa?.cashFlow ?? hsAny?.cashFlow ?? hsAny?.cash_flow ?? null;
+  const cashFlowGross = Number(cashFlow?.monthlyGrossIncome ?? cashFlow?.monthly_gross_income ?? 0);
+  const cashFlowTaxes = Number(cashFlow?.monthlyEstimatedTaxes ?? cashFlow?.monthly_estimated_taxes ?? 0);
+  const cashFlowRetirement = Number(
+    cashFlow?.monthlyRetirementContributions ?? cashFlow?.monthly_retirement_contributions ?? 0
+  );
+  const cashFlowHealthInsurance = Number(
+    cashFlow?.monthlyHealthInsurance ?? cashFlow?.monthly_health_insurance ?? 0
+  );
+  const cashFlowOtherDeductions = Number(
+    cashFlow?.monthlyOtherDeductions ?? cashFlow?.monthly_other_deductions ?? 0
+  );
+  const cashFlowTotalDeductions = Number(cashFlow?.totalDeductions ?? cashFlow?.total_deductions ?? 0);
+  const cashFlowNet = Number(cashFlow?.monthlyNetTakeHome ?? cashFlow?.monthly_net_take_home ?? 0);
+  const cashFlowFixedExpenses = Number(cashFlow?.monthlyFixedExpenses ?? cashFlow?.monthly_fixed_expenses ?? 0);
+  const cashFlowDebtService = Number(cashFlow?.monthlyDebtService ?? cashFlow?.monthly_debt_service ?? 0);
+  const cashFlowDiscretionary = Number(cashFlow?.monthlyDiscretionary ?? cashFlow?.monthly_discretionary ?? 0);
+  const cashFlowRemittances = Number(cashFlow?.monthlyRemittances ?? cashFlow?.monthly_remittances ?? 0);
+  const cashFlowTotalExpenses = Number(
+    cashFlow?.totalMonthlyExpenses ?? cashFlow?.total_monthly_expenses ?? 0
+  );
+  const cashFlowSurplus = Number(
+    cashFlow?.monthlySurplusOrDeficit ?? cashFlow?.monthly_surplus_or_deficit ?? 0
+  );
   const goalAllocations =
     fa?.goalAllocations ?? hsAny?.goalAllocations ?? hsAny?.goal_allocations ?? [];
 
@@ -907,12 +993,103 @@ export function FinancialBgInsights({
                 {unallocatedSurplus > 0 && (
                   <div className="flex items-start justify-between gap-3 rounded-lg border bg-white/80 p-3 dark:bg-emerald-950/20">
                     <div>
-                      <p className="text-sm font-semibold">Unallocated monthly surplus</p>
+                      <p className="text-sm font-semibold">
+                        Unallocated monthly surplus
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="ml-1 inline-flex align-middle text-muted-foreground hover:text-foreground"
+                                aria-label="How unallocated surplus is calculated"
+                              >
+                                <Info className="size-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs p-2.5 text-[11px] leading-relaxed">
+                              Unallocated surplus = max(monthly net take-home - total monthly expenses, 0).
+                              It represents leftover cash flow not yet assigned to specific goals.
+                              Values are monthly approximations from provided inputs.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {goalAware ? "Not directed toward any of your stated financial goals." : "Not directed toward specific financial objectives."}
                       </p>
                     </div>
                     <p className="text-sm font-bold">{fmtDollars(unallocatedSurplus)}/mo</p>
+                  </div>
+                )}
+                {hiddenUnclaimedMatchMonthly > 0 && (
+                  <div className="flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                    <div>
+                      <p className="text-sm font-semibold">Unclaimed employer match (opportunity)</p>
+                      <p className="text-xs text-muted-foreground">
+                        This is potential employer match you may be missing. It is informational only and not counted in Total Available hidden money.
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold">{fmtDollars(hiddenUnclaimedMatchMonthly)}/mo</p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 rounded-lg border bg-white/70 p-3 text-xs dark:bg-emerald-950/20">
+                <button
+                  type="button"
+                  onClick={toggleHiddenMoneyDerivation}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <p className="font-semibold text-foreground">How this hidden money is derived</p>
+                  {hiddenMoneyDerivationExpanded ? (
+                    <ChevronUp className="size-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="size-3.5 text-muted-foreground" />
+                  )}
+                </button>
+                {hiddenMoneyDerivationExpanded && (
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-[11px] text-muted-foreground">
+                      Estimated values based on your provided inputs and rounded to monthly approximations.
+                    </p>
+                    <div className="flex justify-between"><span>Employee retirement contribution</span><span>{fmtDollars(hiddenRetirementContribution)}/mo</span></div>
+                    <div className="flex justify-between"><span>Employer match considered</span><span>{fmtDollars(hiddenEmployerMatch)}/mo</span></div>
+                    <div className="flex justify-between border-t pt-1.5"><span>Excess above match (potentially redirectable)</span><span>{fmtDollars(hiddenExcessAboveMatch)}/mo</span></div>
+                    <div className="flex justify-between"><span>Taxable investment contributions</span><span>{fmtDollars(hiddenTaxableInvestmentMonthly)}/mo</span></div>
+                    <div className="flex justify-between"><span>Coverage gap used in rule check</span><span>{fmtDollars(hiddenCoverageGap)}</span></div>
+                    <div className="flex justify-between border-t pt-1.5"><span>Redirectable from identified sources</span><span>{fmtDollars(hiddenRedirect)}/mo</span></div>
+                    <div className="flex justify-between"><span>Source line-items subtotal</span><span>{fmtDollars(hiddenSourceTotal)}/mo</span></div>
+                    <div className="flex justify-between">
+                      <span>Unclaimed employer match opportunity (not included in total)</span>
+                      <span>{fmtDollars(hiddenUnclaimedMatchMonthly)}/mo</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>
+                        Unallocated surplus
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="ml-1 inline-flex align-middle text-muted-foreground hover:text-foreground"
+                                aria-label="How unallocated surplus is calculated"
+                              >
+                                <Info className="size-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs p-2.5 text-[11px] leading-relaxed">
+                              Unallocated surplus = max(monthly net take-home - total monthly expenses, 0).
+                              It represents leftover cash flow not yet assigned to specific goals.
+                              Values are monthly approximations from provided inputs.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </span>
+                      <span>{fmtDollars(unallocatedSurplus)}/mo</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1.5 font-semibold">
+                      <span>Total hidden money (Redirectable + Surplus)</span>
+                      <span>{fmtDollars(hiddenRedirect + unallocatedSurplus)}/mo</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -971,11 +1148,26 @@ export function FinancialBgInsights({
             </div>
 
             <div className="rounded-xl border bg-card p-4">
-              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Tax Buckets</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Tax Buckets Distribution</p>
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                Distribution of assets by tax treatment: pre-tax (tax deferred), tax-free, and taxable.
+              </p>
               <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between"><span className="text-muted-foreground">Tax Deferred</span><span className="font-semibold">{taxDeferred > 1 ? `${taxDeferred}%` : fmtDollars(taxDeferred)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Tax Free</span><span className="font-semibold">{taxFree > 1 ? `${taxFree}%` : fmtDollars(taxFree)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Taxable</span><span className="font-semibold">{taxable > 1 ? `${taxable}%` : fmtDollars(taxable)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Tax Deferred</span><span className="font-semibold">{fmtDollars(taxDeferred)} ({taxDeferredPct.toFixed(0)}%)</span></div>
+                <p className="pl-0 text-[11px]">
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">Includes:</span>{" "}
+                  <span className="text-blue-700 dark:text-blue-300">{formatBucketInstruments(taxDeferredItems)}</span>
+                </p>
+                <div className="flex justify-between"><span className="text-muted-foreground">Tax Free</span><span className="font-semibold">{fmtDollars(taxFree)} ({taxFreePct.toFixed(0)}%)</span></div>
+                <p className="pl-0 text-[11px]">
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">Includes:</span>{" "}
+                  <span className="text-emerald-700 dark:text-emerald-300">{formatBucketInstruments(taxFreeItems)}</span>
+                </p>
+                <div className="flex justify-between"><span className="text-muted-foreground">Taxable</span><span className="font-semibold">{fmtDollars(taxable)} ({taxablePct.toFixed(0)}%)</span></div>
+                <p className="pl-0 text-[11px]">
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">Includes:</span>{" "}
+                  <span className="text-amber-700 dark:text-amber-300">{formatBucketInstruments(taxableItems)}</span>
+                </p>
               </div>
             </div>
           </div>
@@ -984,14 +1176,64 @@ export function FinancialBgInsights({
             <div className="rounded-xl border bg-card p-4">
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Monthly Cash Flow</p>
               <p className="text-sm text-muted-foreground">
-                {fmtDollars(Number(cashFlow.monthlyGrossIncome ?? cashFlow.monthly_gross_income ?? 0))} gross →
-                {" "}
-                {fmtDollars(Number(cashFlow.monthlyNetTakeHome ?? cashFlow.monthly_net_take_home ?? 0))} net
+                {fmtDollars(cashFlowGross)} gross → {fmtDollars(cashFlowNet)} net
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Values are estimated from the financial inputs provided and rounded to monthly approximations.
               </p>
 
-              <div className="mt-3 space-y-1.5 text-xs">
-                <div className="flex justify-between"><span>Fixed Expenses</span><span>{fmtDollars(Number(cashFlow.totalMonthlyExpenses ?? cashFlow.total_monthly_expenses ?? 0))}/mo</span></div>
-                <div className="flex justify-between"><span>Surplus / Deficit</span><span className="font-semibold">{fmtDollars(Number(cashFlow.monthlySurplusOrDeficit ?? cashFlow.monthly_surplus_or_deficit ?? 0))}/mo</span></div>
+              <div className="mt-3 rounded-lg border bg-muted/20 p-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => toggleCashFlowSection("netTakeHome")}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <p className="font-semibold text-foreground">How net take-home is derived</p>
+                  {expandedCashFlowSections.netTakeHome ? (
+                    <ChevronUp className="size-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="size-3.5 text-muted-foreground" />
+                  )}
+                </button>
+                {expandedCashFlowSections.netTakeHome && (
+                  <div className="mt-2 space-y-1.5">
+                    <div className="flex justify-between"><span>Gross income</span><span>{fmtDollars(cashFlowGross)}</span></div>
+                    <div className="flex justify-between"><span>Estimated taxes</span><span>- {fmtDollars(cashFlowTaxes)}</span></div>
+                    <div className="flex justify-between"><span>Retirement contributions</span><span>- {fmtDollars(cashFlowRetirement)}</span></div>
+                    <div className="flex justify-between"><span>Health insurance</span><span>- {fmtDollars(cashFlowHealthInsurance)}</span></div>
+                    <div className="flex justify-between"><span>Other payroll deductions</span><span>- {fmtDollars(cashFlowOtherDeductions)}</span></div>
+                    <div className="flex justify-between border-t pt-1.5"><span>Total deductions</span><span>- {fmtDollars(cashFlowTotalDeductions)}</span></div>
+                    <div className="flex justify-between font-semibold"><span>Net take-home</span><span>{fmtDollars(cashFlowNet)}</span></div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 rounded-lg border bg-muted/20 p-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => toggleCashFlowSection("expensesAndSurplus")}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <p className="font-semibold text-foreground">How expenses and surplus are derived</p>
+                  {expandedCashFlowSections.expensesAndSurplus ? (
+                    <ChevronUp className="size-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="size-3.5 text-muted-foreground" />
+                  )}
+                </button>
+                {expandedCashFlowSections.expensesAndSurplus && (
+                  <div className="mt-2 space-y-1.5">
+                    <div className="flex justify-between"><span>Fixed Expenses</span><span>{fmtDollars(cashFlowFixedExpenses)}/mo</span></div>
+                    <div className="flex justify-between"><span>Debt service</span><span>{fmtDollars(cashFlowDebtService)}/mo</span></div>
+                    <div className="flex justify-between"><span>Discretionary spending</span><span>{fmtDollars(cashFlowDiscretionary)}/mo</span></div>
+                    <div className="flex justify-between"><span>Remittances</span><span>{fmtDollars(cashFlowRemittances)}/mo</span></div>
+                    <div className="flex justify-between border-t pt-1.5"><span>Total monthly expenses</span><span>{fmtDollars(cashFlowTotalExpenses)}/mo</span></div>
+                    <div className="flex justify-between font-semibold">
+                      <span>Surplus / Deficit (Net take-home - Total expenses)</span>
+                      <span>{fmtDollars(cashFlowSurplus)}/mo</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {Array.isArray(goalAllocations) && goalAllocations.length > 0 && (

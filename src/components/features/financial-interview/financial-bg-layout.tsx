@@ -12,6 +12,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Plus,
   Trash2,
   Info,
@@ -529,6 +531,15 @@ function RetirementSection({
 }) {
   const prev401ks: Previous401k[] = data.retirement401k?.previous401ks ?? [];
   const [showCatchUpJustification, setShowCatchUpJustification] = useState(false);
+  const [expandedRetirementSections, setExpandedRetirementSections] = useState({
+    k401: false,
+    rothAfterTax: false,
+    ira: false,
+    hsa: false,
+    previous401k: false,
+    pension: false,
+    plan403457: false,
+  });
 
   const updatePrev401ks = useCallback(
     (next: Previous401k[]) => {
@@ -558,6 +569,12 @@ function RetirementSection({
   const totalPrevBalance = useMemo(
     () => prev401ks.reduce((s, p) => s + (p.balance ?? 0), 0),
     [prev401ks]
+  );
+  const toggleRetirementSection = useCallback(
+    (key: keyof typeof expandedRetirementSections) => {
+      setExpandedRetirementSections((prev) => ({ ...prev, [key]: !prev[key] }));
+    },
+    []
   );
 
   const TaxBadge = ({ type }: { type: "pre-tax" | "post-tax" | "after-tax" | "roth" | "employer" }) => {
@@ -769,14 +786,27 @@ function RetirementSection({
               <p className="text-sm font-semibold">401(k) Plan & Employer Match</p>
               <p className="text-xs text-muted-foreground">Traditional pre-tax 401(k) with employer matching</p>
             </div>
-            <div className="shrink-0 rounded-lg border bg-indigo-50/70 px-3 py-1.5 text-right dark:bg-indigo-950/20">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">{taxYear} Max Contribution</p>
-              <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Individual: {formatLimit(k401Base)}</p>
-              <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Age 50+: {formatLimit(k401Age50)} · Age 60-63: {formatLimit(k401Age60)}</p>
-              <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Total w/ employer: {formatLimit(k401Total)} (§415c)</p>
+            <div className="flex items-start gap-2">
+              <div className="shrink-0 rounded-lg border bg-indigo-50/70 px-3 py-1.5 text-right dark:bg-indigo-950/20">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">{taxYear} Max Contribution</p>
+                <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Individual: {formatLimit(k401Base)}</p>
+                <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Age 50+: {formatLimit(k401Age50)} · Age 60-63: {formatLimit(k401Age60)}</p>
+                <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Total w/ employer: {formatLimit(k401Total)} (§415c)</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => toggleRetirementSection("k401")}
+              >
+                {expandedRetirementSections.k401 ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
 
+          {expandedRetirementSections.k401 && (
+          <>
           {/* ── Match Structure Selector ── */}
           <div className="mb-3 rounded-lg border bg-slate-50/60 p-3 dark:bg-slate-900/30">
             <div className="flex items-center gap-2 mb-1.5">
@@ -1257,6 +1287,8 @@ function RetirementSection({
               <DialogFooter showCloseButton />
             </DialogContent>
           </Dialog>
+          </>
+          )}
         </div>
         );
       })()}
@@ -1268,12 +1300,24 @@ function RetirementSection({
             <p className="text-sm font-semibold">Roth 401(k) & After-Tax 401(k)</p>
             <p className="text-xs text-muted-foreground">Post-tax and after-tax 401(k) contribution buckets</p>
           </div>
-          <div className="shrink-0 rounded-lg border bg-emerald-50/70 px-3 py-1.5 text-right dark:bg-emerald-950/20">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">{taxYear} Limits</p>
-            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Roth 401(k): shares {formatLimit(roth401kBase ?? k401Base)} w/ Pre-Tax</p>
-            <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">After-Tax: up to {formatLimit(afterTax401kTotal ?? k401Total)} total (§415c)</p>
+          <div className="flex items-start gap-2">
+            <div className="shrink-0 rounded-lg border bg-emerald-50/70 px-3 py-1.5 text-right dark:bg-emerald-950/20">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">{taxYear} Limits</p>
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Roth 401(k): shares {formatLimit(roth401kBase ?? k401Base)} w/ Pre-Tax</p>
+              <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">After-Tax: up to {formatLimit(afterTax401kTotal ?? k401Total)} total (§415c)</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => toggleRetirementSection("rothAfterTax")}
+            >
+              {expandedRetirementSections.rothAfterTax ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
+        {expandedRetirementSections.rothAfterTax && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2 rounded-lg bg-muted/30 p-3">
             <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
@@ -1296,6 +1340,7 @@ function RetirementSection({
               onChange={(v) => update({ retirement401k: { ...data.retirement401k, has401k: true, afterTaxContribution: v } })} />
           </div>
         </div>
+        )}
       </div>
 
       {/* ── IRA Section — Traditional, Roth, Backdoor Roth ── */}
@@ -1305,13 +1350,25 @@ function RetirementSection({
             <p className="text-sm font-semibold">Individual Retirement Accounts (IRA)</p>
             <p className="text-xs text-muted-foreground">Traditional, Roth, and Backdoor Roth IRAs</p>
           </div>
-          <div className="shrink-0 rounded-lg border bg-indigo-50/70 px-3 py-1.5 text-right dark:bg-indigo-950/20">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">{taxYear} Max Contribution</p>
-            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Individual: {formatLimit(iraBase)}</p>
-            <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Age 50+: {formatLimit(iraAge50)} (combined Trad + Roth)</p>
-            <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Backdoor Roth: no income limit</p>
+          <div className="flex items-start gap-2">
+            <div className="shrink-0 rounded-lg border bg-indigo-50/70 px-3 py-1.5 text-right dark:bg-indigo-950/20">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">{taxYear} Max Contribution</p>
+              <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Individual: {formatLimit(iraBase)}</p>
+              <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Age 50+: {formatLimit(iraAge50)} (combined Trad + Roth)</p>
+              <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">Backdoor Roth: no income limit</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => toggleRetirementSection("ira")}
+            >
+              {expandedRetirementSections.ira ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
+        {expandedRetirementSections.ira && (
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2 rounded-lg bg-muted/30 p-3">
             <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
@@ -1348,6 +1405,7 @@ function RetirementSection({
             </label>
           </div>
         </div>
+        )}
       </div>
 
       {/* ── HSA ── */}
@@ -1359,13 +1417,25 @@ function RetirementSection({
             </p>
             <p className="text-xs text-muted-foreground">Triple tax-advantaged — pre-tax in, tax-free growth, tax-free withdrawal for medical</p>
           </div>
-          <div className="shrink-0 rounded-lg border bg-teal-50/70 px-3 py-1.5 text-right dark:bg-teal-950/20">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-teal-500">{taxYear} Max Contribution</p>
-            <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">Individual: {formatLimit(hsaIndiv)}</p>
-            <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">Family: {formatLimit(hsaFamily)}</p>
-            <p className="text-[10px] text-teal-600/70 dark:text-teal-400/70">Age 55+: {formatLimit(hsaAge55)} (w/ catch-up)</p>
+          <div className="flex items-start gap-2">
+            <div className="shrink-0 rounded-lg border bg-teal-50/70 px-3 py-1.5 text-right dark:bg-teal-950/20">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-teal-500">{taxYear} Max Contribution</p>
+              <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">Individual: {formatLimit(hsaIndiv)}</p>
+              <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">Family: {formatLimit(hsaFamily)}</p>
+              <p className="text-[10px] text-teal-600/70 dark:text-teal-400/70">Age 55+: {formatLimit(hsaAge55)} (w/ catch-up)</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => toggleRetirementSection("hsa")}
+            >
+              {expandedRetirementSections.hsa ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
+        {expandedRetirementSections.hsa && (
         <div className="grid gap-3 sm:grid-cols-3">
           <CurrencyField label="Current Balance" value={data.hsa?.currentBalance}
             onChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })} />
@@ -1380,6 +1450,7 @@ function RetirementSection({
             </label>
           </div>
         </div>
+        )}
       </div>
 
       {/* ── Previous 401(k)s from prior employers ── */}
@@ -1396,14 +1467,26 @@ function RetirementSection({
               )}
             </p>
           </div>
-          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/30"
-            onClick={addPrev401k}
-          >
-            <Plus className="h-3.5 w-3.5" /> Add Previous 401(k)
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/30"
+              onClick={addPrev401k}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Previous 401(k)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => toggleRetirementSection("previous401k")}
+            >
+              {expandedRetirementSections.previous401k ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
 
-        {prev401ks.length === 0 ? (
+        {expandedRetirementSections.previous401k && (
+        prev401ks.length === 0 ? (
           <p className="py-3 text-center text-xs text-muted-foreground">
             No previous 401(k) accounts added. Click above to add one.
           </p>
@@ -1438,29 +1521,72 @@ function RetirementSection({
               </div>
             ))}
           </div>
+        )
         )}
       </div>
 
       {/* ── Pension & 403(b)/457(b) ── */}
-      <AccountCard
-        name="Pension / Defined Benefit"
-        description="Employer-sponsored guaranteed income"
-        accent="border-l-indigo-400"
-        balance={data.pension?.lumpSumOption}
-        onBalanceChange={(v) => update({ pension: { ...data.pension, hasPension: true, lumpSumOption: v } })}
-        contribution={data.pension?.estimatedMonthlyBenefit}
-        onContributionChange={(v) => update({ pension: { ...data.pension, hasPension: true, estimatedMonthlyBenefit: v } })}
-        contributionLabel="Monthly Benefit"
-      />
-      <AccountCard
-        name="403(b) / 457(b)"
-        description="Non-profit & government retirement plan"
-        accent="border-l-indigo-400"
-        balance={data.plan403b457b?.currentBalance}
-        onBalanceChange={(v) => update({ plan403b457b: { ...data.plan403b457b, hasPlan: true, currentBalance: v } })}
-        contribution={data.plan403b457b?.annualContribution}
-        onContributionChange={(v) => update({ plan403b457b: { ...data.plan403b457b, hasPlan: true, annualContribution: v } })}
-      />
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-indigo-400")}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">Pension / Defined Benefit</p>
+            <p className="text-xs text-muted-foreground">Employer-sponsored guaranteed income</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => toggleRetirementSection("pension")}
+          >
+            {expandedRetirementSections.pension ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
+        {expandedRetirementSections.pension && (
+          <div className="mt-3">
+            <AccountCard
+              name="Pension / Defined Benefit"
+              description="Employer-sponsored guaranteed income"
+              accent="border-l-indigo-400"
+              balance={data.pension?.lumpSumOption}
+              onBalanceChange={(v) => update({ pension: { ...data.pension, hasPension: true, lumpSumOption: v } })}
+              contribution={data.pension?.estimatedMonthlyBenefit}
+              onContributionChange={(v) => update({ pension: { ...data.pension, hasPension: true, estimatedMonthlyBenefit: v } })}
+              contributionLabel="Monthly Benefit"
+            />
+          </div>
+        )}
+      </div>
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-indigo-400")}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">403(b) / 457(b)</p>
+            <p className="text-xs text-muted-foreground">Non-profit & government retirement plan</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => toggleRetirementSection("plan403457")}
+          >
+            {expandedRetirementSections.plan403457 ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
+        {expandedRetirementSections.plan403457 && (
+          <div className="mt-3">
+            <AccountCard
+              name="403(b) / 457(b)"
+              description="Non-profit & government retirement plan"
+              accent="border-l-indigo-400"
+              balance={data.plan403b457b?.currentBalance}
+              onBalanceChange={(v) => update({ plan403b457b: { ...data.plan403b457b, hasPlan: true, currentBalance: v } })}
+              contribution={data.plan403b457b?.annualContribution}
+              onContributionChange={(v) => update({ plan403b457b: { ...data.plan403b457b, hasPlan: true, annualContribution: v } })}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1552,14 +1678,38 @@ function InvestmentsSection({
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
+  const [expandedInvestmentsSections, setExpandedInvestmentsSections] = useState({
+    investmentAccounts: false,
+    cashAndSavings: false,
+    socialSecurity: false,
+  });
+  const toggleInvestmentsSection = useCallback(
+    (key: keyof typeof expandedInvestmentsSections) => {
+      setExpandedInvestmentsSections((prev) => ({ ...prev, [key]: !prev[key] }));
+    },
+    []
+  );
+
   return (
     <div className="space-y-4">
       {/* Investment Accounts — compact 2-col grid */}
       <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-emerald-500")}>
-        <div className="mb-3">
-          <p className="text-sm font-semibold">Investment Accounts</p>
-          <p className="text-xs text-muted-foreground">Brokerage, bonds, annuities, equity compensation & crypto</p>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Investment Accounts</p>
+            <p className="text-xs text-muted-foreground">Brokerage, bonds, annuities, equity compensation & crypto</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => toggleInvestmentsSection("investmentAccounts")}
+          >
+            {expandedInvestmentsSections.investmentAccounts ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
         </div>
+        {expandedInvestmentsSections.investmentAccounts && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <CurrencyField label="Brokerage" value={data.brokerage?.currentValue}
             onChange={(v) => update({ brokerage: { ...data.brokerage, hasBrokerage: true, currentValue: v } })} />
@@ -1578,14 +1728,27 @@ function InvestmentsSection({
           <CurrencyField label="Cryptocurrency" value={data.crypto?.totalValue}
             onChange={(v) => update({ crypto: { ...data.crypto, hasCrypto: true, totalValue: v } })} />
         </div>
+        )}
       </div>
 
       {/* Cash & Savings — compact 2-col grid */}
       <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-amber-400")}>
-        <div className="mb-3">
-          <p className="text-sm font-semibold">Cash & Savings</p>
-          <p className="text-xs text-muted-foreground">Checking, savings, HSA, CDs, 529, and emergency fund</p>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Cash & Savings</p>
+            <p className="text-xs text-muted-foreground">Checking, savings, HSA, CDs, 529, and emergency fund</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => toggleInvestmentsSection("cashAndSavings")}
+          >
+            {expandedInvestmentsSections.cashAndSavings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
         </div>
+        {expandedInvestmentsSections.cashAndSavings && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <CurrencyField label="Checking" value={data.cashOnHand?.checkingBalance}
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, checkingBalance: v } })} />
@@ -1601,20 +1764,32 @@ function InvestmentsSection({
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, emergencyFundMonths: v } })}
             placeholder="e.g. 6" />
         </div>
+        )}
       </div>
 
       {/* Social Security — single inline row */}
       <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-violet-400")}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold">Social Security Estimate</p>
             <p className="text-xs text-muted-foreground">Projected monthly benefit at full retirement age</p>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 self-start"
+            onClick={() => toggleInvestmentsSection("socialSecurity")}
+          >
+            {expandedInvestmentsSections.socialSecurity ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
+        {expandedInvestmentsSections.socialSecurity && (
           <div className="w-40">
             <CurrencyField label="Monthly at FRA" value={data.socialSecurity?.estimatedMonthlyBenefitFRA}
               onChange={(v) => update({ socialSecurity: { ...data.socialSecurity, hasEstimate: true, estimatedMonthlyBenefitFRA: v } })} />
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -1840,42 +2015,67 @@ function MonthlyExpensesSection({
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
+  const [expandedMonthlyExpenses, setExpandedMonthlyExpenses] = useState(false);
+  const totalMonthlyExpenses = (() => {
+    const e = data.monthlyExpenses ?? {};
+    return (
+      (e.housing ?? 0) +
+      (e.utilities ?? 0) +
+      (e.transportation ?? 0) +
+      (e.groceries ?? 0) +
+      (e.insurance ?? 0) +
+      (e.childcare ?? 0) +
+      (e.entertainment ?? 0) +
+      (e.diningOut ?? 0) +
+      (e.subscriptions ?? 0) +
+      (e.otherExpenses ?? 0)
+    );
+  })();
+
   return (
     <div className="space-y-3">
-      <AccountCard
-        name="Monthly Expenses"
-        description="Total household monthly spending"
-        accent="border-l-orange-400"
-        balance={(() => {
-          const e = data.monthlyExpenses ?? {};
-          return (e.housing ?? 0) + (e.utilities ?? 0) + (e.transportation ?? 0) +
-            (e.groceries ?? 0) + (e.insurance ?? 0) + (e.childcare ?? 0) +
-            (e.entertainment ?? 0) + (e.diningOut ?? 0) + (e.subscriptions ?? 0) + (e.otherExpenses ?? 0) || undefined;
-        })()}
-        onBalanceChange={() => {}}
-        contributionLabel=""
-      >
-        <div className="grid gap-3 sm:grid-cols-3">
-          <CurrencyField label="Housing" value={data.monthlyExpenses?.housing}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, housing: v } })} />
-          <CurrencyField label="Utilities" value={data.monthlyExpenses?.utilities}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, utilities: v } })} />
-          <CurrencyField label="Transportation" value={data.monthlyExpenses?.transportation}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, transportation: v } })} />
-          <CurrencyField label="Groceries" value={data.monthlyExpenses?.groceries}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, groceries: v } })} />
-          <CurrencyField label="Insurance" value={data.monthlyExpenses?.insurance}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, insurance: v } })} />
-          <CurrencyField label="Childcare / Schooling / Education" value={data.monthlyExpenses?.childcare}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, childcare: v } })} />
-          <CurrencyField label="Entertainment" value={data.monthlyExpenses?.entertainment}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, entertainment: v } })} />
-          <CurrencyField label="Dining out" value={data.monthlyExpenses?.diningOut}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, diningOut: v } })} />
-          <CurrencyField label="Other" value={data.monthlyExpenses?.otherExpenses}
-            onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, otherExpenses: v } })} />
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-orange-400")}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Monthly Expenses</p>
+            <p className="text-xs text-muted-foreground">Total household monthly spending</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold">${totalMonthlyExpenses.toLocaleString()}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => setExpandedMonthlyExpenses((prev) => !prev)}
+            >
+              {expandedMonthlyExpenses ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
-      </AccountCard>
+        {expandedMonthlyExpenses && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <CurrencyField label="Housing" value={data.monthlyExpenses?.housing}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, housing: v } })} />
+            <CurrencyField label="Utilities" value={data.monthlyExpenses?.utilities}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, utilities: v } })} />
+            <CurrencyField label="Transportation" value={data.monthlyExpenses?.transportation}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, transportation: v } })} />
+            <CurrencyField label="Groceries" value={data.monthlyExpenses?.groceries}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, groceries: v } })} />
+            <CurrencyField label="Insurance" value={data.monthlyExpenses?.insurance}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, insurance: v } })} />
+            <CurrencyField label="Childcare / Schooling / Education" value={data.monthlyExpenses?.childcare}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, childcare: v } })} />
+            <CurrencyField label="Entertainment" value={data.monthlyExpenses?.entertainment}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, entertainment: v } })} />
+            <CurrencyField label="Dining out" value={data.monthlyExpenses?.diningOut}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, diningOut: v } })} />
+            <CurrencyField label="Other" value={data.monthlyExpenses?.otherExpenses}
+              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, otherExpenses: v } })} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

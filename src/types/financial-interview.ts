@@ -444,6 +444,10 @@ export interface DebtsLiabilities {
 export interface LifeInsuranceCoverage {
   /** Employer-provided group life */
   hasGroupLife?: boolean;
+  /** Whether group life coverage is selected as salary multiple */
+  groupLifeBasedOnSalary?: boolean;
+  /** Salary multiple used for group life (1x-10x) */
+  groupLifeSalaryMultiple?: number;
   groupLifeAmount?: number;
   /** Individual term life */
   hasTermLife?: boolean;
@@ -765,6 +769,9 @@ export interface FinancialHealthScore {
   };
   netWorth: {
     total: number;
+    totalAssets?: number;
+    totalLiabilities?: number;
+    netWorth?: number;
     breakdown: {
       retirement: number;
       investments: number;
@@ -777,6 +784,9 @@ export interface FinancialHealthScore {
     taxDeferred: number;
     taxFree: number;
     taxable: number;
+    taxDeferredItems?: Array<{ instrument: string; assetType?: string; amount: number }>;
+    taxFreeItems?: Array<{ instrument: string; assetType?: string; amount: number }>;
+    taxableItems?: Array<{ instrument: string; assetType?: string; amount: number }>;
   };
   insights: {
     strengths: HealthScoreInsightCard[];
