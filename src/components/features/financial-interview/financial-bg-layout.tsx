@@ -34,6 +34,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useCalculate401k } from "@/hooks/use-financial-interview";
 import type { Calculate401kRequest } from "@/lib/api/financial-interview";
@@ -520,6 +528,7 @@ function RetirementSection({
   clientAge?: number;
 }) {
   const prev401ks: Previous401k[] = data.retirement401k?.previous401ks ?? [];
+  const [showCatchUpJustification, setShowCatchUpJustification] = useState(false);
 
   const updatePrev401ks = useCallback(
     (next: Previous401k[]) => {
@@ -751,6 +760,7 @@ function RetirementSection({
         );
 
         const r = calcResult;
+        const catchUpInfo = r?.catchUpJustification;
 
         return (
         <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-indigo-400")}>
@@ -1180,15 +1190,73 @@ function RetirementSection({
                   info:    { border: "border-blue-300 dark:border-blue-700", bg: "bg-blue-50 dark:bg-blue-950/20", text: "text-blue-800 dark:text-blue-300", icon: "🎂" },
                 };
                 const s = styles[alert.type] ?? styles.info;
+                const isCatchUpAlert = alert.code === "CATCH_UP_ELIGIBLE" && Boolean(catchUpInfo?.eligible);
                 return (
                   <div key={idx} className={cn("flex items-start gap-2 rounded-md border px-3 py-2 text-xs", s.border, s.bg)}>
                     <span className="mt-0.5">{s.icon}</span>
-                    <p className={s.text}>{alert.message}</p>
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <p className={s.text}>{alert.message}</p>
+                      {isCatchUpAlert && (
+                        <button
+                          type="button"
+                          className="shrink-0 text-[11px] font-semibold text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-200"
+                          onClick={() => setShowCatchUpJustification(true)}
+                        >
+                          How this was calculated
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           )}
+
+          <Dialog open={showCatchUpJustification} onOpenChange={setShowCatchUpJustification}>
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Catch-Up Contribution Justification</DialogTitle>
+                <DialogDescription>
+                  Why this appears and how the number is derived from IRS age-based limits.
+                </DialogDescription>
+              </DialogHeader>
+              {catchUpInfo && (
+                <div className="space-y-3 text-sm">
+                  <div className="rounded-md border bg-blue-50/60 p-3 text-blue-900 dark:bg-blue-950/20 dark:text-blue-100">
+                    <p className="font-semibold">What is catch-up contribution?</p>
+                    <p className="mt-1 text-xs leading-relaxed">
+                      IRS rules allow age 50+ savers to contribute extra into retirement plans. This is a benefit,
+                      not a penalty, and it does not mean earlier planning was wrong.
+                    </p>
+                  </div>
+
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Your Calculation</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2 text-xs">
+                      <div className="flex justify-between"><span>Tax Year</span><span className="font-semibold">{catchUpInfo.taxYear ?? "Current year"}</span></div>
+                      <div className="flex justify-between"><span>Client Age</span><span className="font-semibold">{catchUpInfo.age}</span></div>
+                      <div className="flex justify-between"><span>Under-50 Limit</span><span className="font-semibold">${catchUpInfo.under50Limit.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span>Age 50+ Total Limit</span><span className="font-semibold">${catchUpInfo.age50PlusTotalLimit.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span>Age 60-63 Total Limit</span><span className="font-semibold">${catchUpInfo.age60To63TotalLimit.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span>Catch-Up Extra Applied</span><span className="font-semibold">${catchUpInfo.catchUpExtra.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span>Current Employee Contribution</span><span className="font-semibold">${catchUpInfo.currentEmployeeContribution.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span>Remaining Room</span><span className="font-semibold">${catchUpInfo.remainingRoom.toLocaleString()}</span></div>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">{catchUpInfo.triggerReason}</p>
+                  </div>
+
+                  <div className="rounded-md border bg-amber-50/50 p-3 text-xs leading-relaxed text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+                    <p className="font-semibold">Why this matters</p>
+                    <p className="mt-1">
+                      If this room is used consistently, retirement savings can compound significantly over time. The advisor can
+                      position this as a late-career opportunity window to strengthen retirement readiness.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <DialogFooter showCloseButton />
+            </DialogContent>
+          </Dialog>
         </div>
         );
       })()}

@@ -759,21 +759,33 @@ export function FinancialBgInsights({
     <div className="space-y-4 rounded-b-xl border border-t-0 p-5">
       {goalAware && goalSummary && (
         <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
-          <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
-            🎯 This analysis is personalized to your goals
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {rankedGoals.slice(0, 5).map((g: any, i: number) => (
-              <span key={i} className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
-                #{g.rank ?? i + 1} {g.label ?? g.goal_id ?? g.goalId}
-              </span>
-            ))}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                🎯 This analysis is personalized to your goals
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {rankedGoals.slice(0, 5).map((g: any, i: number) => (
+                  <span key={i} className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+                    #{g.rank ?? i + 1} {g.label ?? g.goal_id ?? g.goalId}
+                  </span>
+                ))}
+              </div>
+              {(goalSummary?.riskProfile || goalSummary?.retirementTargetAge || goalSummary?.risk_profile || goalSummary?.retirement_target_age) && (
+                <p className="mt-2 text-xs text-blue-700/80 dark:text-blue-300/80">
+                  Risk Profile: {goalSummary?.riskProfile ?? goalSummary?.risk_profile ?? "—"} | Retirement: Age {goalSummary?.retirementTargetAge ?? goalSummary?.retirement_target_age ?? "—"}
+                </p>
+              )}
+            </div>
+            {insights?.summary && (
+              <div className="rounded-lg border border-blue-200/70 bg-white/70 p-3 lg:max-w-md dark:border-blue-900/60 dark:bg-blue-950/30">
+                <p className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                  <Info className="size-3.5" /> Summary
+                </p>
+                <p className="text-xs leading-relaxed text-blue-900/90 dark:text-blue-100/90">{insights.summary}</p>
+              </div>
+            )}
           </div>
-          {(goalSummary?.riskProfile || goalSummary?.retirementTargetAge || goalSummary?.risk_profile || goalSummary?.retirement_target_age) && (
-            <p className="mt-2 text-xs text-blue-700/80 dark:text-blue-300/80">
-              Risk Profile: {goalSummary?.riskProfile ?? goalSummary?.risk_profile ?? "—"} | Retirement: Age {goalSummary?.retirementTargetAge ?? goalSummary?.retirement_target_age ?? "—"}
-            </p>
-          )}
         </div>
       )}
 
@@ -1025,15 +1037,6 @@ export function FinancialBgInsights({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {insights?.summary && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/50 dark:bg-blue-950/10">
-              <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-blue-700 dark:text-blue-400">
-                <Info className="size-4" /> Summary
-              </p>
-              <p className="text-sm leading-relaxed">{insights.summary}</p>
             </div>
           )}
 

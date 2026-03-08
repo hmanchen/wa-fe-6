@@ -209,6 +209,8 @@ export interface Calculate401kResponse {
   effectiveMatchPct: number;
   irsLimitStatus: {
     limit: number;
+    baseLimit: number;
+    catchUpLimit: number;
     empAnnual: number;
     isNearLimit: boolean;
     isOverLimit: boolean;
@@ -216,6 +218,20 @@ export interface Calculate401kResponse {
   };
   unclaimedMatch: number;
   alerts: Calculate401kAlert[];
+  catchUpJustification: {
+    eligible: boolean;
+    taxYear?: number | null;
+    age: number;
+    triggerReason: string;
+    under50Limit: number;
+    age50PlusTotalLimit: number;
+    age60To63TotalLimit: number;
+    catchUpExtra: number;
+    maxAllowedContribution: number;
+    currentEmployeeContribution: number;
+    remainingRoom: number;
+    message: string;
+  };
 }
 
 export async function calculate401k(
