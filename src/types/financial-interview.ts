@@ -788,6 +788,17 @@ export interface FinancialHealthScore {
     taxFreeItems?: Array<{ instrument: string; assetType?: string; amount: number }>;
     taxableItems?: Array<{ instrument: string; assetType?: string; amount: number }>;
   };
+  rolloverOpportunity?: {
+    eligible: boolean;
+    candidateAccounts: number;
+    totalBalance: number;
+    state?: string;
+    bonusLowPct: number;
+    bonusHighPct: number;
+    bonusLowAmount: number;
+    bonusHighAmount: number;
+    message: string;
+  };
   insights: {
     strengths: HealthScoreInsightCard[];
     gaps: HealthScoreInsightCard[];

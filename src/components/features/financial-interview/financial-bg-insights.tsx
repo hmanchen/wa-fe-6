@@ -488,6 +488,30 @@ export function FinancialBgInsights({
     0
   );
   const showHiddenMoney = hiddenRedirect > 0 || unallocatedSurplus > 0;
+  const rolloverOpportunity =
+    hsAny?.rolloverOpportunity ??
+    hsAny?.rollover_opportunity ??
+    null;
+  const rolloverEligible = Boolean(rolloverOpportunity?.eligible);
+  const rolloverAccounts = Number(
+    rolloverOpportunity?.candidateAccounts ?? rolloverOpportunity?.candidate_accounts ?? 0
+  );
+  const rolloverBalance = Number(
+    rolloverOpportunity?.totalBalance ?? rolloverOpportunity?.total_balance ?? 0
+  );
+  const rolloverBonusLowPct = Number(
+    rolloverOpportunity?.bonusLowPct ?? rolloverOpportunity?.bonus_low_pct ?? 0
+  );
+  const rolloverBonusHighPct = Number(
+    rolloverOpportunity?.bonusHighPct ?? rolloverOpportunity?.bonus_high_pct ?? 0
+  );
+  const rolloverBonusLowAmount = Number(
+    rolloverOpportunity?.bonusLowAmount ?? rolloverOpportunity?.bonus_low_amount ?? 0
+  );
+  const rolloverBonusHighAmount = Number(
+    rolloverOpportunity?.bonusHighAmount ?? rolloverOpportunity?.bonus_high_amount ?? 0
+  );
+  const rolloverState = String(rolloverOpportunity?.state ?? "").toUpperCase();
 
   const cashFlow = fa?.cashFlow ?? hsAny?.cashFlow ?? hsAny?.cash_flow ?? null;
   const cashFlowGross = Number(cashFlow?.monthlyGrossIncome ?? cashFlow?.monthly_gross_income ?? 0);
@@ -1095,6 +1119,40 @@ export function FinancialBgInsights({
               </div>
               <p className="mt-3 text-base font-black text-emerald-700 dark:text-emerald-300">
                 TOTAL AVAILABLE: {fmtDollars(hiddenRedirect + unallocatedSurplus)}/month
+              </p>
+            </div>
+          )}
+          {rolloverEligible && (
+            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
+              <p className="text-sm font-bold text-violet-700 dark:text-violet-300">
+                🔄 Previous 401(k) Rollover Opportunity
+              </p>
+              <p className="mt-1 text-sm text-violet-900/90 dark:text-violet-200/90">
+                You have {rolloverAccounts} previous 401(k) account{rolloverAccounts === 1 ? "" : "s"} with about{" "}
+                {fmtDollars(rolloverBalance)} that may be rolled over to a new financial institution.
+              </p>
+              <div className="mt-3 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Estimated bonus range</span>
+                  <span className="font-semibold">
+                    {rolloverBonusLowPct.toFixed(0)}% - {rolloverBonusHighPct.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Estimated bonus amount</span>
+                  <span className="font-semibold">
+                    {fmtDollars(rolloverBonusLowAmount)} - {fmtDollars(rolloverBonusHighAmount)}
+                  </span>
+                </div>
+                {rolloverState && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">State considered</span>
+                    <span className="font-semibold">{rolloverState}</span>
+                  </div>
+                )}
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                Bonus estimates are approximate (typically 10%-25%) and depend on state and provider program terms.
               </p>
             </div>
           )}

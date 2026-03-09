@@ -7,8 +7,6 @@ import {
   GripVertical,
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
-  Circle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -392,22 +390,6 @@ export function GoalsDiscoveryScreen({
 
   return (
     <div className="space-y-4" onBlurCapture={() => void triggerSave()}>
-      <div className="rounded-xl border bg-card p-4">
-        <p className="text-xs font-semibold text-muted-foreground">Progress</p>
-        <div className="mt-2 flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-            <CheckCircle2 className="size-3.5" /> Screen 1
-          </span>
-          <span className="text-muted-foreground">→</span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-primary">
-            <Circle className="size-3.5 fill-current" /> Screen 2
-          </span>
-          <span className="text-muted-foreground">→</span>
-          <span className="inline-flex rounded-full bg-muted px-2 py-1 text-muted-foreground">Screen 3</span>
-          <span className="inline-flex rounded-full bg-muted px-2 py-1 text-muted-foreground">... Screen 11</span>
-        </div>
-      </div>
-
       <div className="rounded-xl border bg-card p-5">
         <h2 className="text-lg font-bold">Goals & Discovery</h2>
         <p className="text-sm text-muted-foreground">
