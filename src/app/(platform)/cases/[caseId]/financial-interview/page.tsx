@@ -35,6 +35,7 @@ import { IncomeReplacementScreen } from "@/components/features/financial-intervi
 import { ProtectionEstateScreen } from "@/components/features/financial-interview/protection-estate-screen";
 import { FinancialBgInsights } from "@/components/features/financial-interview/financial-bg-insights";
 import { FinancialHomeScreen } from "@/components/features/financial-interview/financial-home-screen";
+import { FinancialHomePyramid } from "@/components/features/financial-interview/financial-home-pyramid/FinancialHomePyramid";
 import { XCurveScreen } from "@/components/features/financial-interview/xcurve-screen";
 import { RecommendationsScreen } from "@/components/features/financial-interview/recommendations-screen";
 import { DeliveryScreen } from "@/components/features/financial-interview/delivery-screen";
@@ -42,6 +43,7 @@ import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay
 import type { FinancialInterviewSection } from "@/types/financial-interview";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
 import type { GoalsDiscoveryData } from "@/types/financial-interview";
+import { useFullAnalysisData } from "@/hooks/use-presentation-flow";
 
 // Lazy-load the annotation overlay since it's heavy (canvas-based)
 const AnnotationOverlay = dynamic(
@@ -72,6 +74,18 @@ export default function FinancialInterviewPage() {
   >([]);
 
   const { data: marketSnapshot, isLoading: isMarketSnapshotLoading } = useMarketSnapshot(currentSection === "financial-background");
+  const shouldLoadFullAnalysis =
+    currentSection === "analysis-dashboard" ||
+    currentSection === "financial-home" ||
+    currentSection === "financial-home-pyramid" ||
+    currentSection === "financial-x-curve" ||
+    currentSection === "recommendations" ||
+    currentSection === "delivery";
+  const { data: fullAnalysisData } = useFullAnalysisData(
+    caseId,
+    caseData?.clientPersonalInfo?.address?.province || "unknown",
+    shouldLoadFullAnalysis
+  );
 
   // ── Derived display name ────────────────────────────────
   const clientNames = (() => {
@@ -410,6 +424,8 @@ export default function FinancialInterviewPage() {
               caseId={caseId}
               healthScore={healthScore}
               clientState={caseData?.clientPersonalInfo?.address?.province}
+              fullAnalysisData={fullAnalysisData}
+              disableAutoRefresh
               onContinue={() => setCurrentSection("financial-home")}
               isSubmitting={false}
             />
@@ -423,11 +439,21 @@ export default function FinancialInterviewPage() {
         {currentSection === "financial-home" && (
           <FinancialHomeScreen
             caseId={caseId}
+            onContinue={() => setCurrentSection("financial-home-pyramid")}
+          />
+        )}
+
+        {/* ── PHASE 6: Financial Home Pyramid ── */}
+        {currentSection === "financial-home-pyramid" && (
+          <FinancialHomePyramid
+            caseData={caseData}
+            healthScore={healthScore}
+            fullAnalysis={fullAnalysisData}
             onContinue={() => setCurrentSection("financial-x-curve")}
           />
         )}
 
-        {/* ── PHASE 6: Financial X Curve ── */}
+        {/* ── PHASE 7: Financial X Curve ── */}
         {currentSection === "financial-x-curve" && (
           <XCurveScreen
             caseId={caseId}
@@ -435,7 +461,7 @@ export default function FinancialInterviewPage() {
           />
         )}
 
-        {/* ── PHASE 7: Recommendations ── */}
+        {/* ── PHASE 8: Recommendations ── */}
         {currentSection === "recommendations" && (
           <RecommendationsScreen
             caseId={caseId}
@@ -444,7 +470,7 @@ export default function FinancialInterviewPage() {
           />
         )}
 
-        {/* ── PHASE 8: Delivery ── */}
+        {/* ── PHASE 9: Delivery ── */}
         {currentSection === "delivery" && (
           <DeliveryScreen caseId={caseId} clientNames={clientNames} />
         )}

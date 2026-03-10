@@ -40,6 +40,11 @@ export interface Address {
   country?: string;
 }
 
+export interface DependentDetail {
+  name: string;
+  age: number;
+}
+
 export interface ClientPersonalInfo {
   firstName: string;
   lastName: string;
@@ -50,6 +55,7 @@ export interface ClientPersonalInfo {
   partnerLastName?: string;
   partnerDateOfBirth?: string; // ISO 8601 date string
   dependents: number;
+  dependentsDetail?: DependentDetail[];
   email?: string;
   phone?: string;
   address?: Address;

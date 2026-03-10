@@ -33,6 +33,10 @@ export interface CasePersonalInfo {
   gender?: string;
   maritalStatus?: string;
   dependents?: number;
+  dependentsDetail?: Array<{
+    name: string;
+    age: number;
+  }>;
   partnerFirstName?: string;
   partnerLastName?: string;
   partnerDateOfBirth?: string;

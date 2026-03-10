@@ -42,6 +42,11 @@ const SECTIONS: SectionDef[] = [
     shortLabel: "Fin Home",
   },
   {
+    id: "financial-home-pyramid",
+    label: "Financial Home Pyramid",
+    shortLabel: "Pyramid",
+  },
+  {
     id: "financial-x-curve",
     label: "Financial X Curve",
     shortLabel: "X Curve",

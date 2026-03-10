@@ -178,6 +178,46 @@ export interface Education529Details {
   beneficiaryCount?: number;
 }
 
+export type EducationAccountOwner = "primary" | "spouse" | "grandparent" | "child" | "other";
+export type EducationInvestmentAllocation = "conservative" | "moderate" | "aggressive" | "age_based";
+export type EducationOtherAccountType =
+  | "utma_ugma"
+  | "coverdell_esa"
+  | "savings_bonds"
+  | "regular_savings"
+  | "cash_value_life_insurance"
+  | "other";
+
+export interface CollegeSavingsChildPlan {
+  id: string;
+  childName: string;
+  childAge: number;
+  has529Plan: boolean;
+  balance529?: number;
+  monthlyContribution529?: number;
+  annualContribution529?: number;
+  accountOwner529?: EducationAccountOwner;
+  statePlan529?: string;
+  investmentAllocation529?: EducationInvestmentAllocation;
+  yearsFunded529?: number;
+  hasOtherEducationSavings: boolean;
+  otherAccountType?: EducationOtherAccountType;
+  otherAccountTypeCustom?: string;
+  otherCurrentBalance?: number;
+  otherMonthlyContribution?: number;
+  otherAccountOwner?: EducationAccountOwner;
+  hasPrepaidTuition: boolean;
+  prepaidPlanType?: "state_prepaid" | "private_college_prepaid";
+  prepaidCreditsPurchased?: number;
+  prepaidEstimatedValueAtEnrollment?: number;
+  prepaidSpecificSchoolLockedIn?: boolean;
+  prepaidSchoolName?: string;
+}
+
+export interface CollegeSavingsDetails {
+  children: CollegeSavingsChildPlan[];
+}
+
 export interface AnnuityDetails {
   hasAnnuity: boolean;
   type?: "fixed" | "variable" | "indexed" | "immediate";
@@ -222,15 +262,78 @@ export interface EquityCompensationDetails {
 
 export interface RealEstateDetails {
   hasRealEstate: boolean;
-  /** Number of investment properties (excluding primary home) */
+  hasPrimaryResidence?: boolean;
+  hasRentalProperties?: boolean;
+  hasInternationalProperties?: boolean;
+  /** Primary residence mortgage/property information */
+  primaryResidence?: {
+    propertyType?: "primary_residence";
+    estimatedMarketValue?: number;
+    yearPurchased?: number;
+    propertyAddress?: string;
+    hasMortgage?: boolean;
+    mortgageBalance?: number;
+    originalLoanAmount?: number;
+    interestRate?: number;
+    loanType?: "fixed" | "arm" | "interest_only";
+    armCurrentRate?: number;
+    armAdjustmentPeriodMonths?: number;
+    armRateCap?: number;
+    loanTermYears?: number;
+    monthlyPaymentPiti?: number;
+    principalAndInterestMonthly?: number;
+    propertyTaxesMonthly?: number;
+    propertyTaxesAnnual?: number;
+    homeownersInsuranceMonthly?: number;
+    homeownersInsuranceAnnual?: number;
+    hoaFeesMonthly?: number;
+    pmiMonthly?: number;
+    remainingTermYears?: number;
+  };
+  rentalProperties?: Array<{
+    id: string;
+    propertyLabel?: string;
+    propertyType?: "single_family" | "multi_family" | "condo" | "commercial" | "other";
+    estimatedMarketValue?: number;
+    yearPurchased?: number;
+    locationCity?: string;
+    locationState?: string;
+    country?: string;
+    hasMortgage?: boolean;
+    mortgageBalance?: number;
+    interestRate?: number;
+    loanType?: "fixed" | "arm" | "interest_only";
+    monthlyMortgagePayment?: number;
+    remainingTermYears?: number;
+    monthlyRentalIncomeGross?: number;
+    monthlyPropertyManagementFee?: number;
+    monthlyPropertyTaxes?: number;
+    monthlyInsurance?: number;
+    monthlyHoaFees?: number;
+    monthlyMaintenance?: number;
+    currentVacancyStatus?: "occupied" | "vacant" | "partially_occupied";
+    averageVacancyRatePct?: number;
+  }>;
+  internationalProperties?: Array<{
+    id: string;
+    propertyLabel?: string;
+    country?: string;
+    estimatedMarketValueUsd?: number;
+    isIncomeProducing?: boolean;
+    estimatedMonthlyRentalIncomeUsd?: number;
+    ownershipStatus?: "sole_owner" | "joint_with_family" | "inherited" | "under_construction";
+    hasMortgage?: boolean;
+    mortgageBalance?: number;
+    interestRate?: number;
+    loanType?: "fixed" | "arm" | "interest_only";
+    monthlyMortgagePayment?: number;
+    remainingTermYears?: number;
+  }>;
+  /** Legacy fields retained for backward compatibility */
   numberOfProperties?: number;
-  /** Total estimated market value of investment properties */
   totalMarketValue?: number;
-  /** Total outstanding mortgage on investment properties */
   totalMortgageBalance?: number;
-  /** Monthly rental income across all properties */
   monthlyRentalIncome?: number;
-  /** Primary home equity (market value minus mortgage) */
   primaryHomeEquity?: number;
 }
 
@@ -625,6 +728,7 @@ export interface PersonFinancialBackground {
   annuity: AnnuityDetails;
   equityCompensation: EquityCompensationDetails;
   education529: Education529Details;
+  collegeSavings?: CollegeSavingsDetails;
   realEstate: RealEstateDetails;
   crypto: CryptoDetails;
   cashOnHand: CashOnHandDetails;
@@ -799,6 +903,42 @@ export interface FinancialHealthScore {
     bonusHighAmount: number;
     message: string;
   };
+  realEstateAnalysis?: {
+    hasPrimaryProperty: boolean;
+    primary: {
+      marketValue: number;
+      mortgageBalance: number;
+      homeEquity: number;
+      equityPercentage: number;
+      housingCostRatio: number;
+      loanToValue: number;
+      monthlyPayment: number;
+      remainingTermYears: number;
+    };
+    rentalProperties: Array<{
+      label: string;
+      propertyType?: string;
+      location?: string;
+      marketValue: number;
+      mortgageBalance: number;
+      monthlyMortgagePayment: number;
+      monthlyGrossRent: number;
+      monthlyExpenses: number;
+      monthlyNetIncome: number;
+      rentalYieldPct: number;
+      cashOnCashReturnPct: number;
+      equity: number;
+      debtServiceCoverageRatio: number;
+      vacancyRatePct: number;
+      occupiedStatus?: string;
+      country?: string;
+      isInternational: boolean;
+    }>;
+    totalMonthlyNetRentalIncome: number;
+    totalRentalEquity: number;
+    concentrationPctOfNetWorth: number;
+    alerts: string[];
+  };
   insights: {
     strengths: HealthScoreInsightCard[];
     gaps: HealthScoreInsightCard[];
@@ -816,6 +956,7 @@ export type FinancialInterviewSection =
   | "protection-estate"
   | "analysis-dashboard"
   | "financial-home"
+  | "financial-home-pyramid"
   | "financial-x-curve"
   | "recommendations"
   | "delivery";

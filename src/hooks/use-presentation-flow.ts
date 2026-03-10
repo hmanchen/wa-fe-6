@@ -26,6 +26,19 @@ export function useFullAnalysis(caseId: string | null, clientState = "unknown") 
   });
 }
 
+export function useFullAnalysisData(
+  caseId: string | null,
+  clientState = "unknown",
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ["full-analysis", caseId, clientState],
+    queryFn: () => computeFullAnalysis(caseId!, clientState),
+    enabled: !!caseId && enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useXCurveData(caseId: string | null, enabled = true) {
   return useQuery({
     queryKey: ["xcurve-data", caseId],

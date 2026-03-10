@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+const dependentDetailSchema = z.object({
+  name: z.string().min(1, "Dependent name is required"),
+  age: z.number().int().min(0, "Age must be 0 or more").max(30, "Age must be 30 or less"),
+});
+
 /** Base object schema (no refinements) — used by .partial() for updates */
 const baseCaseFields = z.object({
   // ── Client info ──
@@ -9,6 +14,7 @@ const baseCaseFields = z.object({
   gender: z.string().min(1, "Gender is required"),
   maritalStatus: z.string().min(1, "Marital status is required"),
   dependents: z.number().int().min(0).optional(),
+  dependentsDetail: z.array(dependentDetailSchema).optional(),
   clientEmail: z
     .string()
     .min(1, "Email is required")
@@ -70,6 +76,15 @@ export const createCaseSchema = baseCaseFields.superRefine((data, ctx) => {
         path: ["partnerDateOfBirth"],
       });
     }
+  }
+  const dependentsCount = Number(data.dependents ?? 0);
+  const detailsCount = data.dependentsDetail?.length ?? 0;
+  if (dependentsCount > 0 && detailsCount !== dependentsCount) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Please provide name and age for each dependent",
+      path: ["dependentsDetail"],
+    });
   }
 });
 

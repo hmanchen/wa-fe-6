@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, differenceInYears } from "date-fns";
@@ -175,6 +176,11 @@ function DOBField({
 // ── Form value mappers ───────────────────────────────────────
 
 function toFormValues(data?: Partial<Case> | null): CreateCaseInput {
+  const rawDependentsDetail = (
+    (data as Record<string, unknown>)?.dependentsDetail ??
+    (data as Record<string, unknown>)?.dependents_detail ??
+    []
+  ) as Array<{ name?: string; age?: number }>;
   if (!data) {
     return {
       firstName: "",
@@ -183,6 +189,7 @@ function toFormValues(data?: Partial<Case> | null): CreateCaseInput {
       gender: "",
       maritalStatus: "",
       dependents: 0,
+      dependentsDetail: [],
       clientEmail: "",
       clientPhone: "",
       country: "",
@@ -205,6 +212,10 @@ function toFormValues(data?: Partial<Case> | null): CreateCaseInput {
     gender: (data as Record<string, string>).gender ?? "",
     maritalStatus: (data as Record<string, string>).maritalStatus ?? "",
     dependents: (data as Record<string, number>).dependents ?? 0,
+    dependentsDetail: rawDependentsDetail.map((dep) => ({
+      name: dep.name ?? "",
+      age: Number(dep.age ?? 0),
+    })),
     clientEmail: data.clientEmail ?? "",
     clientPhone: data.clientPhone ?? "",
     country: (data as Record<string, string>).country ?? "",
@@ -244,8 +255,20 @@ export function CaseForm({
   const maritalStatus = form.watch("maritalStatus");
   const partnerDateOfBirth = form.watch("partnerDateOfBirth");
   const selectedCountry = form.watch("country");
+  const dependentsCount = Number(form.watch("dependents") ?? 0);
   const isMarried = maritalStatus === "married";
   const regionOptions = getRegionOptions(selectedCountry ?? "");
+
+  useEffect(() => {
+    const safeCount = Number.isFinite(dependentsCount) ? Math.max(0, dependentsCount) : 0;
+    const current = form.getValues("dependentsDetail") ?? [];
+    if (current.length === safeCount) return;
+    const next = Array.from({ length: safeCount }, (_, idx) => ({
+      name: current[idx]?.name ?? "",
+      age: Number(current[idx]?.age ?? 0),
+    }));
+    form.setValue("dependentsDetail", next, { shouldValidate: true });
+  }, [dependentsCount, form]);
 
   async function handleSubmit(values: CreateCaseInput) {
     await onSubmit(values);
@@ -399,6 +422,58 @@ export function CaseForm({
                   )}
                 />
               </div>
+              {dependentsCount > 0 && (
+                <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                  <p className="text-sm font-medium text-foreground">Dependent details</p>
+                  <div className="space-y-4">
+                    {Array.from({ length: dependentsCount }).map((_, idx) => (
+                      <div key={`dependent-${idx}`} className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name={`dependentsDetail.${idx}.name`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Dependent {idx + 1} name</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter name"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`dependentsDetail.${idx}.age`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Dependent {idx + 1} age</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={30}
+                                  placeholder="0"
+                                  value={field.value ?? ""}
+                                  onChange={(e) =>
+                                    field.onChange(
+                                      e.target.value === "" ? undefined : parseInt(e.target.value, 10)
+                                    )
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Email + Phone */}
               <div className="grid gap-5 sm:grid-cols-2">

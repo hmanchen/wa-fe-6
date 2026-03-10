@@ -147,6 +147,22 @@ export default function CaseDetailPage() {
   const displayName = getDisplayName(caseData.clientName, pi);
   const clientAge = calculateAge(pi?.dateOfBirth);
   const spouseAge = calculateAge(pi?.partnerDateOfBirth);
+  const dependentsDetailRaw =
+    ((pi as Record<string, unknown> | undefined)?.dependentsDetail as Array<{
+      name?: string;
+      age?: number;
+    }>) ??
+    ((pi as Record<string, unknown> | undefined)?.dependents_detail as Array<{
+      name?: string;
+      age?: number;
+    }>) ??
+    [];
+  const dependentsDetail = dependentsDetailRaw.filter(
+    (dep) =>
+      typeof dep?.name === "string" &&
+      dep.name.trim().length > 0 &&
+      Number.isFinite(Number(dep.age))
+  );
 
   const addressParts = [
     pi?.address?.street,
@@ -240,6 +256,26 @@ export default function CaseDetailPage() {
                 <InfoRow icon={Phone} label="Phone" value={caseData.clientPhone} />
                 <InfoRow icon={MapPin} label="Address" value={fullAddress} />
               </div>
+              {dependentsDetail.length > 0 && (
+                <div className="border-t pt-4">
+                  <p className="mb-3 text-sm font-medium text-muted-foreground">
+                    Dependent Details
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {dependentsDetail.map((dep, index) => (
+                      <div
+                        key={`${dep.name}-${index}`}
+                        className="rounded-md border bg-muted/20 p-3"
+                      >
+                        <p className="text-sm font-medium text-foreground">{dep.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Age: {Number(dep.age)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Spouse / Partner (if married) */}
               {pi?.partnerFirstName && (

@@ -136,12 +136,16 @@ export function FinancialBgInsights({
   caseId,
   healthScore: healthScoreProp,
   clientState,
+  fullAnalysisData,
+  disableAutoRefresh,
   onContinue,
   isSubmitting,
 }: {
   caseId: string;
   healthScore?: FinancialHealthScore | null;
   clientState?: string;
+  fullAnalysisData?: any;
+  disableAutoRefresh?: boolean;
   onContinue: () => void | Promise<void>;
   isSubmitting?: boolean;
 }) {
@@ -162,6 +166,12 @@ export function FinancialBgInsights({
   const hasRun = useRef(false);
 
   const healthScore = freshHealthScore ?? healthScoreProp ?? null;
+  useEffect(() => {
+    if (fullAnalysisData) {
+      setFullAnalysis(fullAnalysisData);
+    }
+  }, [fullAnalysisData]);
+
 
   const addDebugLog = (log: DebugLog) => {
     setDebugLogs((prev) => [...prev, log]);
@@ -256,11 +266,13 @@ export function FinancialBgInsights({
   useEffect(() => {
     if (caseId && !hasRun.current) {
       hasRun.current = true;
-      fetchHealthScore();
-      runFullAnalysis();
+      if (!disableAutoRefresh) {
+        fetchHealthScore();
+        runFullAnalysis();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId]);
+  }, [caseId, disableAutoRefresh]);
 
   if (!healthScore) {
     return (
@@ -512,6 +524,34 @@ export function FinancialBgInsights({
     rolloverOpportunity?.bonusHighAmount ?? rolloverOpportunity?.bonus_high_amount ?? 0
   );
   const rolloverState = String(rolloverOpportunity?.state ?? "").toUpperCase();
+  const realEstateAnalysis = hsAny?.realEstateAnalysis ?? hsAny?.real_estate_analysis ?? null;
+  const realEstatePrimary = realEstateAnalysis?.primary ?? {};
+  const realEstateRentals = (
+    realEstateAnalysis?.rentalProperties ?? realEstateAnalysis?.rental_properties ?? []
+  ) as Array<any>;
+  const totalMonthlyNetRentalIncome = Number(
+    realEstateAnalysis?.totalMonthlyNetRentalIncome ??
+      realEstateAnalysis?.total_monthly_net_rental_income ??
+      0
+  );
+  const totalRentalEquity = Number(
+    realEstateAnalysis?.totalRentalEquity ?? realEstateAnalysis?.total_rental_equity ?? 0
+  );
+  const realEstateConcentration = Number(
+    realEstateAnalysis?.concentrationPctOfNetWorth ??
+      realEstateAnalysis?.concentration_pct_of_net_worth ??
+      0
+  );
+  const hasPrimaryProperty = Boolean(
+    realEstateAnalysis?.hasPrimaryProperty ?? realEstateAnalysis?.has_primary_property
+  );
+  const shouldShowRealEstateAnalysis = Boolean(
+    realEstateAnalysis &&
+      (hasPrimaryProperty ||
+        realEstateRentals.length > 0 ||
+        totalRentalEquity > 0 ||
+        totalMonthlyNetRentalIncome !== 0)
+  );
 
   const cashFlow = fa?.cashFlow ?? hsAny?.cashFlow ?? hsAny?.cash_flow ?? null;
   const cashFlowGross = Number(cashFlow?.monthlyGrossIncome ?? cashFlow?.monthly_gross_income ?? 0);
@@ -1229,6 +1269,49 @@ export function FinancialBgInsights({
               </div>
             </div>
           </div>
+
+          {shouldShowRealEstateAnalysis && (
+            <div className="rounded-xl border bg-card p-4">
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Real Estate & Mortgage Analysis
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 text-xs">
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <p className="mb-1 font-semibold">Primary Property</p>
+                  <div className="space-y-1">
+                    <div className="flex justify-between"><span>Home equity</span><span className="font-semibold">{fmtDollars(Number(realEstatePrimary?.homeEquity ?? realEstatePrimary?.home_equity ?? 0))}</span></div>
+                    <div className="flex justify-between"><span>Equity %</span><span className="font-semibold">{Number(realEstatePrimary?.equityPercentage ?? realEstatePrimary?.equity_percentage ?? 0).toFixed(1)}%</span></div>
+                    <div className="flex justify-between"><span>Housing cost ratio</span><span className="font-semibold">{Number(realEstatePrimary?.housingCostRatio ?? realEstatePrimary?.housing_cost_ratio ?? 0).toFixed(1)}%</span></div>
+                    <div className="flex justify-between"><span>LTV</span><span className="font-semibold">{Number(realEstatePrimary?.loanToValue ?? realEstatePrimary?.loan_to_value ?? 0).toFixed(1)}%</span></div>
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <p className="mb-1 font-semibold">Rental Portfolio</p>
+                  <div className="space-y-1">
+                    <div className="flex justify-between"><span>Net rental income</span><span className="font-semibold">{fmtDollars(totalMonthlyNetRentalIncome)}/mo</span></div>
+                    <div className="flex justify-between"><span>Rental property equity</span><span className="font-semibold">{fmtDollars(totalRentalEquity)}</span></div>
+                    <div className="flex justify-between"><span>Real estate concentration</span><span className="font-semibold">{realEstateConcentration.toFixed(1)}%</span></div>
+                    <div className="flex justify-between"><span>Properties analyzed</span><span className="font-semibold">{realEstateRentals.length}</span></div>
+                  </div>
+                </div>
+              </div>
+              {realEstateRentals.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {realEstateRentals.slice(0, 4).map((p: any, idx: number) => (
+                    <div key={idx} className="rounded-lg border bg-muted/20 p-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold">{p.label ?? "Property"}</p>
+                        <span className="text-muted-foreground">DSCR {Number(p.debtServiceCoverageRatio ?? p.debt_service_coverage_ratio ?? 0).toFixed(2)}</span>
+                      </div>
+                      <p className="text-muted-foreground">
+                        Net {fmtDollars(Number(p.monthlyNetIncome ?? p.monthly_net_income ?? 0))}/mo | Equity {fmtDollars(Number(p.equity ?? 0))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {cashFlow && (
             <div className="rounded-xl border bg-card p-4">

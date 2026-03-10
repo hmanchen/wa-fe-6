@@ -2,10 +2,12 @@
 
 import { API_BASE_URL } from "@/lib/config";
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { apiClient } from "@/lib/api/client";
 import {
   Briefcase,
   Landmark,
   TrendingUp,
+  GraduationCap,
   Home,
   CreditCard,
   Receipt,
@@ -55,6 +57,7 @@ type SubSection =
   | "employment"
   | "retirement"
   | "investments"
+  | "college"
   | "realEstate"
   | "debts"
   | "expenses";
@@ -70,6 +73,7 @@ const SUB_SECTIONS: SubSectionDef[] = [
   { id: "employment", label: "Employment & Income", icon: Briefcase, fieldCount: 5 },
   { id: "retirement", label: "Retirement Accounts", icon: Landmark, fieldCount: 5 },
   { id: "investments", label: "Investments & Assets", icon: TrendingUp, fieldCount: 8 },
+  { id: "college", label: "College Savings", icon: GraduationCap, fieldCount: 6 },
   { id: "realEstate", label: "Real Estate", icon: Home, fieldCount: 3 },
   { id: "debts", label: "Debts & Liabilities", icon: CreditCard, fieldCount: 5 },
   { id: "expenses", label: "Monthly Expenses", icon: Receipt, fieldCount: 9 },
@@ -178,6 +182,33 @@ function CurrencyField({
   );
 }
 
+function PercentInputField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value?: number;
+  onChange: (v: number | undefined) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <div className="relative">
+        <Input
+          className="h-8 pr-7 text-sm"
+          type="number"
+          min={0}
+          step={0.1}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined)}
+        />
+        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Section completion check ─────────────────────────────────
 
 function isSectionComplete(section: SubSection, data: PersonFinancialBackground): boolean {
@@ -201,6 +232,8 @@ function isSectionComplete(section: SubSection, data: PersonFinancialBackground)
         data.cashOnHand?.checkingBalance ||
         data.hsa?.currentBalance
       );
+    case "college":
+      return !!(data.collegeSavings?.children ?? []).length;
     case "realEstate":
       return !!(data.realEstate?.primaryHomeEquity);
     case "debts": {
@@ -1736,7 +1769,7 @@ function InvestmentsSection({
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold">Cash & Savings</p>
-            <p className="text-xs text-muted-foreground">Checking, savings, HSA, CDs, 529, and emergency fund</p>
+            <p className="text-xs text-muted-foreground">Checking, savings, HSA, CDs, and emergency fund</p>
           </div>
           <Button
             type="button"
@@ -1758,8 +1791,6 @@ function InvestmentsSection({
             onChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })} />
           <CurrencyField label="CDs" value={data.cd?.totalValue}
             onChange={(v) => update({ cd: { ...data.cd, hasCDs: true, totalValue: v } })} />
-          <CurrencyField label="529 Education" value={data.education529?.totalBalance}
-            onChange={(v) => update({ education529: { ...data.education529, has529: true, totalBalance: v } })} />
           <CurrencyField label="Emergency Fund (months)" value={data.cashOnHand?.emergencyFundMonths}
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, emergencyFundMonths: v } })}
             placeholder="e.g. 6" />
@@ -1795,44 +1826,802 @@ function InvestmentsSection({
   );
 }
 
-function RealEstateSection({
+function makeCollegeChildId() {
+  return `edu_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function CollegeSavingsSection({
   data,
   update,
+  dependentSeed,
 }: {
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
+  dependentSeed: Array<{ name: string; age: number }>;
 }) {
+  const collegeSavings = data.collegeSavings ?? { children: [] };
+  const children = collegeSavings.children ?? [];
+
+  const setCollegeSavings = (patch: Partial<NonNullable<PersonFinancialBackground["collegeSavings"]>>) => {
+    update({
+      collegeSavings: {
+        ...collegeSavings,
+        ...patch,
+      },
+    });
+  };
+
+  const addChildPlan = () => {
+    const next = [
+      ...children,
+      {
+        id: makeCollegeChildId(),
+        childName: "",
+        childAge: 0,
+        has529Plan: false,
+        hasOtherEducationSavings: false,
+        hasPrepaidTuition: false,
+      },
+    ];
+    setCollegeSavings({ children: next });
+  };
+
+  const updateChildPlan = (index: number, patch: Record<string, unknown>) => {
+    const next = children.map((child, idx) => (idx === index ? { ...child, ...patch } : child));
+    setCollegeSavings({ children: next });
+  };
+
+  const removeChildPlan = (index: number) => {
+    const next = children.filter((_, idx) => idx !== index);
+    setCollegeSavings({ children: next });
+  };
+
+  useEffect(() => {
+    if (dependentSeed.length === 0 || children.length > 0) return;
+    const seeded = dependentSeed.map((dep) => ({
+      id: makeCollegeChildId(),
+      childName: dep.name,
+      childAge: dep.age,
+      has529Plan: false,
+      hasOtherEducationSavings: false,
+      hasPrepaidTuition: false,
+    }));
+    setCollegeSavings({ children: seeded });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dependentSeed]);
+
   return (
-    <div className="space-y-3">
-      <AccountCard
-        name="Primary Home"
-        description="Primary residence equity (market value minus mortgage)"
-        accent="border-l-sky-500"
-        balance={data.realEstate?.primaryHomeEquity}
-        onBalanceChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, primaryHomeEquity: v } })}
-      />
-      <AccountCard
-        name="Investment Properties"
-        description="Rental properties and other real estate investments"
-        accent="border-l-sky-500"
-        balance={data.realEstate?.totalMarketValue}
-        onBalanceChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, totalMarketValue: v } })}
-        contribution={data.realEstate?.monthlyRentalIncome}
-        onContributionChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, monthlyRentalIncome: v } })}
-        contributionLabel="Rental Income"
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label className="text-xs">Number of properties</Label>
-            <Input type="number" min={0} className="h-8 w-32 text-sm" placeholder="0"
-              value={data.realEstate?.numberOfProperties ?? ""}
-              onChange={(e) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, numberOfProperties: e.target.value === "" ? undefined : parseInt(e.target.value, 10) } })}
-            />
+    <div className="space-y-4">
+      <div className="rounded-xl border border-l-4 border-l-indigo-500 bg-card px-5 py-4 shadow-sm">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">College & Education Savings</p>
+            <p className="text-xs text-muted-foreground">
+              Savings earmarked for your children&apos;s education
+            </p>
           </div>
-          <CurrencyField label="Total mortgage on investments" value={data.realEstate?.totalMortgageBalance}
-            onChange={(v) => update({ realEstate: { ...data.realEstate, hasRealEstate: true, totalMortgageBalance: v } })} />
+          <Button type="button" size="sm" className="h-7 gap-1.5 px-2" onClick={addChildPlan}>
+            <Plus className="h-3.5 w-3.5" />
+            Add Education Account
+          </Button>
         </div>
-      </AccountCard>
+
+        {children.length === 0 ? (
+          <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">
+            No child plans yet. Add an education account to track 529, other education savings,
+            and prepaid tuition.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {children.map((child, idx) => (
+              <div key={child.id ?? `child-plan-${idx}`} className="rounded-lg border bg-muted/20 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">
+                    {child.childName?.trim() ? child.childName : `Child ${idx + 1}`}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeChildPlan(idx)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Child&apos;s name</Label>
+                    <Input
+                      className="h-8 text-sm"
+                      placeholder="Enter child name"
+                      value={child.childName ?? ""}
+                      onChange={(e) => updateChildPlan(idx, { childName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Child&apos;s current age</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={30}
+                      className="h-8 text-sm"
+                      placeholder="0"
+                      value={child.childAge ?? ""}
+                      onChange={(e) =>
+                        updateChildPlan(idx, {
+                          childAge: e.target.value === "" ? undefined : Number(e.target.value),
+                        })
+                      }
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Age determines years until college and cost projection.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-md border bg-background p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold">529 Plan</p>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Button
+                        type="button"
+                        variant={child.has529Plan ? "default" : "outline"}
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() => updateChildPlan(idx, { has529Plan: true })}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={!child.has529Plan ? "default" : "outline"}
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() =>
+                          updateChildPlan(idx, {
+                            has529Plan: false,
+                            balance529: 0,
+                            monthlyContribution529: 0,
+                            annualContribution529: 0,
+                          })
+                        }
+                      >
+                        No
+                      </Button>
+                    </div>
+                  </div>
+                  {child.has529Plan && (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <CurrencyField
+                        label="529 current balance"
+                        value={child.balance529}
+                        onChange={(v) => updateChildPlan(idx, { balance529: v })}
+                      />
+                      <CurrencyField
+                        label="Monthly contribution"
+                        value={child.monthlyContribution529}
+                        onChange={(v) =>
+                          updateChildPlan(idx, {
+                            monthlyContribution529: v,
+                            annualContribution529: (v ?? 0) * 12,
+                          })
+                        }
+                      />
+                      <CurrencyField
+                        label="Annual contribution"
+                        value={child.annualContribution529}
+                        onChange={(v) => updateChildPlan(idx, { annualContribution529: v })}
+                      />
+                      <div className="space-y-1">
+                        <Label className="text-xs">Account owner</Label>
+                        <Select
+                          value={child.accountOwner529 ?? ""}
+                          onValueChange={(v) => updateChildPlan(idx, { accountOwner529: v })}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Select owner" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="primary">Primary</SelectItem>
+                            <SelectItem value="spouse">Spouse</SelectItem>
+                            <SelectItem value="grandparent">Grandparent</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">State plan (optional)</Label>
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="e.g. GA"
+                          value={child.statePlan529 ?? ""}
+                          onChange={(e) => updateChildPlan(idx, { statePlan529: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Investment allocation</Label>
+                        <Select
+                          value={child.investmentAllocation529 ?? ""}
+                          onValueChange={(v) => updateChildPlan(idx, { investmentAllocation529: v })}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Select allocation" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="conservative">Conservative</SelectItem>
+                            <SelectItem value="moderate">Moderate</SelectItem>
+                            <SelectItem value="aggressive">Aggressive</SelectItem>
+                            <SelectItem value="age_based">Age-Based</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 rounded-md border bg-background p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold">Other Education Savings</p>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Button
+                        type="button"
+                        variant={child.hasOtherEducationSavings ? "default" : "outline"}
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() => updateChildPlan(idx, { hasOtherEducationSavings: true })}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={!child.hasOtherEducationSavings ? "default" : "outline"}
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() =>
+                          updateChildPlan(idx, {
+                            hasOtherEducationSavings: false,
+                            otherCurrentBalance: 0,
+                            otherMonthlyContribution: 0,
+                          })
+                        }
+                      >
+                        No
+                      </Button>
+                    </div>
+                  </div>
+                  {child.hasOtherEducationSavings && (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Account type</Label>
+                        <Select
+                          value={child.otherAccountType ?? ""}
+                          onValueChange={(v) => updateChildPlan(idx, { otherAccountType: v })}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Select account type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="utma_ugma">UTMA/UGMA Custodial</SelectItem>
+                            <SelectItem value="coverdell_esa">Coverdell ESA</SelectItem>
+                            <SelectItem value="savings_bonds">Savings Bonds</SelectItem>
+                            <SelectItem value="regular_savings">Regular Savings</SelectItem>
+                            <SelectItem value="cash_value_life_insurance">Cash Value Life</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <CurrencyField
+                        label="Current balance"
+                        value={child.otherCurrentBalance}
+                        onChange={(v) => updateChildPlan(idx, { otherCurrentBalance: v })}
+                      />
+                      <CurrencyField
+                        label="Monthly contribution"
+                        value={child.otherMonthlyContribution}
+                        onChange={(v) => updateChildPlan(idx, { otherMonthlyContribution: v })}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 rounded-md border bg-background p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold">Prepaid Tuition Plan</p>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Button
+                        type="button"
+                        variant={child.hasPrepaidTuition ? "default" : "outline"}
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() => updateChildPlan(idx, { hasPrepaidTuition: true })}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={!child.hasPrepaidTuition ? "default" : "outline"}
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() =>
+                          updateChildPlan(idx, {
+                            hasPrepaidTuition: false,
+                            prepaidEstimatedValueAtEnrollment: 0,
+                          })
+                        }
+                      >
+                        No
+                      </Button>
+                    </div>
+                  </div>
+                  {child.hasPrepaidTuition && (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Plan type</Label>
+                        <Select
+                          value={child.prepaidPlanType ?? ""}
+                          onValueChange={(v) => updateChildPlan(idx, { prepaidPlanType: v })}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Select plan type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="state_prepaid">State prepaid plan</SelectItem>
+                            <SelectItem value="private_college_prepaid">Private college prepaid</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <CurrencyField
+                        label="Estimated value at enrollment"
+                        value={child.prepaidEstimatedValueAtEnrollment}
+                        onChange={(v) => updateChildPlan(idx, { prepaidEstimatedValueAtEnrollment: v })}
+                      />
+                      <div className="space-y-1">
+                        <Label className="text-xs">Credits/semesters purchased</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          className="h-8 text-sm"
+                          placeholder="0"
+                          value={child.prepaidCreditsPurchased ?? ""}
+                          onChange={(e) =>
+                            updateChildPlan(idx, {
+                              prepaidCreditsPurchased:
+                                e.target.value === "" ? undefined : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function makeRentalPropertyId() {
+  return `rental_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function makeInternationalPropertyId() {
+  return `intl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function RealEstateSection({
+  caseId,
+  data,
+  update,
+}: {
+  caseId: string;
+  data: PersonFinancialBackground;
+  update: (patch: Partial<PersonFinancialBackground>) => void;
+}) {
+  const realEstate = data.realEstate ?? {
+    hasRealEstate: false,
+    hasPrimaryResidence: false,
+    hasRentalProperties: false,
+    hasInternationalProperties: false,
+  };
+  const primary = realEstate.primaryResidence ?? { propertyType: "primary_residence" as const, hasMortgage: false };
+  const rentals = realEstate.rentalProperties ?? [];
+  const internationals = realEstate.internationalProperties ?? [];
+  const hasPrimaryResidence = Boolean(
+    realEstate.hasPrimaryResidence ??
+      primary.estimatedMarketValue ??
+      primary.propertyAddress ??
+      primary.mortgageBalance
+  );
+  const hasRentalProperties = Boolean(realEstate.hasRentalProperties ?? rentals.length > 0);
+  const hasInternationalProperties = Boolean(
+    realEstate.hasInternationalProperties ?? internationals.length > 0
+  );
+  const [expanded, setExpanded] = useState({
+    primary: true,
+    rentals: true,
+    international: true,
+  });
+
+  useEffect(() => {
+    const hydratePrimaryAddress = async () => {
+      if (!hasPrimaryResidence) return;
+      if (primary.propertyAddress) return;
+      try {
+        const { data: res } = await apiClient.get(`/cases/${caseId}/discovery/`);
+        const payload = res?.data ?? res;
+        const pi = payload?.personal_info ?? payload?.personalInfo ?? {};
+        const addr = pi?.address ?? {};
+        const line = [addr?.street, addr?.city, addr?.province || addr?.state, addr?.postal_code || addr?.postalCode]
+          .filter(Boolean)
+          .join(", ");
+        if (!line) return;
+        update({
+          realEstate: {
+            ...realEstate,
+            hasRealEstate: true,
+            primaryResidence: {
+              ...primary,
+              propertyType: "primary_residence",
+              propertyAddress: line,
+            },
+          },
+        });
+      } catch {
+        // Best-effort UX fill only.
+      }
+    };
+    void hydratePrimaryAddress();
+  }, [caseId, primary, realEstate, update]);
+
+  const setRealEstate = (patch: Partial<PersonFinancialBackground["realEstate"]>) => {
+    const merged = { ...realEstate, ...patch } as Record<string, unknown>;
+    const hasAnyProperty = Boolean(
+      merged.hasPrimaryResidence ||
+        merged.hasRentalProperties ||
+        merged.hasInternationalProperties
+    );
+    update({
+      realEstate: {
+        ...(merged as PersonFinancialBackground["realEstate"]),
+        hasRealEstate: hasAnyProperty,
+      },
+    });
+  };
+
+  const setPrimary = (patch: Partial<NonNullable<PersonFinancialBackground["realEstate"]>["primaryResidence"]>) =>
+    setRealEstate({ primaryResidence: { ...primary, ...patch } });
+
+  const updateRental = (idx: number, patch: Record<string, unknown>) => {
+    const next = rentals.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+    setRealEstate({ rentalProperties: next });
+  };
+  const removeRental = (idx: number) => setRealEstate({ rentalProperties: rentals.filter((_, i) => i !== idx) });
+  const addRental = () =>
+    setRealEstate({
+      hasRentalProperties: true,
+      rentalProperties: [
+        ...rentals,
+        { id: makeRentalPropertyId(), currentVacancyStatus: "occupied", hasMortgage: true },
+      ],
+    });
+
+  const updateInternational = (idx: number, patch: Record<string, unknown>) => {
+    const next = internationals.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+    setRealEstate({ internationalProperties: next });
+  };
+  const removeInternational = (idx: number) =>
+    setRealEstate({ internationalProperties: internationals.filter((_, i) => i !== idx) });
+  const addInternational = () =>
+    setRealEstate({
+      hasInternationalProperties: true,
+      internationalProperties: [
+        ...internationals,
+        { id: makeInternationalPropertyId(), isIncomeProducing: false, hasMortgage: false },
+      ],
+    });
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-l-4 border-l-sky-500 bg-card px-5 py-4 shadow-sm">
+        <div className="mb-2 flex items-start justify-between">
+          <div>
+            <p className="text-sm font-semibold">Primary Residence</p>
+            <p className="text-xs text-muted-foreground">Property and mortgage details for housing-risk analysis</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" className="h-7 px-2" onClick={() => setExpanded((p) => ({ ...p, primary: !p.primary }))}>
+            {expanded.primary ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
+        <div className="mb-3 flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+          <p className="text-xs font-medium">Does the client own a primary property?</p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={hasPrimaryResidence ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => setRealEstate({ hasPrimaryResidence: true })}
+            >
+              Yes
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={hasPrimaryResidence ? "outline" : "default"}
+              className="h-7 text-xs"
+              onClick={() =>
+                setRealEstate({
+                  hasPrimaryResidence: false,
+                  primaryResidence: { propertyType: "primary_residence", hasMortgage: false },
+                })
+              }
+            >
+              No
+            </Button>
+          </div>
+        </div>
+        {hasPrimaryResidence && expanded.primary && (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Property Type</Label>
+                <Input className="h-8 text-sm" value="Primary Residence" readOnly />
+              </div>
+              <CurrencyField label="Estimated market value" value={primary.estimatedMarketValue} onChange={(v) => setPrimary({ estimatedMarketValue: v })} />
+              <div className="space-y-1">
+                <Label className="text-xs">Year purchased</Label>
+                <Input className="h-8 text-sm" type="number" placeholder="e.g. 2018" value={primary.yearPurchased ?? ""} onChange={(e) => setPrimary({ yearPurchased: e.target.value ? Number(e.target.value) : undefined })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Property address</Label>
+                <Input className="h-8 text-sm" value={primary.propertyAddress ?? ""} onChange={(e) => setPrimary({ propertyAddress: e.target.value })} />
+              </div>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold">Mortgage details</p>
+                <div className="flex gap-2">
+                  <Button type="button" variant={primary.hasMortgage ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setPrimary({ hasMortgage: true })}>Has Mortgage</Button>
+                  <Button type="button" variant={primary.hasMortgage ? "outline" : "default"} size="sm" className="h-7 text-xs" onClick={() => setPrimary({ hasMortgage: false })}>No Mortgage</Button>
+                </div>
+              </div>
+              {primary.hasMortgage && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <CurrencyField label="Mortgage balance" value={primary.mortgageBalance} onChange={(v) => setPrimary({ mortgageBalance: v })} />
+                  <CurrencyField label="Original loan amount" value={primary.originalLoanAmount} onChange={(v) => setPrimary({ originalLoanAmount: v })} />
+                  <PercentInputField label="Interest rate (%)" value={primary.interestRate} onChange={(v) => setPrimary({ interestRate: v })} />
+                  <div className="space-y-1">
+                    <Label className="text-xs">Loan type</Label>
+                    <Select value={primary.loanType ?? "fixed"} onValueChange={(v) => setPrimary({ loanType: v as "fixed" | "arm" | "interest_only" })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixed</SelectItem>
+                        <SelectItem value="arm">Adjustable (ARM)</SelectItem>
+                        <SelectItem value="interest_only">Interest-Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {primary.loanType === "arm" && (
+                    <>
+                      <PercentInputField label="ARM current rate (%)" value={primary.armCurrentRate} onChange={(v) => setPrimary({ armCurrentRate: v })} />
+                      <div className="space-y-1">
+                        <Label className="text-xs">Adjustment period (months)</Label>
+                        <Input className="h-8 text-sm" type="number" value={primary.armAdjustmentPeriodMonths ?? ""} onChange={(e) => setPrimary({ armAdjustmentPeriodMonths: e.target.value ? Number(e.target.value) : undefined })} />
+                      </div>
+                      <PercentInputField label="Rate cap (%)" value={primary.armRateCap} onChange={(v) => setPrimary({ armRateCap: v })} />
+                    </>
+                  )}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Loan term (years)</Label>
+                    <Select value={primary.loanTermYears ? String(primary.loanTermYears) : "30"} onValueChange={(v) => setPrimary({ loanTermYears: Number(v) })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15">15-year</SelectItem>
+                        <SelectItem value="20">20-year</SelectItem>
+                        <SelectItem value="30">30-year</SelectItem>
+                        <SelectItem value="40">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <CurrencyField label="Monthly payment (PITI)" value={primary.monthlyPaymentPiti} onChange={(v) => setPrimary({ monthlyPaymentPiti: v })} />
+                  <CurrencyField label="Principal & Interest (monthly)" value={primary.principalAndInterestMonthly} onChange={(v) => setPrimary({ principalAndInterestMonthly: v })} />
+                  <CurrencyField label="Property taxes (monthly)" value={primary.propertyTaxesMonthly} onChange={(v) => setPrimary({ propertyTaxesMonthly: v })} />
+                  <CurrencyField label="Homeowner's insurance (monthly)" value={primary.homeownersInsuranceMonthly} onChange={(v) => setPrimary({ homeownersInsuranceMonthly: v })} />
+                  <CurrencyField label="HOA fees (monthly)" value={primary.hoaFeesMonthly} onChange={(v) => setPrimary({ hoaFeesMonthly: v })} />
+                  <CurrencyField label="PMI (monthly)" value={primary.pmiMonthly} onChange={(v) => setPrimary({ pmiMonthly: v })} />
+                  <div className="space-y-1">
+                    <Label className="text-xs">Remaining term (years)</Label>
+                    <Input className="h-8 text-sm" type="number" value={primary.remainingTermYears ?? ""} onChange={(e) => setPrimary({ remainingTermYears: e.target.value ? Number(e.target.value) : undefined })} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-l-4 border-l-sky-500 bg-card px-5 py-4 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">Investment Properties</p>
+            <p className="text-xs text-muted-foreground">Capture each rental property with true net-income inputs</p>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5" onClick={addRental} disabled={!hasRentalProperties}>
+              <Plus className="h-3.5 w-3.5" /> Add Rental
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="h-7 px-2" onClick={() => setExpanded((p) => ({ ...p, rentals: !p.rentals }))}>
+              {expanded.rentals ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+        <div className="mb-3 flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+          <p className="text-xs font-medium">Does the client have investment / rental properties?</p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={hasRentalProperties ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => setRealEstate({ hasRentalProperties: true })}
+            >
+              Yes
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={hasRentalProperties ? "outline" : "default"}
+              className="h-7 text-xs"
+              onClick={() => setRealEstate({ hasRentalProperties: false, rentalProperties: [] })}
+            >
+              No
+            </Button>
+          </div>
+        </div>
+        {hasRentalProperties && expanded.rentals && (
+          <div className="space-y-3">
+            {rentals.length === 0 && <p className="text-xs text-muted-foreground">No rental properties added yet.</p>}
+            {rentals.map((r, idx) => (
+              <div key={r.id} className="rounded-lg border bg-muted/20 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold">{r.propertyLabel || `Rental Property ${idx + 1}`}</p>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeRental(idx)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Input className="h-8 text-sm" placeholder="Property label" value={r.propertyLabel ?? ""} onChange={(e) => updateRental(idx, { propertyLabel: e.target.value })} />
+                  <CurrencyField label="Estimated market value" value={r.estimatedMarketValue} onChange={(v) => updateRental(idx, { estimatedMarketValue: v })} />
+                  <div className="space-y-1">
+                    <Label className="text-xs">Property type</Label>
+                    <Select value={r.propertyType ?? "single_family"} onValueChange={(v) => updateRental(idx, { propertyType: v })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single_family">Single-family rental</SelectItem>
+                        <SelectItem value="multi_family">Multi-family</SelectItem>
+                        <SelectItem value="condo">Condo</SelectItem>
+                        <SelectItem value="commercial">Commercial</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input className="h-8 text-sm" placeholder="Year purchased" type="number" value={r.yearPurchased ?? ""} onChange={(e) => updateRental(idx, { yearPurchased: e.target.value ? Number(e.target.value) : undefined })} />
+                  <Input className="h-8 text-sm" placeholder="City" value={r.locationCity ?? ""} onChange={(e) => updateRental(idx, { locationCity: e.target.value })} />
+                  <Input className="h-8 text-sm" placeholder="State" value={r.locationState ?? ""} onChange={(e) => updateRental(idx, { locationState: e.target.value })} />
+                  <CurrencyField label="Mortgage balance" value={r.mortgageBalance} onChange={(v) => updateRental(idx, { mortgageBalance: v })} />
+                  <PercentInputField label="Interest rate (%)" value={r.interestRate} onChange={(v) => updateRental(idx, { interestRate: v })} />
+                  <CurrencyField label="Monthly mortgage payment" value={r.monthlyMortgagePayment} onChange={(v) => updateRental(idx, { monthlyMortgagePayment: v })} />
+                  <CurrencyField label="Gross monthly rent" value={r.monthlyRentalIncomeGross} onChange={(v) => updateRental(idx, { monthlyRentalIncomeGross: v })} />
+                  <CurrencyField label="Property management fee (monthly)" value={r.monthlyPropertyManagementFee} onChange={(v) => updateRental(idx, { monthlyPropertyManagementFee: v })} />
+                  <CurrencyField label="Property taxes (monthly)" value={r.monthlyPropertyTaxes} onChange={(v) => updateRental(idx, { monthlyPropertyTaxes: v })} />
+                  <CurrencyField label="Insurance (monthly)" value={r.monthlyInsurance} onChange={(v) => updateRental(idx, { monthlyInsurance: v })} />
+                  <CurrencyField label="HOA fees (monthly)" value={r.monthlyHoaFees} onChange={(v) => updateRental(idx, { monthlyHoaFees: v })} />
+                  <CurrencyField label="Maintenance / repairs (monthly)" value={r.monthlyMaintenance} onChange={(v) => updateRental(idx, { monthlyMaintenance: v })} />
+                  <PercentInputField label="Average vacancy rate (%)" value={r.averageVacancyRatePct} onChange={(v) => updateRental(idx, { averageVacancyRatePct: v })} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-l-4 border-l-violet-500 bg-card px-5 py-4 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">International / Overseas Property</p>
+            <p className="text-xs text-muted-foreground">Capture foreign assets and rental income for compliance and estate complexity rules</p>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5" onClick={addInternational} disabled={!hasInternationalProperties}>
+              <Plus className="h-3.5 w-3.5" /> Add International Property
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="h-7 px-2" onClick={() => setExpanded((p) => ({ ...p, international: !p.international }))}>
+              {expanded.international ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+        <div className="mb-3 flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+          <p className="text-xs font-medium">Does the client have international / overseas property?</p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={hasInternationalProperties ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => setRealEstate({ hasInternationalProperties: true })}
+            >
+              Yes
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={hasInternationalProperties ? "outline" : "default"}
+              className="h-7 text-xs"
+              onClick={() =>
+                setRealEstate({
+                  hasInternationalProperties: false,
+                  internationalProperties: [],
+                })
+              }
+            >
+              No
+            </Button>
+          </div>
+        </div>
+        {hasInternationalProperties && expanded.international && (
+          <div className="space-y-3">
+            {internationals.length === 0 && <p className="text-xs text-muted-foreground">No international properties added.</p>}
+            {internationals.map((p, idx) => (
+              <div key={p.id} className="rounded-lg border bg-muted/20 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold">{p.propertyLabel || `International Property ${idx + 1}`}</p>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeInternational(idx)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Input className="h-8 text-sm" placeholder="Property label" value={p.propertyLabel ?? ""} onChange={(e) => updateInternational(idx, { propertyLabel: e.target.value })} />
+                  <Input className="h-8 text-sm" placeholder="Country" value={p.country ?? ""} onChange={(e) => updateInternational(idx, { country: e.target.value })} />
+                  <CurrencyField label="Estimated market value (USD)" value={p.estimatedMarketValueUsd} onChange={(v) => updateInternational(idx, { estimatedMarketValueUsd: v })} />
+                  <div className="space-y-1">
+                    <Label className="text-xs">Income producing?</Label>
+                    <Select value={p.isIncomeProducing ? "yes" : "no"} onValueChange={(v) => updateInternational(idx, { isIncomeProducing: v === "yes" })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {p.isIncomeProducing && (
+                    <CurrencyField label="Estimated monthly rental income (USD)" value={p.estimatedMonthlyRentalIncomeUsd} onChange={(v) => updateInternational(idx, { estimatedMonthlyRentalIncomeUsd: v })} />
+                  )}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Ownership status</Label>
+                    <Select value={p.ownershipStatus ?? "sole_owner"} onValueChange={(v) => updateInternational(idx, { ownershipStatus: v })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sole_owner">Sole owner</SelectItem>
+                        <SelectItem value="joint_with_family">Joint with family</SelectItem>
+                        <SelectItem value="inherited">Inherited</SelectItem>
+                        <SelectItem value="under_construction">Under construction</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <CurrencyField label="Mortgage balance" value={p.mortgageBalance} onChange={(v) => updateInternational(idx, { mortgageBalance: v })} />
+                  <PercentInputField label="Interest rate (%)" value={p.interestRate} onChange={(v) => updateInternational(idx, { interestRate: v })} />
+                  <CurrencyField label="Monthly mortgage payment" value={p.monthlyMortgagePayment} onChange={(v) => updateInternational(idx, { monthlyMortgagePayment: v })} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2086,6 +2875,7 @@ const SECTION_META: Record<SubSection, { title: string; description: string }> =
   employment: { title: "Employment & Income", description: "Enter salary, bonus, and income sources" },
   retirement: { title: "Retirement Accounts", description: "Enter all retirement accounts" },
   investments: { title: "Investments & Assets", description: "Enter investment accounts, savings, and liquid assets" },
+  college: { title: "College & Education Savings", description: "Capture existing education savings before shortfall analysis" },
   realEstate: { title: "Real Estate", description: "Enter primary home and investment property details" },
   debts: { title: "Debts & Liabilities", description: "Enter mortgage, auto loans, student loans, and other debts" },
   expenses: { title: "Monthly Expenses", description: "Enter monthly household spending" },
@@ -2095,6 +2885,7 @@ const SECTION_ICONS: Record<SubSection, string> = {
   employment: "💼",
   retirement: "🏦",
   investments: "📈",
+  college: "🎓",
   realEstate: "🏠",
   debts: "💳",
   expenses: "🧾",
@@ -2123,6 +2914,7 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
     annuity: { hasAnnuity: false },
     equityCompensation: { hasEquityComp: false },
     education529: { has529: false },
+    collegeSavings: { children: [] },
     realEstate: { hasRealEstate: false },
     crypto: { hasCrypto: false },
     cashOnHand: { hasCashOnHand: false },
@@ -2175,6 +2967,8 @@ export function FinancialBgLayout({
     return initial;
   });
   const [activeSection, setActiveSection] = useState<SubSection>("employment");
+  const [showCollegeSection, setShowCollegeSection] = useState(true);
+  const [dependentSeed, setDependentSeed] = useState<Array<{ name: string; age: number }>>([]);
   const initializedFromProps = useRef(!!defaultValues);
 
   useEffect(() => {
@@ -2201,21 +2995,87 @@ export function FinancialBgLayout({
     setData((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const completedSections = useMemo(
-    () => SUB_SECTIONS.filter((s) => isSectionComplete(s.id, data)).map((s) => s.id),
-    [data]
+  useEffect(() => {
+    let mounted = true;
+    const loadCollegeVisibility = async () => {
+      try {
+        const { data: res } = await apiClient.get(`/cases/${caseId}/discovery/`);
+        const payload = res?.data ?? res;
+        const pi = payload?.personal_info ?? payload?.personalInfo ?? {};
+        const fp = payload?.financial_profile ?? payload?.financialProfile ?? {};
+        const goalsDiscovery = fp?.goals_discovery ?? fp?.goalsDiscovery ?? {};
+        const goalsRanking = goalsDiscovery?.goals_ranking ?? goalsDiscovery?.goalsRanking ?? [];
+        const hasEducationGoal = Array.isArray(goalsRanking)
+          ? goalsRanking.some((g) => (g?.goal_id ?? g?.goalId) === "fund_education")
+          : false;
+
+        const rawDependents = pi?.dependents_detail ?? pi?.dependentsDetail ?? pi?.dependents ?? [];
+        let seedRows: Array<{ name: string; age: number }> = [];
+        let dependentCount = 0;
+        if (Array.isArray(rawDependents)) {
+          seedRows = rawDependents
+            .map((d: { name?: string; age?: number }, idx: number) => ({
+              name: String(d?.name ?? `Child ${idx + 1}`),
+              age: Number(d?.age ?? 0),
+            }))
+            .filter((d) => d.name.trim().length > 0);
+          dependentCount = seedRows.length;
+        } else {
+          dependentCount = Number(rawDependents ?? 0);
+          seedRows = Array.from({ length: Math.max(0, dependentCount) }, (_, idx) => ({
+            name: `Child ${idx + 1}`,
+            age: 0,
+          }));
+        }
+
+        if (!mounted) return;
+        setDependentSeed(seedRows);
+        setShowCollegeSection(dependentCount > 0 || hasEducationGoal);
+      } catch {
+        if (!mounted) return;
+        setShowCollegeSection(true);
+      }
+    };
+    void loadCollegeVisibility();
+    return () => {
+      mounted = false;
+    };
+  }, [caseId]);
+
+  useEffect(() => {
+    if (showCollegeSection) return;
+    setData((prev) => ({
+      ...prev,
+      collegeSavings: { children: [] },
+      education529: { has529: false },
+    }));
+    if (activeSection === "college") {
+      setActiveSection("investments");
+    }
+  }, [activeSection, showCollegeSection]);
+
+  const visibleSections = useMemo(
+    () => (showCollegeSection ? SUB_SECTIONS : SUB_SECTIONS.filter((s) => s.id !== "college")),
+    [showCollegeSection]
   );
 
-  const progressPercent = Math.round((completedSections.length / SUB_SECTIONS.length) * 100);
+  const completedSections = useMemo(
+    () => visibleSections.filter((s) => isSectionComplete(s.id, data)).map((s) => s.id),
+    [data, visibleSections]
+  );
 
-  const currentIdx = SUB_SECTIONS.findIndex((s) => s.id === activeSection);
+  const progressPercent = Math.round(
+    (completedSections.length / Math.max(visibleSections.length, 1)) * 100
+  );
+
+  const currentIdx = visibleSections.findIndex((s) => s.id === activeSection);
 
   const handlePrev = () => {
-    if (currentIdx > 0) setActiveSection(SUB_SECTIONS[currentIdx - 1].id);
+    if (currentIdx > 0) setActiveSection(visibleSections[currentIdx - 1].id);
   };
   const handleNext = () => {
-    if (currentIdx < SUB_SECTIONS.length - 1) {
-      setActiveSection(SUB_SECTIONS[currentIdx + 1].id);
+    if (currentIdx < visibleSections.length - 1) {
+      setActiveSection(visibleSections[currentIdx + 1].id);
     } else if (onComplete) {
       onComplete();
     }
@@ -2271,7 +3131,7 @@ export function FinancialBgLayout({
               Sections
             </p>
             <div className="space-y-1">
-              {SUB_SECTIONS.map((section) => {
+              {visibleSections.map((section) => {
                 const isActive = activeSection === section.id;
                 const isComplete = completedSections.includes(section.id);
                 const Icon = section.icon;
@@ -2381,7 +3241,10 @@ export function FinancialBgLayout({
             {activeSection === "employment" && <EmploymentSection data={data} update={update} />}
             {activeSection === "retirement" && <RetirementSection data={data} update={update} limits={contributionLimits} clientAge={clientAge} />}
             {activeSection === "investments" && <InvestmentsSection data={data} update={update} />}
-            {activeSection === "realEstate" && <RealEstateSection data={data} update={update} />}
+            {activeSection === "college" && showCollegeSection && (
+              <CollegeSavingsSection data={data} update={update} dependentSeed={dependentSeed} />
+            )}
+            {activeSection === "realEstate" && <RealEstateSection caseId={caseId} data={data} update={update} />}
             {activeSection === "debts" && <DebtsSection data={data} update={update} />}
             {activeSection === "expenses" && <MonthlyExpensesSection data={data} update={update} />}
 
@@ -2405,7 +3268,7 @@ export function FinancialBgLayout({
               >
                 {isSubmitting
                   ? "Saving..."
-                  : currentIdx < SUB_SECTIONS.length - 1
+                  : currentIdx < visibleSections.length - 1
                     ? "Save & Next Section"
                     : "Save & Continue"}
                 <ChevronRight className="size-3.5" />

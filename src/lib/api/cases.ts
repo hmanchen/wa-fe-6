@@ -17,6 +17,7 @@ export interface CreateCaseData {
   gender: string;
   maritalStatus: string;
   dependents?: number;
+  dependentsDetail?: Array<{ name: string; age: number }>;
   clientEmail: string;
   clientPhone: string;
   country?: string;
@@ -39,6 +40,7 @@ export interface UpdateCaseData {
   gender?: string;
   maritalStatus?: string;
   dependents?: number;
+  dependentsDetail?: Array<{ name: string; age: number }>;
   clientEmail?: string;
   clientPhone?: string;
   country?: string;
@@ -75,6 +77,7 @@ function fromBackendCase(raw: any): Case {
         gender: pi.gender,
         maritalStatus: pi.marital_status ?? pi.maritalStatus,
         dependents: pi.dependents,
+        dependentsDetail: pi.dependents_detail ?? pi.dependentsDetail,
         partnerFirstName: pi.partner_first_name ?? pi.partnerFirstName,
         partnerLastName: pi.partner_last_name ?? pi.partnerLastName,
         partnerDateOfBirth: pi.partner_date_of_birth ?? pi.partnerDateOfBirth,
@@ -150,6 +153,7 @@ function toBackendCreatePayload(formData: CreateCaseData) {
       gender: formData.gender,
       marital_status: formData.maritalStatus,
       dependents: formData.dependents ?? 0,
+      dependents_detail: formData.dependentsDetail ?? [],
       email: formData.clientEmail,
       phone: formData.clientPhone,
       partner_first_name: formData.maritalStatus === "married" ? formData.partnerFirstName || undefined : undefined,

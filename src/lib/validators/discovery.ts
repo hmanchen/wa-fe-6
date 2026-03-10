@@ -8,6 +8,11 @@ export const addressSchema = z.object({
   postalCode: z.string().optional(),
 });
 
+const dependentDetailSchema = z.object({
+  name: z.string().min(1, "Dependent name is required"),
+  age: z.number().int().min(0, "Age must be 0 or more").max(30, "Age must be 30 or less"),
+});
+
 export const personalInfoSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
@@ -18,6 +23,7 @@ export const personalInfoSchema = z.object({
   partnerLastName: z.string().optional(),
   partnerDateOfBirth: z.string().optional(),
   dependents: z.number().int().min(0).optional(),
+  dependentsDetail: z.array(dependentDetailSchema).optional(),
   email: z.string().min(1, "Email is required").email("Please enter a valid email address"),
   phone: z
     .string()
@@ -50,6 +56,16 @@ export const personalInfoSchema = z.object({
         path: ["partnerDateOfBirth"],
       });
     }
+  }
+
+  const dependentsCount = Number(data.dependents ?? 0);
+  const detailsCount = data.dependentsDetail?.length ?? 0;
+  if (dependentsCount > 0 && detailsCount !== dependentsCount) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Please provide name and age for each dependent",
+      path: ["dependentsDetail"],
+    });
   }
 });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, differenceInYears } from "date-fns";
@@ -99,6 +100,14 @@ function getRegionOptions(country: string): string[] {
 // ── Form value mappers ───────────────────────────────────────
 
 function toFormValues(data?: ClientPersonalInfo | null): PersonalInfoInput {
+  const anyData = (data ?? {}) as ClientPersonalInfo & {
+    dependents_detail?: Array<{ name?: string; age?: number }>;
+  };
+  const rawDependentsDetail =
+    anyData.dependentsDetail ??
+    anyData.dependents_detail ??
+    [];
+
   if (!data) {
     return {
       firstName: "",
@@ -110,6 +119,7 @@ function toFormValues(data?: ClientPersonalInfo | null): PersonalInfoInput {
       partnerLastName: "",
       partnerDateOfBirth: "",
       dependents: 0,
+      dependentsDetail: [],
       email: "",
       phone: "",
       address: { country: "", street: "", city: "", state: "", postalCode: "" },
@@ -125,6 +135,10 @@ function toFormValues(data?: ClientPersonalInfo | null): PersonalInfoInput {
     partnerLastName: data.partnerLastName ?? "",
     partnerDateOfBirth: data.partnerDateOfBirth ?? "",
     dependents: data.dependents ?? 0,
+    dependentsDetail: rawDependentsDetail.map((dep) => ({
+      name: dep.name ?? "",
+      age: Number(dep.age ?? 0),
+    })),
     email: data.email ?? "",
     phone: data.phone ?? "",
     address: data.address
@@ -141,6 +155,13 @@ function toFormValues(data?: ClientPersonalInfo | null): PersonalInfoInput {
 
 function toClientPersonalInfo(values: PersonalInfoInput): ClientPersonalInfo {
   const isMarried = values.maritalStatus === "married";
+  const dependentCount = Number(values.dependents ?? 0);
+  const dependentsDetail = (values.dependentsDetail ?? [])
+    .slice(0, dependentCount)
+    .map((dep) => ({
+      name: String(dep.name ?? "").trim(),
+      age: Number(dep.age ?? 0),
+    }));
   return {
     firstName: values.firstName,
     lastName: values.lastName,
@@ -151,7 +172,8 @@ function toClientPersonalInfo(values: PersonalInfoInput): ClientPersonalInfo {
     partnerFirstName: isMarried ? values.partnerFirstName || undefined : undefined,
     partnerLastName: isMarried ? values.partnerLastName || undefined : undefined,
     partnerDateOfBirth: isMarried ? values.partnerDateOfBirth || undefined : undefined,
-    dependents: values.dependents ?? 0,
+    dependents: dependentCount,
+    dependentsDetail: dependentCount > 0 ? dependentsDetail : [],
     email: values.email || undefined,
     phone: values.phone || undefined,
     address:
@@ -258,9 +280,22 @@ export function ClientInfoForm({
   const dateOfBirth = form.watch("dateOfBirth");
   const partnerDateOfBirth = form.watch("partnerDateOfBirth");
   const selectedCountry = form.watch("address.country");
+  const dependentsCount = Number(form.watch("dependents") ?? 0);
+  const dependentsDetail = form.watch("dependentsDetail") ?? [];
   const isMarried = maritalStatus === "married";
 
   const regionOptions = getRegionOptions(selectedCountry ?? "");
+
+  useEffect(() => {
+    const safeCount = Number.isFinite(dependentsCount) ? Math.max(0, dependentsCount) : 0;
+    const current = form.getValues("dependentsDetail") ?? [];
+    if (current.length === safeCount) return;
+    const next = Array.from({ length: safeCount }, (_, idx) => ({
+      name: current[idx]?.name ?? "",
+      age: Number(current[idx]?.age ?? 0),
+    }));
+    form.setValue("dependentsDetail", next, { shouldValidate: true });
+  }, [dependentsCount, form]);
 
   async function handleSubmit(values: PersonalInfoInput) {
     await onSubmit(toClientPersonalInfo(values));
@@ -408,6 +443,65 @@ export function ClientInfoForm({
             )}
           />
         </div>
+        {dependentsCount > 0 && (
+          <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+            <p className="text-sm font-medium text-foreground">Dependent details</p>
+            <div className="space-y-4">
+              {Array.from({ length: dependentsCount }).map((_, idx) => (
+                <div key={`dependent-${idx}`} className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name={`dependentsDetail.${idx}.name`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Dependent {idx + 1} name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter name"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`dependentsDetail.${idx}.age`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Dependent {idx + 1} age</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={30}
+                            placeholder="0"
+                            value={field.value ?? ""}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ""
+                                  ? undefined
+                                  : parseInt(e.target.value, 10)
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              ))}
+            </div>
+            {dependentsDetail.length !== dependentsCount && (
+              <p className="text-xs text-muted-foreground">
+                Add details for each dependent.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Partner information — shown only when married */}
         {isMarried && (
