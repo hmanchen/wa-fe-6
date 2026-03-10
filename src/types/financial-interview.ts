@@ -939,6 +939,39 @@ export interface FinancialHealthScore {
     concentrationPctOfNetWorth: number;
     alerts: string[];
   };
+  educationFundingAnalysis?: {
+    children: Array<{
+      name: string;
+      age: number;
+      yearsToCollege: number;
+      enrollmentYear: number;
+      educationPreference: string;
+      status: string;
+      projectedTotalNeed: number;
+      projectedSavingsAtEnrollment: number;
+      shortfall: number;
+      fundingPercentage: number;
+      monthlyNeededToCloseGap: number;
+      projectedAnnualCostAtEnrollment: number;
+      programYears: number;
+      totalExistingSavings: number;
+      totalMonthlyContributions: number;
+      has529: boolean;
+      accountOwner529?: string;
+    }>;
+    projectedTotalEducationNeed: number;
+    existingEducationAssets: number;
+    projectedSavingsAtEnrollment: number;
+    projectedShortfall: number;
+    totalMonthlyContributions: number;
+    additionalMonthlyNeeded: number;
+    overallFundingPercentage: number;
+    dualEnrollmentOverlap: boolean;
+    dualEnrollmentYears: number;
+    dualEnrollmentAnnualCost: number;
+    dualEnrollmentPeriod: string;
+    hasAnyEducationSavings: boolean;
+  };
   insights: {
     strengths: HealthScoreInsightCard[];
     gaps: HealthScoreInsightCard[];

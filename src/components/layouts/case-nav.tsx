@@ -7,10 +7,7 @@ import { cn } from "@/lib/utils"
 
 const STEPS = [
   { id: "overview", label: "Overview", path: "" },
-  { id: "financial-interview", label: "Financial Interview", path: "financial-interview" },
-  { id: "analysis", label: "Needs Analysis", path: "analysis" },
-  { id: "recommendations", label: "Recommendations", path: "recommendations" },
-  { id: "report", label: "Report", path: "report" },
+  { id: "financial-interview", label: "Financial Needs Analysis", path: "financial-interview" },
 ] as const
 
 export interface CaseNavProps {

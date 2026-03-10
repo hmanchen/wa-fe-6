@@ -2252,11 +2252,21 @@ function RealEstateSection({
       if (!hasPrimaryResidence) return;
       if (primary.propertyAddress) return;
       try {
-        const { data: res } = await apiClient.get(`/cases/${caseId}/discovery/`);
-        const payload = res?.data ?? res;
-        const pi = payload?.personal_info ?? payload?.personalInfo ?? {};
-        const addr = pi?.address ?? {};
-        const line = [addr?.street, addr?.city, addr?.province || addr?.state, addr?.postal_code || addr?.postalCode]
+        const { data: res } = await apiClient.get<{ data?: Record<string, unknown> } & Record<string, unknown>>(
+          `/cases/${caseId}/discovery/`
+        );
+        const payload = (res?.data ?? res) as Record<string, unknown>;
+        const pi =
+          ((payload["personal_info"] as Record<string, unknown> | undefined) ??
+            (payload["personalInfo"] as Record<string, unknown> | undefined) ??
+            {}) as Record<string, unknown>;
+        const addr = (pi["address"] as Record<string, unknown> | undefined) ?? {};
+        const line = [
+          addr["street"],
+          addr["city"],
+          addr["province"] || addr["state"],
+          addr["postal_code"] || addr["postalCode"],
+        ]
           .filter(Boolean)
           .join(", ");
         if (!line) return;
@@ -2279,7 +2289,10 @@ function RealEstateSection({
   }, [caseId, primary, realEstate, update]);
 
   const setRealEstate = (patch: Partial<PersonFinancialBackground["realEstate"]>) => {
-    const merged = { ...realEstate, ...patch } as Record<string, unknown>;
+    const merged: PersonFinancialBackground["realEstate"] = {
+      ...realEstate,
+      ...patch,
+    };
     const hasAnyProperty = Boolean(
       merged.hasPrimaryResidence ||
         merged.hasRentalProperties ||
@@ -2287,7 +2300,7 @@ function RealEstateSection({
     );
     update({
       realEstate: {
-        ...(merged as PersonFinancialBackground["realEstate"]),
+        ...merged,
         hasRealEstate: hasAnyProperty,
       },
     });
@@ -2999,17 +3012,31 @@ export function FinancialBgLayout({
     let mounted = true;
     const loadCollegeVisibility = async () => {
       try {
-        const { data: res } = await apiClient.get(`/cases/${caseId}/discovery/`);
-        const payload = res?.data ?? res;
-        const pi = payload?.personal_info ?? payload?.personalInfo ?? {};
-        const fp = payload?.financial_profile ?? payload?.financialProfile ?? {};
-        const goalsDiscovery = fp?.goals_discovery ?? fp?.goalsDiscovery ?? {};
-        const goalsRanking = goalsDiscovery?.goals_ranking ?? goalsDiscovery?.goalsRanking ?? [];
+        const { data: res } = await apiClient.get<{ data?: Record<string, unknown> } & Record<string, unknown>>(
+          `/cases/${caseId}/discovery/`
+        );
+        const payload = (res?.data ?? res) as Record<string, unknown>;
+        const pi =
+          ((payload["personal_info"] as Record<string, unknown> | undefined) ??
+            (payload["personalInfo"] as Record<string, unknown> | undefined) ??
+            {}) as Record<string, unknown>;
+        const fp =
+          ((payload["financial_profile"] as Record<string, unknown> | undefined) ??
+            (payload["financialProfile"] as Record<string, unknown> | undefined) ??
+            {}) as Record<string, unknown>;
+        const goalsDiscovery =
+          ((fp["goals_discovery"] as Record<string, unknown> | undefined) ??
+            (fp["goalsDiscovery"] as Record<string, unknown> | undefined) ??
+            {}) as Record<string, unknown>;
+        const goalsRanking =
+          ((goalsDiscovery["goals_ranking"] as Array<Record<string, unknown>> | undefined) ??
+            (goalsDiscovery["goalsRanking"] as Array<Record<string, unknown>> | undefined) ??
+            []);
         const hasEducationGoal = Array.isArray(goalsRanking)
           ? goalsRanking.some((g) => (g?.goal_id ?? g?.goalId) === "fund_education")
           : false;
 
-        const rawDependents = pi?.dependents_detail ?? pi?.dependentsDetail ?? pi?.dependents ?? [];
+        const rawDependents = pi["dependents_detail"] ?? pi["dependentsDetail"] ?? pi["dependents"] ?? [];
         let seedRows: Array<{ name: string; age: number }> = [];
         let dependentCount = 0;
         if (Array.isArray(rawDependents)) {

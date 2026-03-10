@@ -1,25 +1,171 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { FinancialHealthScore } from "@/types/financial-interview";
 
 type Status = "healthy" | "attention" | "not_started";
 
-function n(v: any): number {
+type Dict = Record<string, unknown>;
+
+interface FamilyChild {
+  name: string;
+  age: number;
+}
+
+interface Level1Data {
+  assets: {
+    retirement: number;
+    investments: number;
+    savings: number;
+    realEstate: number;
+    other: number;
+    totalAssets: number;
+  };
+  liabilities: {
+    debts: unknown[];
+    totalConsumerDebt: number;
+    totalLiabilities: number;
+    highInterestTotal: number;
+    debtFreeMonths: number;
+  };
+  income: {
+    sources: unknown[];
+    monthlyGross: number;
+    annualGross: number;
+  };
+  family: {
+    primaryName: string;
+    spouseName: string | null;
+    dependents: number;
+    children: FamilyChild[];
+  };
+  protection: {
+    lifeInsurance: {
+      exists: boolean;
+      coverageAmount: number;
+      coverageGap: number;
+      recommended: number;
+    };
+    disabilityInsurance: { exists: boolean };
+    criticalIllness: { exists: boolean };
+    umbrellaPolicy: { exists: boolean };
+    ltcPlanning: { exists: boolean };
+  };
+  foundationHealthyCount: number;
+  foundationStatus: Status;
+}
+
+interface Level2Data {
+  emergencyFund: {
+    currentMonths: number;
+    targetMonths: number;
+    currentBalance: number;
+    monthlyExpenses: number;
+    targetBalance: number;
+    gap: number;
+    status: Status;
+  };
+  criticalExpenses: {
+    totalCritical: number;
+    monthlyIncome: number;
+    criticalExpenseRatio: number;
+    housing: number;
+  };
+  retirement: {
+    targetAge: number;
+    desiredMonthly: number;
+    currentSavings: number;
+    projectedAtRetirement: number;
+    retirementGapMonthly: number;
+    readinessScore: number;
+    onTrack: boolean;
+  };
+  largePurchases: {
+    educationNeed: number;
+    educationSavings: number;
+    educationShortfall: number;
+    children: unknown[];
+    hasMajorPurchaseGoals: boolean;
+  };
+  status: Status;
+}
+
+interface Level3Data {
+  investments: {
+    brokerage: number;
+    brokerageAccounts: unknown[];
+    realEstateInvestments: unknown[];
+    totalInvested: number;
+    hasInvestments: boolean;
+  };
+  growth: {
+    monthlyInvestmentContributions: number;
+    surplusAvailable: number;
+    inflationTarget: number;
+    minimumGrowthTarget: number;
+  };
+  status: Status;
+}
+
+interface Level4Data {
+  estate: {
+    willInPlace: boolean;
+    willCurrent: boolean;
+    trustEstablished: boolean;
+    poa: boolean;
+    healthcareDirective: boolean;
+    beneficiariesCurrent: boolean;
+    guardianDesignated: boolean;
+    estateScore: number;
+    estateMaxScore: number;
+    estateScorePct: number;
+  };
+  deathBenefit: {
+    totalCoverage: number;
+    coverageGap: number;
+    estateNeed: number;
+    legacyGoal: number;
+  };
+  status: Status;
+}
+
+interface Level5Data {
+  healthScore: number;
+  maxScore: number;
+  freedom: {
+    allDebtsManaged: boolean;
+    emergencyFundComplete: boolean;
+    protectionInPlace: boolean;
+    retirementOnTrack: boolean;
+    estateComplete: boolean;
+    investmentsGrowing: boolean;
+    pillarsComplete: number;
+    totalPillars: number;
+    freedomPercentage: number;
+  };
+  review: {
+    recommendedReviewDate: string;
+  };
+  status: Status;
+}
+
+function n(v: unknown): number {
   const x = Number(v ?? 0);
   return Number.isFinite(x) ? x : 0;
 }
 
 function factorMet(healthScore: FinancialHealthScore | null | undefined, id: string): boolean {
-  const factors = healthScore?.categories?.protection?.factors ?? [];
-  const f = factors.find((x) => x?.id === id);
+  const hs = healthScore as unknown as Dict;
+  const categories = (hs["categories"] as Dict | undefined) ?? {};
+  const protection = (categories["protection"] as Dict | undefined) ?? {};
+  const factors = (protection["factors"] as Array<Dict> | undefined) ?? [];
+  const f = factors.find((x) => String(x?.["id"] ?? "") === id);
   return Boolean(f?.met);
 }
 
 export type PyramidMappedData = {
-  level1: any;
-  level2: any;
-  level3: any;
-  level4: any;
-  level5: any;
+  level1: Level1Data;
+  level2: Level2Data;
+  level3: Level3Data;
+  level4: Level4Data;
+  level5: Level5Data;
 };
 
 function emergencyStatus(months: number): Status {
@@ -69,65 +215,98 @@ export function getLevelSummary(level: number, data: PyramidMappedData): string 
 }
 
 export function mapPyramidData(params: {
-  caseData: any;
+  caseData: unknown;
   healthScore: FinancialHealthScore | null | undefined;
-  fullAnalysis: any;
+  fullAnalysis: unknown;
 }): PyramidMappedData {
   const { caseData, healthScore, fullAnalysis } = params;
+  const caseAny = (caseData as Dict | null) ?? {};
+  const hsAny = (healthScore as unknown as Dict | null) ?? {};
+  const fa = (fullAnalysis as Dict | null) ?? {};
+  const nw = (fa["netWorth"] as Dict | undefined) ?? {};
+  const debt = (fa["debtService"] as Dict | undefined) ?? {};
+  const cf = (fa["cashFlow"] as Dict | undefined) ?? {};
+  const goalCov = (fa["goalCoverageAdequacy"] as Dict | undefined) ?? {};
+  const goalEdu =
+    ((fa["goalEducationFunding"] as Dict | undefined) ??
+      (hsAny["educationFundingAnalysis"] as Dict | undefined) ??
+      {}) as Dict;
+  const goalRet = (fa["goalRetirementProjection"] as Dict | undefined) ?? {};
+  const goalEstate = (fa["goalEstateNeed"] as Dict | undefined) ?? {};
 
-  const fa = fullAnalysis ?? {};
-  const nw = fa?.netWorth ?? {};
-  const debt = fa?.debtService ?? {};
-  const cf = fa?.cashFlow ?? {};
-  const goalCov = fa?.goalCoverageAdequacy ?? {};
-  const goalEdu = fa?.goalEducationFunding ?? healthScore?.educationFundingAnalysis ?? {};
-  const goalRet = fa?.goalRetirementProjection ?? {};
-  const goalEstate = fa?.goalEstateNeed ?? {};
+  const clientPersonalInfo = (caseAny["clientPersonalInfo"] as Dict | undefined) ?? {};
+  const dependentsDetailRaw =
+    (clientPersonalInfo["dependentsDetail"] as unknown[] | undefined) ?? [];
+  const children: FamilyChild[] = dependentsDetailRaw
+    .map((c) => {
+      const child = (c as Dict | null) ?? {};
+      return {
+        name: String(child["name"] ?? ""),
+        age: n(child["age"]),
+      };
+    });
 
   const dependentsNum =
-    n(caseData?.clientPersonalInfo?.dependents) ||
-    ((caseData?.clientPersonalInfo?.dependentsDetail ?? []).length || 0);
-  const children = caseData?.clientPersonalInfo?.dependentsDetail ?? [];
-  const coverageAmount = n(goalCov?.existingCoverage) || 0;
-  const coverageGap = n(goalCov?.coverageGap);
-  const recommendedCoverage = n(goalCov?.recommendedCoverage);
+    n(clientPersonalInfo["dependents"]) || children.length;
+  const coverageAmount = n(goalCov["existingCoverage"]) || 0;
+  const coverageGap = n(goalCov["coverageGap"]);
+  const recommendedCoverage = n(goalCov["recommendedCoverage"]);
 
   const emergencyMonths = (() => {
-    const fromFactor =
-      healthScore?.categories?.debtHealth?.factors?.find((f) =>
-        String(f?.label || "").toLowerCase().includes("emergency fund")
-      )?.label ?? "";
+    const categories = (hsAny["categories"] as Dict | undefined) ?? {};
+    const debtHealth = (categories["debtHealth"] as Dict | undefined) ?? {};
+    const dhFactors = (debtHealth["factors"] as Array<Dict> | undefined) ?? [];
+    const fromFactor = String(
+      dhFactors.find((f) => String(f?.["label"] ?? "").toLowerCase().includes("emergency fund"))
+        ?.["label"] ?? ""
+    );
     const m = /([0-9]+(\.[0-9]+)?)\s*months?/i.exec(fromFactor);
     if (m) return n(m[1]);
-    const savings = n(nw?.categories?.savings?.total);
-    const monthlyExp = n(cf?.totalMonthlyExpenses);
+    const nwCategories = (nw["categories"] as Dict | undefined) ?? {};
+    const savingsCat = (nwCategories["savings"] as Dict | undefined) ?? {};
+    const savings = n(savingsCat["total"]);
+    const monthlyExp = n(cf["totalMonthlyExpenses"]);
     return monthlyExp > 0 ? savings / monthlyExp : 0;
   })();
 
-  const level1 = {
+  const nwCategories = (nw["categories"] as Dict | undefined) ?? {};
+  const retCat = (nwCategories["retirement"] as Dict | undefined) ?? {};
+  const invCat = (nwCategories["investments"] as Dict | undefined) ?? {};
+  const savCat = (nwCategories["savings"] as Dict | undefined) ?? {};
+  const reCat = (nwCategories["realEstate"] as Dict | undefined) ?? {};
+  const otherCat = (nwCategories["other"] as Dict | undefined) ?? {};
+  const incomeSources = (cf["incomeSources"] as unknown[] | undefined) ?? [];
+  const annualGross = incomeSources.reduce<number>((sum, src) => {
+    const s = (src as Dict | null) ?? {};
+    return sum + n(s["annual"]);
+  }, 0);
+
+  const level1: Level1Data = {
     assets: {
-      retirement: n(nw?.categories?.retirement?.total),
-      investments: n(nw?.categories?.investments?.total),
-      savings: n(nw?.categories?.savings?.total),
-      realEstate: n(nw?.categories?.realEstate?.total),
-      other: n(nw?.categories?.other?.total),
-      totalAssets: n(nw?.totalAssets),
+      retirement: n(retCat["total"]),
+      investments: n(invCat["total"]),
+      savings: n(savCat["total"]),
+      realEstate: n(reCat["total"]),
+      other: n(otherCat["total"]),
+      totalAssets: n(nw["totalAssets"]),
     },
     liabilities: {
-      debts: debt?.debts ?? [],
-      totalConsumerDebt: n(debt?.totalConsumerDebt),
-      totalLiabilities: n(nw?.totalLiabilities),
-      highInterestTotal: n(debt?.highInterestTotal),
-      debtFreeMonths: n(debt?.avalancheStrategy?.payoffMonths),
+      debts: ((debt["debts"] as unknown[] | undefined) ?? []),
+      totalConsumerDebt: n(debt["totalConsumerDebt"]),
+      totalLiabilities: n(nw["totalLiabilities"]),
+      highInterestTotal: n(debt["highInterestTotal"]),
+      debtFreeMonths: n(((debt["avalancheStrategy"] as Dict | undefined) ?? {})["payoffMonths"]),
     },
     income: {
-      sources: cf?.incomeSources ?? [],
-      monthlyGross: n(cf?.monthlyGrossIncome),
-      annualGross: (cf?.incomeSources ?? []).reduce((sum: number, s: any) => sum + n(s?.annual), 0),
+      sources: incomeSources,
+      monthlyGross: n(cf["monthlyGrossIncome"]),
+      annualGross,
     },
     family: {
-      primaryName: caseData?.clientPersonalInfo?.firstName ?? "Primary",
-      spouseName: caseData?.clientPersonalInfo?.partnerFirstName ?? null,
+      primaryName: String(clientPersonalInfo["firstName"] ?? "Primary"),
+      spouseName: clientPersonalInfo["partnerFirstName"]
+        ? String(clientPersonalInfo["partnerFirstName"])
+        : null,
       dependents: dependentsNum,
       children,
     },
@@ -143,66 +322,72 @@ export function mapPyramidData(params: {
       umbrellaPolicy: { exists: factorMet(healthScore, "umbrella_liability") },
       ltcPlanning: { exists: factorMet(healthScore, "ltc_consideration") },
     },
+    foundationHealthyCount: 0,
+    foundationStatus: "not_started",
   };
 
-  const level2 = {
+  const level2: Level2Data = {
     emergencyFund: {
       currentMonths: emergencyMonths,
       targetMonths: 6,
-      currentBalance: n(nw?.categories?.savings?.total),
-      monthlyExpenses: n(cf?.totalMonthlyExpenses),
-      targetBalance: n(cf?.totalMonthlyExpenses) * 6,
-      gap: Math.max(0, n(cf?.totalMonthlyExpenses) * 6 - n(nw?.categories?.savings?.total)),
+      currentBalance: n(savCat["total"]),
+      monthlyExpenses: n(cf["totalMonthlyExpenses"]),
+      targetBalance: n(cf["totalMonthlyExpenses"]) * 6,
+      gap: Math.max(0, n(cf["totalMonthlyExpenses"]) * 6 - n(savCat["total"])),
       status: emergencyStatus(emergencyMonths),
     },
     criticalExpenses: {
-      totalCritical: n(cf?.monthlyFixedExpenses),
-      monthlyIncome: n(cf?.monthlyNetTakeHome),
+      totalCritical: n(cf["monthlyFixedExpenses"]),
+      monthlyIncome: n(cf["monthlyNetTakeHome"]),
       criticalExpenseRatio:
-        n(cf?.monthlyNetTakeHome) > 0
-          ? n(cf?.monthlyFixedExpenses) / n(cf?.monthlyNetTakeHome)
+        n(cf["monthlyNetTakeHome"]) > 0
+          ? n(cf["monthlyFixedExpenses"]) / n(cf["monthlyNetTakeHome"])
           : 0,
-      housing: n(cf?.monthlyFixedExpenses),
+      housing: n(cf["monthlyFixedExpenses"]),
     },
     retirement: {
-      targetAge: n(healthScore?.goalSummary?.retirementTargetAge) || 65,
-      desiredMonthly: n(healthScore?.goalSummary?.desiredMonthlyIncome),
-      currentSavings: n(nw?.categories?.retirement?.total),
-      projectedAtRetirement: n(fa?.goalNetWorth?.projectedNetWorthAtRetirement),
-      retirementGapMonthly: n(goalRet?.retirementIncomeGapMonthly),
-      readinessScore: n(goalRet?.retirementReadinessScore),
-      onTrack: n(goalRet?.retirementReadinessScore) >= 70,
+      targetAge: n(((hsAny["goalSummary"] as Dict | undefined) ?? {})["retirementTargetAge"]) || 65,
+      desiredMonthly: n(((hsAny["goalSummary"] as Dict | undefined) ?? {})["desiredMonthlyIncome"]),
+      currentSavings: n(retCat["total"]),
+      projectedAtRetirement: n(((fa["goalNetWorth"] as Dict | undefined) ?? {})["projectedNetWorthAtRetirement"]),
+      retirementGapMonthly: n(goalRet["retirementIncomeGapMonthly"]),
+      readinessScore: n(goalRet["retirementReadinessScore"]),
+      onTrack: n(goalRet["retirementReadinessScore"]) >= 70,
     },
     largePurchases: {
-      educationNeed: n(goalEdu?.projectedTotalEducationNeed),
-      educationSavings: n(goalEdu?.existingEducationAssets),
-      educationShortfall: n(goalEdu?.projectedShortfall),
-      children: goalEdu?.children ?? [],
-      hasMajorPurchaseGoals: n(fa?.goalNetWorth?.majorPurchaseDrag) > 0,
+      educationNeed: n(goalEdu["projectedTotalEducationNeed"]),
+      educationSavings: n(goalEdu["existingEducationAssets"]),
+      educationShortfall: n(goalEdu["projectedShortfall"]),
+      children: ((goalEdu["children"] as unknown[] | undefined) ?? []),
+      hasMajorPurchaseGoals: n(((fa["goalNetWorth"] as Dict | undefined) ?? {})["majorPurchaseDrag"]) > 0,
     },
+    status: "not_started",
   };
 
-  const level3 = {
+  const level3: Level3Data = {
     investments: {
-      brokerage: n(nw?.categories?.investments?.total),
-      brokerageAccounts: nw?.categories?.investments?.accounts ?? [],
+      brokerage: n(invCat["total"]),
+      brokerageAccounts: ((invCat["accounts"] as unknown[] | undefined) ?? []),
       realEstateInvestments: [],
-      totalInvested: n(nw?.categories?.investments?.total),
-      hasInvestments: n(nw?.categories?.investments?.total) > 0,
+      totalInvested: n(invCat["total"]),
+      hasInvestments: n(invCat["total"]) > 0,
     },
     growth: {
-      monthlyInvestmentContributions: n(healthScore?.hiddenMoney?.totalAvailable),
-      surplusAvailable: n(healthScore?.hiddenMoney?.totalAvailable),
+      monthlyInvestmentContributions: n(((hsAny["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]),
+      surplusAvailable: n(((hsAny["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]),
       inflationTarget: 0.04,
       minimumGrowthTarget: 0.05,
     },
+    status: "not_started",
   };
 
-  const estateFactors = healthScore?.categories?.estatePlanning?.factors ?? [];
-  const estateMet = (id: string) => Boolean(estateFactors.find((f) => f?.id === id)?.met);
-  const estateScore = n(healthScore?.categories?.estatePlanning?.score);
-  const estateMax = n(healthScore?.categories?.estatePlanning?.maxScore);
-  const level4 = {
+  const hsCategories = (hsAny["categories"] as Dict | undefined) ?? {};
+  const estatePlanning = (hsCategories["estatePlanning"] as Dict | undefined) ?? {};
+  const estateFactors = ((estatePlanning["factors"] as Array<Dict> | undefined) ?? []);
+  const estateMet = (id: string) => Boolean(estateFactors.find((f) => String(f?.["id"] ?? "") === id)?.["met"]);
+  const estateScore = n(estatePlanning["score"]);
+  const estateMax = n(estatePlanning["maxScore"]);
+  const level4: Level4Data = {
     estate: {
       willInPlace: estateMet("will_in_place"),
       willCurrent: estateMet("will_current"),
@@ -218,9 +403,10 @@ export function mapPyramidData(params: {
     deathBenefit: {
       totalCoverage: coverageAmount,
       coverageGap,
-      estateNeed: n(goalEstate?.totalEstateNeed),
-      legacyGoal: n(goalEstate?.legacyAmount),
+      estateNeed: n(goalEstate["totalEstateNeed"]),
+      legacyGoal: n(goalEstate["legacyAmount"]),
     },
+    status: "not_started",
   };
 
   const pillars = [
@@ -233,12 +419,13 @@ export function mapPyramidData(params: {
   ];
   const pillarsComplete = pillars.filter(Boolean).length;
 
-  const level5 = {
-    healthScore: n(healthScore?.totalScore),
-    maxScore: n(healthScore?.maxPossibleScore) || 100,
+  const level5: Level5Data = {
+    healthScore: n(hsAny["totalScore"]),
+    maxScore: n(hsAny["maxPossibleScore"]) || 100,
     freedom: {
       allDebtsManaged:
-        n(debt?.totalConsumerDebt) === 0 || n(debt?.avalancheStrategy?.payoffMonths) < 36,
+        n(debt["totalConsumerDebt"]) === 0 ||
+        n(((debt["avalancheStrategy"] as Dict | undefined) ?? {})["payoffMonths"]) < 36,
       emergencyFundComplete: level2.emergencyFund.currentMonths >= 3,
       protectionInPlace:
         level1.protection.lifeInsurance.exists && level1.protection.disabilityInsurance.exists,
@@ -256,6 +443,7 @@ export function mapPyramidData(params: {
         new Date().getDate()
       ).toLocaleDateString(),
     },
+    status: "not_started",
   };
 
   const foundationHealthyCount = [
