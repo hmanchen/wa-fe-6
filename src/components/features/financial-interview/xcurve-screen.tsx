@@ -1,578 +1,1118 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { ChevronRight, Loader2, TrendingDown, TrendingUp, AlertTriangle, Info, DollarSign, GraduationCap, Landmark } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, Pencil, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
-import {
-  useXCurveData,
-  useXCurveNarration,
-  useTaxNarrative,
-  useRothVs7702,
-  useCollegeFunding,
-  useRolloverOptions,
-} from "@/hooks/use-presentation-flow";
+import { formatCurrency, formatCompactCurrency } from "@/lib/formatters/currency";
+import type { FinancialHealthScore } from "@/types/financial-interview";
 
-type SubTab = "xcurve" | "tax" | "roth7702" | "college" | "retirement";
+type Dict = Record<string, unknown>;
 
-const SUB_TABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
-  { id: "xcurve", label: "X-Curve", icon: TrendingDown },
-  { id: "tax", label: "Tax Buckets", icon: DollarSign },
-  { id: "roth7702", label: "Roth vs 7702", icon: Landmark },
-  { id: "college", label: "College Plan", icon: GraduationCap },
-  { id: "retirement", label: "Retirement Income", icon: TrendingUp },
-];
+type Child = {
+  name: string;
+  age: number;
+  projectedTotalNeed?: number;
+};
+
+type DimeEditable = {
+  debt: number;
+  replacementYears: number;
+  mortgage: number;
+  education: number;
+  finalExpenses: number;
+};
+
+type XCurveInputs = {
+  client: {
+    primaryAge: number;
+    primaryName: string;
+    spouseName: string | null;
+    children: Child[];
+  };
+  risk: {
+    totalDebt: number;
+    debtBreakdown: Array<{ label: string; amount: number }>;
+    annualIncome: number;
+    replacementYears: number;
+    mortgageBalance: number;
+    educationNeed: number;
+    educationChildren: Child[];
+    finalExpenses: number;
+    estateCosts: number;
+    debtPayoffMonths: number;
+  };
+  accumulation: {
+    retirementAccounts: number;
+    investments: number;
+    savings: number;
+    realEstateEquity: number;
+    otherAssets: number;
+    totalCurrentAssets: number;
+    existingLifeInsurance: number;
+    monthlyContributions: number;
+    employerMatch: number;
+    monthlySurplus: number;
+    projectedNetWorthAtRetirement: number;
+  };
+  retirement: {
+    targetAge: number;
+    desiredMonthlyIncome: number;
+    desiredAnnualIncome: number;
+    yearsInRetirement: number;
+    monthlyExpenses: number;
+    projected401kWithdrawal: number;
+    projectedSocialSecurity: number;
+    projectedPension: number;
+    retirementIncomeGapAnnual: number;
+    retirementIncomeGapMonthly: number;
+    retirementReadiness: number;
+  };
+};
+
+type CurvePoint = {
+  age: number;
+  risk: number;
+  accumulation: number;
+  gap: number;
+  accumulationBase: number;
+};
 
 interface XCurveScreenProps {
   caseId: string;
+  caseData: unknown;
+  healthScore: FinancialHealthScore | null | undefined;
+  fullAnalysis: unknown;
   onContinue: () => void;
 }
 
-function fmt(n: number | undefined | null): string {
-  if (n == null) return "—";
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+function n(v: unknown): number {
+  const x = Number(v ?? 0);
+  return Number.isFinite(x) ? x : 0;
 }
 
-function pct(n: number | undefined | null): string {
-  if (n == null) return "—";
-  return `${n.toFixed(1)}%`;
+function calculateAgeFromDob(dob?: string | null): number | null {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age -= 1;
+  return age > 0 ? age : null;
 }
 
-// ── X-Curve Tab ──────────────────────────────────────────────
-
-function XCurveTab({ caseId }: { caseId: string }) {
-  const { data: curve, isLoading, isError } = useXCurveData(caseId);
-  const { data: narration } = useXCurveNarration(caseId);
-
-  if (isLoading) {
-    return (
-      <div className="relative min-h-[240px] rounded-xl border bg-card">
-        <ScreenLoadingOverlay message="Computing X-Curve..." className="rounded-xl" />
-      </div>
-    );
+function calculateEducationNeedAtAge(children: Child[], age: number, currentParentAge: number): number {
+  let total = 0;
+  for (const child of children) {
+    const childAgeAtPoint = n(child.age) + (age - currentParentAge);
+    const projectedNeed = n(child.projectedTotalNeed) || 150_000;
+    if (childAgeAtPoint < 18) {
+      total += projectedNeed;
+    } else if (childAgeAtPoint < 22) {
+      const remainingYears = 22 - childAgeAtPoint;
+      total += projectedNeed * (remainingYears / 4);
+    }
   }
-  if (isError || !curve) return <div className="py-10 text-center text-sm text-red-500">Could not compute X-Curve data.</div>;
-
-  const maxVal = Math.max(
-    ...(curve.responsibilityCurve?.map((p: any) => p.value) ?? [0]),
-    ...(curve.wealthCurve?.map((p: any) => p.value) ?? [0]),
-    1
-  );
-
-  return (
-    <div className="space-y-5">
-      {/* Chart area */}
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h4 className="mb-1 text-sm font-bold">Financial X-Curve</h4>
-        <p className="mb-4 text-xs text-muted-foreground">Responsibility (declining) vs Wealth (growing) — the shaded area is your insurance need</p>
-
-        <div className="relative h-64 w-full">
-          <svg viewBox="0 0 600 200" className="h-full w-full" preserveAspectRatio="none">
-            {curve.responsibilityCurve?.length > 1 && (
-              <>
-                <defs>
-                  <linearGradient id="gapFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="rgb(239,68,68)" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="rgb(239,68,68)" stopOpacity="0.02" />
-                  </linearGradient>
-                </defs>
-                {/* Responsibility curve (red, declining) */}
-                <polyline
-                  fill="none"
-                  stroke="rgb(239,68,68)"
-                  strokeWidth="2.5"
-                  points={curve.responsibilityCurve.map((p: any, i: number) => {
-                    const x = (i / (curve.responsibilityCurve.length - 1)) * 580 + 10;
-                    const y = 190 - (p.value / maxVal) * 180;
-                    return `${x},${y}`;
-                  }).join(" ")}
-                />
-                {/* Wealth curve (green, growing) */}
-                <polyline
-                  fill="none"
-                  stroke="rgb(34,197,94)"
-                  strokeWidth="2.5"
-                  points={curve.wealthCurve.map((p: any, i: number) => {
-                    const x = (i / (curve.wealthCurve.length - 1)) * 580 + 10;
-                    const y = 190 - (p.value / maxVal) * 180;
-                    return `${x},${y}`;
-                  }).join(" ")}
-                />
-              </>
-            )}
-            {/* Baseline */}
-            <line x1="10" y1="190" x2="590" y2="190" stroke="currentColor" strokeOpacity="0.15" strokeWidth="1" />
-          </svg>
-          {/* Legend */}
-          <div className="absolute bottom-0 right-0 flex gap-4 text-xs">
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded bg-red-500" /> Responsibility</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded bg-green-500" /> Wealth</span>
-          </div>
-        </div>
-
-        {/* Key metrics */}
-        <div className="mt-4 grid gap-3 sm:grid-cols-4">
-          <div className="rounded-lg bg-muted/30 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Crossover Age</p>
-            <p className="text-xl font-bold">{curve.crossoverAge ?? "—"}</p>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Total Insurance Need</p>
-            <p className="text-xl font-bold text-red-600">{fmt(curve.totalNeed)}</p>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Existing Coverage</p>
-            <p className="text-xl font-bold text-emerald-600">{fmt(curve.existingCoverage)}</p>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Coverage Gap</p>
-            <p className="text-xl font-bold text-amber-600">{fmt(curve.coverageGap)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Insurance needs breakdown */}
-      {curve.components?.length > 0 && (
-        <div className="rounded-xl border bg-card p-5 shadow-sm">
-          <h4 className="mb-3 text-sm font-bold">Insurance Needs Breakdown</h4>
-          <div className="space-y-2">
-            {curve.components.map((c: any, i: number) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-muted/30 px-4 py-2.5">
-                <div>
-                  <p className="text-sm font-medium">{c.label}</p>
-                  <p className="text-xs text-muted-foreground">{c.formula || c.description}</p>
-                </div>
-                <p className="text-sm font-bold">{fmt(c.amount)}</p>
-              </div>
-            ))}
-            <div className="flex items-center justify-between rounded-lg border-2 border-red-200 bg-red-50/50 px-4 py-2.5 dark:border-red-900 dark:bg-red-950/20">
-              <p className="text-sm font-bold text-red-700 dark:text-red-300">TOTAL NEED</p>
-              <p className="text-lg font-bold text-red-700 dark:text-red-300">{fmt(curve.totalNeed)}</p>
-            </div>
-            <div className="flex items-center justify-between px-4 py-1 text-sm text-muted-foreground">
-              <span>Less: Existing Coverage</span>
-              <span>- {fmt(curve.existingCoverage)}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border-2 border-amber-200 bg-amber-50/50 px-4 py-2.5 dark:border-amber-900 dark:bg-amber-950/20">
-              <p className="text-sm font-bold text-amber-700 dark:text-amber-300">GAP</p>
-              <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{fmt(curve.coverageGap)}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI Narration */}
-      {narration && (
-        <div className="rounded-xl border border-l-4 border-l-indigo-500 bg-card p-5 shadow-sm">
-          <h4 className="mb-2 text-sm font-bold text-indigo-600">AI Narration</h4>
-          {narration.openingNarrative && <p className="mb-2 text-sm leading-relaxed text-muted-foreground">{narration.openingNarrative}</p>}
-          {narration.gapSummary && <p className="text-sm leading-relaxed font-medium text-amber-700 dark:text-amber-300">{narration.gapSummary}</p>}
-        </div>
-      )}
-    </div>
-  );
+  return total;
 }
 
-// ── Tax Bucket Tab ───────────────────────────────────────────
+function estimateRetirementExpenses(currentMonthlyExpenses: number, mortgagePaidOff: boolean) {
+  const base = currentMonthlyExpenses * (mortgagePaidOff ? 0.65 : 0.8);
+  const healthcareIncrease = 1_000;
+  const totalMonthly = Math.round(base + healthcareIncrease);
+  return {
+    food: Math.round(currentMonthlyExpenses * 0.16),
+    insurancePremiums: 1_000,
+    medical: 2_000,
+    housing: mortgagePaidOff ? 0 : Math.round(currentMonthlyExpenses * 0.24),
+    utilities: Math.round(currentMonthlyExpenses * 0.035),
+    transportation: Math.round(currentMonthlyExpenses * 0.023),
+    other: Math.round(base * 0.15),
+    totalMonthly,
+    totalAnnual: totalMonthly * 12,
+  };
+}
 
-function TaxBucketTab({ caseId }: { caseId: string }) {
-  const { data: taxNarr, isLoading, isError } = useTaxNarrative(caseId);
-
-  if (isLoading) {
-    return (
-      <div className="relative min-h-[240px] rounded-xl border bg-card">
-        <ScreenLoadingOverlay message="Generating tax narrative..." className="rounded-xl" />
-      </div>
-    );
+function calculateRetirementCorpus(annualNeed: number, yearsInRetirement: number, inflationRate = 0.03) {
+  const fourPercentRule = annualNeed * 25;
+  const realReturnRate = 0.05;
+  let corpus = 0;
+  for (let year = 0; year < yearsInRetirement; year += 1) {
+    const inflatedNeed = annualNeed * Math.pow(1 + inflationRate, year);
+    corpus += inflatedNeed / Math.pow(1 + realReturnRate, year);
   }
-  if (isError) return <div className="py-10 text-center text-sm text-red-500">Could not generate tax narrative.</div>;
+  return {
+    fourPercentRule: Math.round(fourPercentRule),
+    inflationAdjusted: Math.round(corpus),
+    recommended: Math.round(Math.max(fourPercentRule, corpus)),
+  };
+}
 
+function deriveXCurveInputs(
+  caseData: unknown,
+  healthScore: FinancialHealthScore | null | undefined,
+  fullAnalysis: unknown
+): XCurveInputs {
+  const cd = (caseData as Dict | null) ?? {};
+  const pi = (cd["clientPersonalInfo"] as Dict | undefined) ?? {};
+  const hs = (healthScore as unknown as Dict | null) ?? {};
+  const fa = (fullAnalysis as Dict | null) ?? {};
+
+  const debt = (fa["debtService"] as Dict | undefined) ?? {};
+  const cashFlow = (fa["cashFlow"] as Dict | undefined) ?? {};
+  const netWorth = (fa["netWorth"] as Dict | undefined) ?? {};
+  const nwCategories = (netWorth["categories"] as Dict | undefined) ?? {};
+  const goalIncome = (fa["goalIncomeReplacement"] as Dict | undefined) ?? {};
+  const goalEducation = (fa["goalEducationFunding"] as Dict | undefined) ?? {};
+  const goalEstate = (fa["goalEstateNeed"] as Dict | undefined) ?? {};
+  const goalCoverage = (fa["goalCoverageAdequacy"] as Dict | undefined) ?? {};
+  const goalRet = (fa["goalRetirementProjection"] as Dict | undefined) ?? {};
+  const goalNetWorth = (fa["goalNetWorth"] as Dict | undefined) ?? {};
+  const hsGoalSummary = (hs["goalSummary"] as Dict | undefined) ?? {};
+
+  const primaryAge = calculateAgeFromDob(String(pi["dateOfBirth"] ?? "")) ?? 40;
+  const retirementAge = n(hsGoalSummary["retirementTargetAge"]) || 65;
+  const incomeSources = (cashFlow["incomeSources"] as unknown[] | undefined) ?? [];
+  const annualIncome = incomeSources.reduce<number>((sum, src) => {
+    const s = (src as Dict | null) ?? {};
+    return sum + n(s["annual"]);
+  }, 0);
+
+  const dependentsDetail = (pi["dependentsDetail"] as unknown[] | undefined) ?? [];
+  const eduChildrenRaw = (goalEducation["children"] as unknown[] | undefined) ?? [];
+  const fallbackChildren: Child[] = dependentsDetail.map((dep) => {
+    const d = (dep as Dict | null) ?? {};
+    return {
+      name: String(d["name"] ?? "Child"),
+      age: n(d["age"]),
+    };
+  });
+  const educationChildren: Child[] =
+    eduChildrenRaw.length > 0
+      ? eduChildrenRaw.map((c) => {
+          const x = (c as Dict | null) ?? {};
+          return {
+            name: String(x["name"] ?? "Child"),
+            age: n(x["age"]),
+            projectedTotalNeed: n(x["projectedTotalNeed"] ?? x["projected_total_need"]),
+          };
+        })
+      : fallbackChildren;
+
+  const debtEntries = (debt["debts"] as unknown[] | undefined) ?? [];
+  const debtBreakdown = debtEntries.map((d) => {
+    const x = (d as Dict | null) ?? {};
+    return {
+      label: String(x["label"] ?? "Debt"),
+      amount: n(x["balance"]),
+    };
+  });
+
+  const primaryResidence =
+    (((pi["primary_background"] as Dict | undefined) ?? {})["real_estate"] as Dict | undefined) ??
+    (((pi["primaryBackground"] as Dict | undefined) ?? {})["realEstate"] as Dict | undefined) ??
+    {};
+  const primaryResidenceDetail =
+    (primaryResidence["primaryResidence"] as Dict | undefined) ??
+    (primaryResidence["primary_residence"] as Dict | undefined) ??
+    {};
+
+  const mortgageFromCase =
+    n(primaryResidenceDetail["mortgageBalance"] ?? primaryResidenceDetail["mortgage_balance"]) ||
+    n(pi["mortgageBalance"]);
+
+  const retirementMonthly =
+    n(cashFlow["monthlyRetirementContributions"] ?? cashFlow["monthly_retirement_contributions"]) || 0;
+
+  const employerMatch = n(cashFlow["monthlyEmployerMatch"] ?? cashFlow["monthly_employer_match"]) || 0;
+  const existingLifeCoverage =
+    n(goalCoverage["existingCoverage"] ?? goalCoverage["existing_coverage"]) ||
+    n(goalCoverage["existingLifeInsurance"] ?? goalCoverage["existing_life_insurance"]);
+
+  const totalAssets =
+    n(netWorth["totalAssets"] ?? netWorth["total_assets"]) ||
+    n(goalCoverage["existingAssets"] ?? goalCoverage["existing_assets"]);
+
+  return {
+    client: {
+      primaryAge,
+      primaryName: String(pi["firstName"] ?? cd["clientName"] ?? "Client"),
+      spouseName: pi["partnerFirstName"] ? String(pi["partnerFirstName"]) : null,
+      children: educationChildren,
+    },
+    risk: {
+      totalDebt: n(debt["totalConsumerDebt"] ?? debt["total_consumer_debt"]),
+      debtBreakdown,
+      annualIncome,
+      replacementYears: n(goalIncome["replacementYears"] ?? goalIncome["replacement_years"]) || 10,
+      mortgageBalance: mortgageFromCase,
+      educationNeed: n(
+        goalEducation["projectedTotalEducationNeed"] ?? goalEducation["projected_total_education_need"]
+      ),
+      educationChildren,
+      finalExpenses: 25_000,
+      estateCosts: n(goalEstate["baseEstateNeed"] ?? goalEstate["base_estate_need"]),
+      debtPayoffMonths:
+        n(((debt["avalancheStrategy"] as Dict | undefined) ?? {})["payoffMonths"]) || 36,
+    },
+    accumulation: {
+      retirementAccounts: n(((nwCategories["retirement"] as Dict | undefined) ?? {})["total"]),
+      investments: n(((nwCategories["investments"] as Dict | undefined) ?? {})["total"]),
+      savings: n(((nwCategories["savings"] as Dict | undefined) ?? {})["total"]),
+      realEstateEquity: n(((nwCategories["realEstate"] as Dict | undefined) ?? {})["total"]),
+      otherAssets: n(((nwCategories["other"] as Dict | undefined) ?? {})["total"]),
+      totalCurrentAssets: totalAssets,
+      existingLifeInsurance: existingLifeCoverage,
+      monthlyContributions: retirementMonthly,
+      employerMatch,
+      monthlySurplus: n(cashFlow["monthlySurplusOrDeficit"] ?? cashFlow["monthly_surplus_or_deficit"]),
+      projectedNetWorthAtRetirement: n(
+        goalNetWorth["projectedNetWorthAtRetirement"] ?? goalNetWorth["projected_net_worth_at_retirement"]
+      ),
+    },
+    retirement: {
+      targetAge: retirementAge,
+      desiredMonthlyIncome:
+        n(hsGoalSummary["desiredMonthlyIncome"] ?? hsGoalSummary["desired_monthly_income"]) || 0,
+      desiredAnnualIncome:
+        n(hsGoalSummary["desiredMonthlyIncome"] ?? hsGoalSummary["desired_monthly_income"]) * 12 || 0,
+      yearsInRetirement: Math.max(20, 90 - retirementAge),
+      monthlyExpenses:
+        n(cashFlow["totalMonthlyExpenses"] ?? cashFlow["total_monthly_expenses"]) || 0,
+      projected401kWithdrawal: n(
+        goalRet["projectedAnnual401kWithdrawal"] ?? goalRet["projected_annual_401k_withdrawal"]
+      ),
+      projectedSocialSecurity: n(
+        goalRet["projectedSocialSecurityAnnual"] ?? goalRet["projected_social_security_annual"]
+      ),
+      projectedPension: n(goalRet["projectedPensionAnnual"] ?? goalRet["projected_pension_annual"]),
+      retirementIncomeGapAnnual: n(
+        goalRet["retirementIncomeGapAnnual"] ?? goalRet["retirement_income_gap_annual"]
+      ),
+      retirementIncomeGapMonthly: n(
+        goalRet["retirementIncomeGapMonthly"] ?? goalRet["retirement_income_gap_monthly"]
+      ),
+      retirementReadiness: n(
+        goalRet["retirementReadinessScore"] ?? goalRet["retirement_readiness_score"]
+      ),
+    },
+  };
+}
+
+function buildCurve(
+  inputs: XCurveInputs,
+  editable: DimeEditable
+): {
+  points: CurvePoint[];
+  crossingAge: number | null;
+  grossRisk: number;
+  netRisk: number;
+  coverageGap: number;
+  currentGap: number;
+} {
+  const currentAge = inputs.client.primaryAge;
+  const retirementAge = inputs.retirement.targetAge;
+  const endAge = 90;
+
+  const incomeReplacementNeed = inputs.risk.annualIncome * editable.replacementYears;
+  const grossRisk =
+    editable.debt +
+    incomeReplacementNeed +
+    editable.mortgage +
+    editable.education +
+    editable.finalExpenses +
+    inputs.risk.estateCosts;
+  const netRisk = Math.max(0, grossRisk - inputs.accumulation.totalCurrentAssets);
+  const coverageGap = Math.max(0, netRisk - inputs.accumulation.existingLifeInsurance);
+
+  const points: CurvePoint[] = [];
+  for (let age = currentAge; age <= endAge; age += 1) {
+    const yearsFromNow = age - currentAge;
+
+    const mortgageTerm = 30;
+    const mortgageYearsRemaining = Math.max(0, mortgageTerm - yearsFromNow);
+    const mortgageAtAge = editable.mortgage * (mortgageYearsRemaining / mortgageTerm);
+
+    const yearsToRetirement = Math.max(0, retirementAge - age);
+    const incomeReplacementAtAge =
+      inputs.risk.annualIncome * Math.min(yearsToRetirement, editable.replacementYears);
+
+    const educationAtAge = calculateEducationNeedAtAge(
+      inputs.risk.educationChildren,
+      age,
+      currentAge
+    );
+
+    const debtAtAge =
+      yearsFromNow * 12 >= inputs.risk.debtPayoffMonths
+        ? 0
+        : editable.debt * (1 - yearsFromNow * 12 / inputs.risk.debtPayoffMonths);
+
+    const fixedRisk = editable.finalExpenses + inputs.risk.estateCosts;
+    const riskAtAge = Math.max(0, mortgageAtAge + incomeReplacementAtAge + educationAtAge + debtAtAge + fixedRisk);
+
+    const growthRate = 0.07;
+    const retirementAtAge =
+      inputs.accumulation.retirementAccounts * Math.pow(1 + growthRate, yearsFromNow);
+    const annualContributions =
+      (inputs.accumulation.monthlyContributions +
+        inputs.accumulation.employerMatch +
+        Math.max(0, inputs.accumulation.monthlySurplus * 0.35)) *
+      12;
+    const contributionGrowth =
+      annualContributions > 0
+        ? annualContributions * ((Math.pow(1 + growthRate, yearsFromNow) - 1) / growthRate)
+        : 0;
+    const investmentsAtAge = inputs.accumulation.investments * Math.pow(1 + 0.06, yearsFromNow);
+    const savingsAtAge = inputs.accumulation.savings * Math.pow(1 + 0.02, yearsFromNow);
+    const realEstateAtAge = inputs.accumulation.realEstateEquity * Math.pow(1 + 0.03, yearsFromNow);
+    const otherAssetsAtAge = inputs.accumulation.otherAssets * Math.pow(1 + 0.03, yearsFromNow);
+    const coverageAtAge = inputs.accumulation.existingLifeInsurance;
+
+    let accumulationAtAge =
+      retirementAtAge +
+      contributionGrowth +
+      investmentsAtAge +
+      savingsAtAge +
+      realEstateAtAge +
+      otherAssetsAtAge +
+      coverageAtAge;
+
+    if (age > retirementAge) {
+      const yearsInRetirement = age - retirementAge;
+      const annualWithdrawal =
+        inputs.retirement.desiredAnnualIncome > 0
+          ? inputs.retirement.desiredAnnualIncome
+          : inputs.retirement.monthlyExpenses * 12;
+      accumulationAtAge = Math.max(0, accumulationAtAge - annualWithdrawal * yearsInRetirement);
+    }
+
+    const gap = Math.max(0, riskAtAge - accumulationAtAge);
+    points.push({
+      age,
+      risk: Math.round(riskAtAge),
+      accumulation: Math.round(accumulationAtAge),
+      gap: Math.round(gap),
+      accumulationBase: Math.round(accumulationAtAge),
+    });
+  }
+
+  let crossingAge: number | null = null;
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const cur = points[i];
+    if (prev.risk > prev.accumulation && cur.risk <= cur.accumulation) {
+      crossingAge = cur.age;
+      break;
+    }
+  }
+
+  return {
+    points,
+    crossingAge,
+    grossRisk: Math.round(grossRisk),
+    netRisk: Math.round(netRisk),
+    coverageGap: Math.round(coverageGap),
+    currentGap: Math.round(points[0]?.gap ?? 0),
+  };
+}
+
+function calculateMilestones(inputs: XCurveInputs) {
+  const currentAge = inputs.client.primaryAge;
+  const childrenCollege = (inputs.client.children ?? [])
+    .map((child) => ({
+      name: child.name || "Child",
+      parentAgeAtCollege: currentAge + (18 - n(child.age)),
+    }))
+    .filter((x) => x.parentAgeAtCollege > currentAge && x.parentAgeAtCollege < 90);
+
+  const mortgagePayoff = currentAge + 30;
+  const debtFreeAge = currentAge + Math.ceil(inputs.risk.debtPayoffMonths / 12);
+  return {
+    currentAge,
+    retirementAge: inputs.retirement.targetAge,
+    childrenCollege,
+    mortgagePayoff: mortgagePayoff <= 90 ? mortgagePayoff : null,
+    debtFreeAge: debtFreeAge <= 90 ? debtFreeAge : null,
+  };
+}
+
+function formatAmount(amount: number): string {
+  const v = Math.round(Math.max(0, amount));
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 10_000) return `$${v.toLocaleString()}`;
+  return `$${v}`;
+}
+
+function formatAmountCompact(amount: number): string {
+  const v = Math.round(Math.max(0, amount));
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${Math.round(v / 1_000)}K`;
+  return `$${v}`;
+}
+
+function getResponsibilities(inputs: XCurveInputs, editable: DimeEditable) {
+  const monthlyBase = Math.max(0, inputs.retirement.monthlyExpenses);
+  const debtStatus =
+    editable.debt > 0 ? `${formatAmountCompact(editable.debt)} total` : "Debt-free";
+  const mortgageStatus =
+    editable.mortgage > 0 ? formatAmount(editable.mortgage) : "No mortgage";
+  return [
+    { label: "Housing", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.3)}/mo` : "Not captured" },
+    { label: "Food/Groceries", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.16)}/mo` : "Not captured" },
+    { label: "Childcare/Edu", value: inputs.client.children.length > 0 ? `${formatAmount(monthlyBase * 0.12)}/mo` : "N/A" },
+    { label: "Transportation", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.08)}/mo` : "Not captured" },
+    { label: "Healthcare", value: "Not captured" },
+    { label: "Debts", value: debtStatus },
+    { label: "Mortgage", value: mortgageStatus },
+  ];
+}
+
+function truncateText(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  return `${text.slice(0, maxLen - 1)}…`;
+}
+
+function positionMilestones(
+  milestones: Array<{ label: string; age: number }>,
+  svgWidth: number
+): Array<{ label: string; age: number; x: number; labelAbove: boolean }> {
+  const minAge = 25;
+  const maxAge = 90;
+  const padding = 70;
+  const usableWidth = svgWidth - padding * 2;
+  const positioned = milestones
+    .map((m) => ({
+      ...m,
+      x: padding + ((m.age - minAge) / (maxAge - minAge)) * usableWidth,
+      labelAbove: false,
+    }))
+    .sort((a, b) => a.x - b.x);
+
+  for (let i = 1; i < positioned.length; i += 1) {
+    const prev = positioned[i - 1];
+    const cur = positioned[i];
+    if (cur.x - prev.x < 60) {
+      cur.labelAbove = !prev.labelAbove;
+    }
+  }
+  return positioned;
+}
+
+function DimeRow({
+  letter,
+  title,
+  colorClass,
+  amount,
+  onChange,
+  subtitle,
+  breakdown,
+}: {
+  letter: string;
+  title: string;
+  colorClass: string;
+  amount: number;
+  onChange: (next: number) => void;
+  subtitle?: string;
+  breakdown?: Array<{ label: string; amount: number }>;
+}) {
+  const [editing, setEditing] = useState(false);
   return (
-    <div className="space-y-5">
-      {/* Visual buckets */}
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h4 className="mb-4 text-sm font-bold">Tax Bucket Strategy</h4>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border-2 border-red-300 bg-red-50/50 p-4 dark:border-red-800 dark:bg-red-950/20">
-            <div className="mb-2 text-2xl">🔴</div>
-            <h5 className="text-sm font-bold text-red-700 dark:text-red-300">TAX NOW</h5>
-            <p className="text-xs text-red-600 dark:text-red-400">Taxable</p>
-            <p className="mt-2 text-xs text-muted-foreground">Brokerage, savings, CDs, bonds — taxed as earned</p>
-          </div>
-          <div className="rounded-xl border-2 border-yellow-300 bg-yellow-50/50 p-4 dark:border-yellow-800 dark:bg-yellow-950/20">
-            <div className="mb-2 text-2xl">🟡</div>
-            <h5 className="text-sm font-bold text-yellow-700 dark:text-yellow-300">TAX LATER</h5>
-            <p className="text-xs text-yellow-600 dark:text-yellow-400">Deferred</p>
-            <p className="mt-2 text-xs text-muted-foreground">401(k), Traditional IRA — taxed on withdrawal. RMD at 73!</p>
-          </div>
-          <div className="rounded-xl border-2 border-green-300 bg-green-50/50 p-4 dark:border-green-800 dark:bg-green-950/20">
-            <div className="mb-2 text-2xl">🟢</div>
-            <h5 className="text-sm font-bold text-green-700 dark:text-green-300">TAX ADVANTAGED</h5>
-            <p className="text-xs text-green-600 dark:text-green-400">Tax-Free Future</p>
-            <p className="mt-2 text-xs text-muted-foreground">Roth IRA, 7702/CVL — no tax in future, no RMD</p>
+    <div className="rounded-lg border bg-background p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex size-7 items-center justify-center rounded-full text-xs font-bold text-white ${colorClass}`}
+          >
+            {letter}
+          </span>
+          <div>
+            <p className="text-sm font-semibold">{title}</p>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          {editing ? (
+            <Input
+              type="number"
+              value={amount}
+              onChange={(e) => onChange(n(e.target.value))}
+              onBlur={() => setEditing(false)}
+              className="h-8 w-32 text-right"
+              autoFocus
+            />
+          ) : (
+            <>
+              <span className="font-mono text-sm font-semibold">{formatCurrency(amount)}</span>
+              <button
+                type="button"
+                className="rounded p-1 text-muted-foreground hover:bg-muted"
+                onClick={() => setEditing(true)}
+                aria-label={`Edit ${title}`}
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
-
-      {/* AI Narrative */}
-      {taxNarr && (
-        <div className="space-y-4">
-          {taxNarr.bucketNarrative && (
-            <div className="rounded-xl border border-l-4 border-l-indigo-500 bg-card p-5 shadow-sm">
-              <h4 className="mb-2 text-sm font-bold text-indigo-600">Tax Diversification Analysis</h4>
-              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{taxNarr.bucketNarrative}</p>
+      {amount === 0 && (
+        <div className="mt-2 rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
+          No data captured. Click the pencil icon to add this value.
+        </div>
+      )}
+      {breakdown && breakdown.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {breakdown.slice(0, 4).map((row, i) => (
+            <div key={`${row.label}-${i}`} className="flex justify-between text-xs text-muted-foreground">
+              <span>{row.label}</span>
+              <span className="font-mono">{formatCurrency(row.amount)}</span>
             </div>
-          )}
-          {taxNarr.diversificationRecommendation && (
-            <div className="rounded-xl border border-l-4 border-l-emerald-500 bg-card p-5 shadow-sm">
-              <h4 className="mb-2 text-sm font-bold text-emerald-600">Recommendation</h4>
-              <p className="text-sm leading-relaxed text-muted-foreground">{taxNarr.diversificationRecommendation}</p>
-            </div>
-          )}
-          {taxNarr.rmdWarning && (
-            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
-              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
-              <div>
-                <p className="text-sm font-bold text-amber-700 dark:text-amber-300">RMD Warning</p>
-                <p className="mt-1 text-sm text-muted-foreground">{taxNarr.rmdWarning}</p>
-              </div>
-            </div>
-          )}
-          {taxNarr.actionBridge && (
-            <p className="rounded-lg bg-blue-50/50 p-4 text-sm font-medium text-blue-700 dark:bg-blue-950/20 dark:text-blue-300">{taxNarr.actionBridge}</p>
-          )}
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ── Roth vs 7702 Tab ─────────────────────────────────────────
-
-function RothVs7702Tab({ caseId }: { caseId: string }) {
-  const mutation = useRothVs7702();
-  const [income, setIncome] = useState(175000);
-  const [age, setAge] = useState(35);
-  const [ran, setRan] = useState(false);
-
-  const handleRun = () => {
-    mutation.mutate({ caseId, householdIncome: income, clientAge: age, hasDependents: true, hasCoverageGap: true });
-    setRan(true);
-  };
-
-  const data = mutation.data;
-
-  return (
-    <div className="space-y-5">
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h4 className="mb-3 text-sm font-bold">Roth IRA vs 7702 (CVL/IUL) Comparison</h4>
-        <div className="mb-4 flex items-end gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Household Income</Label>
-            <Input type="number" value={income} onChange={(e) => setIncome(Number(e.target.value))} className="w-40" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Client Age</Label>
-            <Input type="number" value={age} onChange={(e) => setAge(Number(e.target.value))} className="w-24" />
-          </div>
-          <Button size="sm" onClick={handleRun} disabled={mutation.isPending}>
-            {mutation.isPending ? <><Loader2 className="mr-1 size-3.5 animate-spin" /> Computing...</> : ran ? "Recompute" : "Run Comparison"}
-          </Button>
-        </div>
-
-        {data?.comparison && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-2 text-left font-semibold">Feature</th>
-                  <th className="py-2 text-center font-semibold text-blue-600">Roth IRA</th>
-                  <th className="py-2 text-center font-semibold text-emerald-600">7702 (CVL/IUL)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(Array.isArray(data.comparison) ? data.comparison : data.comparison.rows ?? []).map((row: any, i: number) => (
-                  <tr key={i} className={cn("border-b", row.highlight === "7702" ? "bg-emerald-50/50 dark:bg-emerald-950/10" : row.highlight === "roth" ? "bg-blue-50/50 dark:bg-blue-950/10" : "")}>
-                    <td className="py-2 font-medium">{row.feature ?? row.label}</td>
-                    <td className="py-2 text-center">{row.roth ?? row.rothIra}</td>
-                    <td className="py-2 text-center">{row["7702"] ?? row.cvlIul ?? row.iul}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {data?.recommendation && (
-          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
-            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{typeof data.recommendation === "string" ? data.recommendation : data.recommendation.text ?? JSON.stringify(data.recommendation)}</p>
-          </div>
-        )}
-      </div>
-    </div>
+export function XCurveScreen({
+  caseId: _caseId,
+  caseData,
+  healthScore,
+  fullAnalysis,
+  onContinue,
+}: XCurveScreenProps) {
+  const inputs = useMemo(
+    () => deriveXCurveInputs(caseData, healthScore, fullAnalysis),
+    [caseData, healthScore, fullAnalysis]
   );
-}
 
-// ── College Planning Tab ─────────────────────────────────────
+  const [editable, setEditable] = useState<DimeEditable>({
+    debt: inputs.risk.totalDebt,
+    replacementYears: inputs.risk.replacementYears,
+    mortgage: inputs.risk.mortgageBalance,
+    education: inputs.risk.educationNeed,
+    finalExpenses: inputs.risk.finalExpenses,
+  });
 
-function CollegePlanningTab({ caseId }: { caseId: string }) {
-  const mutation = useCollegeFunding();
-  const [childName, setChildName] = useState("");
-  const [childAge, setChildAge] = useState(5);
-  const [monthly, setMonthly] = useState(300);
-  const [ran, setRan] = useState(false);
+  useEffect(() => {
+    setEditable({
+      debt: inputs.risk.totalDebt,
+      replacementYears: inputs.risk.replacementYears,
+      mortgage: inputs.risk.mortgageBalance,
+      education: inputs.risk.educationNeed,
+      finalExpenses: inputs.risk.finalExpenses,
+    });
+  }, [
+    inputs.risk.totalDebt,
+    inputs.risk.replacementYears,
+    inputs.risk.mortgageBalance,
+    inputs.risk.educationNeed,
+    inputs.risk.finalExpenses,
+  ]);
 
-  const handleRun = () => {
-    if (!childName) return;
-    mutation.mutate({ caseId, childName, childAge, monthlyContribution: monthly });
-    setRan(true);
-  };
-
-  const data = mutation.data;
-
-  return (
-    <div className="space-y-5">
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h4 className="mb-3 text-sm font-bold">College Education Planning</h4>
-        <div className="mb-4 flex flex-wrap items-end gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Child Name</Label>
-            <Input value={childName} onChange={(e) => setChildName(e.target.value)} placeholder="e.g. Siran" className="w-36" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Child Age</Label>
-            <Input type="number" value={childAge} onChange={(e) => setChildAge(Number(e.target.value))} className="w-20" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Monthly Contribution</Label>
-            <Input type="number" value={monthly} onChange={(e) => setMonthly(Number(e.target.value))} className="w-28" />
-          </div>
-          <Button size="sm" onClick={handleRun} disabled={mutation.isPending || !childName}>
-            {mutation.isPending ? <><Loader2 className="mr-1 size-3.5 animate-spin" /> Computing...</> : ran ? "Recompute" : "Run Comparison"}
-          </Button>
-        </div>
-
-        {data && (
-          <div className="space-y-4">
-            {/* 529 vs IUL cards */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border-2 border-blue-300 bg-blue-50/50 p-4 dark:border-blue-800 dark:bg-blue-950/20">
-                <h5 className="text-sm font-bold text-blue-700 dark:text-blue-300">529 Plan</h5>
-                {data.plan529 && (
-                  <div className="mt-3 space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Projected (moderate):</span><span className="font-semibold">{fmt(data.plan529.projectedValue?.moderate)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">FAFSA impact/yr:</span><span className="font-semibold text-amber-600">{fmt(data.plan529.fafsaImpactAnnual)}</span></div>
-                  </div>
-                )}
-              </div>
-              <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
-                <h5 className="text-sm font-bold text-emerald-700 dark:text-emerald-300">IUL / CVL (Policy Loan)</h5>
-                {data.iulCollege && (
-                  <div className="mt-3 space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Cash value at college:</span><span className="font-semibold">{fmt(data.iulCollege.cashValueAtCollege?.moderate)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">FAFSA impact:</span><span className="font-semibold text-emerald-600">$0 (invisible)</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Death benefit:</span><span className="font-semibold">{fmt(data.iulCollege.deathBenefit)}</span></div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Comparison table */}
-            {data.comparisonTable && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="py-2 text-left font-semibold">Feature</th>
-                      <th className="py-2 text-center font-semibold text-blue-600">529</th>
-                      <th className="py-2 text-center font-semibold text-emerald-600">IUL</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Array.isArray(data.comparisonTable) ? data.comparisonTable : data.comparisonTable.rows ?? []).map((row: any, i: number) => (
-                      <tr key={i} className={cn("border-b", row.advantage === "iul" ? "bg-emerald-50/30 dark:bg-emerald-950/10" : row.advantage === "529" ? "bg-blue-50/30 dark:bg-blue-950/10" : "")}>
-                        <td className="py-2 font-medium">{row.feature}</td>
-                        <td className="py-2 text-center">{row["529"] ?? row.plan529}</td>
-                        <td className="py-2 text-center">{row.iul ?? row.iulCollege}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {data.recommendation && (
-              <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4 dark:border-indigo-900 dark:bg-indigo-950/20">
-                <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{typeof data.recommendation === "string" ? data.recommendation : JSON.stringify(data.recommendation)}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+  const curve = useMemo(() => buildCurve(inputs, editable), [inputs, editable]);
+  const milestones = useMemo(() => calculateMilestones(inputs), [inputs]);
+  const responsibilities = useMemo(
+    () => getResponsibilities(inputs, editable),
+    [inputs, editable]
   );
-}
 
-// ── Retirement Income Tab ────────────────────────────────────
+  const svgWidth = 1040;
+  const svgHeight = 760;
+  const centerX = svgWidth / 2;
+  const centerY = svgHeight / 2 - 30;
+  const curveBottomY = 600;
+  const upperLeftMaxX = svgWidth * 0.38;
+  const lowerTextStartY = curveBottomY + 30;
+  const maxValueRightEdge = svgWidth * 0.30;
+  const leftDataStartY = svgHeight * 0.30;
+  const rightDataStartY = leftDataStartY;
+  const lineHeight = 38;
+  const freedomCheckX = svgWidth * 0.64;
+  const freedomTextX = svgWidth * 0.67;
+  const moneyLineStartX = 60;
+  const moneyLineStartY = curveBottomY;
+  const respLineEndX = 980;
+  const respLineEndY = curveBottomY;
+  const responsibilityPath = `
+    M 60,95
+    C 250,95 390,235 ${centerX},${centerY}
+    S 780,${curveBottomY} 980,${curveBottomY}
+  `;
+  const moneyLinePath = `
+    M 60,${curveBottomY}
+    C 250,${curveBottomY} 390,455 ${centerX},${centerY}
+    S 780,95 980,95
+  `;
 
-function RetirementIncomeTab({ caseId }: { caseId: string }) {
-  const mutation = useRolloverOptions();
-  const [balance, setBalance] = useState(200000);
-  const [employer, setEmployer] = useState("");
-  const [age, setAge] = useState(35);
-  const [ran, setRan] = useState(false);
+  const retirementExpenses = useMemo(() => {
+    const mortgagePaidOff = milestones.mortgagePayoff !== null && milestones.mortgagePayoff <= inputs.retirement.targetAge;
+    return estimateRetirementExpenses(inputs.retirement.monthlyExpenses || 5_000, mortgagePaidOff);
+  }, [inputs.retirement.monthlyExpenses, inputs.retirement.targetAge, milestones.mortgagePayoff]);
 
-  const handleRun = () => {
-    if (!employer) return;
-    mutation.mutate({ caseId, old401kBalance: balance, employerName: employer, clientAge: age });
-    setRan(true);
-  };
+  const retirementCorpus = useMemo(
+    () =>
+      calculateRetirementCorpus(retirementExpenses.totalAnnual, inputs.retirement.yearsInRetirement, 0.03),
+    [retirementExpenses.totalAnnual, inputs.retirement.yearsInRetirement]
+  );
 
-  const data = mutation.data;
+  const retirementIncomeTotal =
+    inputs.retirement.projected401kWithdrawal +
+    inputs.retirement.projectedSocialSecurity +
+    inputs.retirement.projectedPension;
+
+  const retirementDeficit = Math.max(0, retirementCorpus.recommended - inputs.accumulation.projectedNetWorthAtRetirement);
+
+  const timelineMilestones = [
+    { label: "Age", age: inputs.client.primaryAge },
+    ...(curve.crossingAge !== null ? [{ label: "Cross", age: curve.crossingAge }] : []),
+    { label: "Retire", age: inputs.retirement.targetAge },
+    { label: "SS", age: 67 },
+    ...(milestones.mortgagePayoff ? [{ label: "Mtg off", age: milestones.mortgagePayoff }] : []),
+  ]
+    .filter((m, idx, arr) => arr.findIndex((x) => x.label === m.label && x.age === m.age) === idx)
+    .slice(0, 7);
+  const positionedMilestones = positionMilestones(timelineMilestones, svgWidth);
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h4 className="mb-3 text-sm font-bold">Pension / Annuity Strategy — 401(k) Rollover Options</h4>
-        <div className="mb-4 flex flex-wrap items-end gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Old 401(k) Balance</Label>
-            <Input type="number" value={balance} onChange={(e) => setBalance(Number(e.target.value))} className="w-36" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Previous Employer</Label>
-            <Input value={employer} onChange={(e) => setEmployer(e.target.value)} placeholder="e.g. Delta" className="w-36" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Client Age</Label>
-            <Input type="number" value={age} onChange={(e) => setAge(Number(e.target.value))} className="w-20" />
-          </div>
-          <Button size="sm" onClick={handleRun} disabled={mutation.isPending || !employer}>
-            {mutation.isPending ? <><Loader2 className="mr-1 size-3.5 animate-spin" /> Computing...</> : ran ? "Recompute" : "Analyze Options"}
-          </Button>
+    <div className="space-y-6">
+      <div className="rounded-xl border bg-card p-5">
+        <h2 className="text-xl font-bold text-[#1B365D]">Financial X-Curve</h2>
+        <p className="text-sm text-muted-foreground">Your lifetime financial risk vs accumulation</p>
+      </div>
+
+      <section className="rounded-xl border bg-[#FAFAF7] p-4 md:p-5">
+        <div className="mb-4">
+          <p className="text-sm font-semibold text-[#1B365D]">The X-Curve Diagram</p>
+          <p className="text-xs text-muted-foreground">
+            Responsibility line and money line crossing in the center.
+          </p>
         </div>
+        <div className="w-full overflow-x-auto rounded-xl border bg-white p-2">
+          <svg
+            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+            className="xcurve-diagram mx-auto h-[420px] w-full md:h-[600px]"
+            preserveAspectRatio="xMidYMid meet"
+          >
+            <path
+              d={responsibilityPath}
+              className="xcurve-responsibility-line"
+              stroke="#1B365D"
+              strokeWidth="9"
+              strokeDasharray="20 10"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <path
+              d={moneyLinePath}
+              className="xcurve-money-line"
+              stroke="#8B0000"
+              strokeWidth="9"
+              strokeDasharray="20 10"
+              fill="none"
+              strokeLinecap="round"
+            />
 
-        {data && (
-          <div className="space-y-4">
-            {/* Cash-out penalty warning */}
-            {data.cashOutPenalty && (
-              <div className="rounded-lg border-2 border-red-300 bg-red-50/50 p-4 dark:border-red-800 dark:bg-red-950/20">
-                <p className="text-sm font-bold text-red-700 dark:text-red-300">⚠️ Cash Out = WORST Option</p>
-                <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
-                  <div><span className="text-muted-foreground">10% Penalty:</span> <span className="font-semibold">{fmt(data.cashOutPenalty.penalty10pct)}</span></div>
-                  <div><span className="text-muted-foreground">Federal Tax:</span> <span className="font-semibold">{fmt(data.cashOutPenalty.federalTax)}</span></div>
-                  <div><span className="text-muted-foreground">Total Loss:</span> <span className="font-bold text-red-600">{fmt(data.cashOutPenalty.totalLoss)} ({pct(data.cashOutPenalty.lossPercentage)})</span></div>
-                </div>
-              </div>
-            )}
+            <text x="235" y="128" fill="#1B365D" fontSize="20" fontWeight="700" fontStyle="italic" transform="rotate(-18,235,128)">
+              Responsibility Line
+            </text>
+            <text x={svgWidth * 0.68} y="120" fill="#8B0000" fontSize="20" fontWeight="700" fontStyle="italic" transform={`rotate(-28, ${svgWidth * 0.68}, 120)`}>
+              MONEY LINE
+            </text>
 
-            {/* Rollover options */}
-            {data.options?.map((opt: any, i: number) => (
-              <div key={i} className={cn("rounded-xl border bg-card p-4 shadow-sm", opt.riskLevel === "low" ? "border-l-4 border-l-emerald-500" : opt.riskLevel === "high" ? "border-l-4 border-l-red-400" : "border-l-4 border-l-amber-400")}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold">{opt.name}</p>
-                    <p className="text-xs text-muted-foreground">{opt.description}</p>
-                  </div>
-                  {opt.projectedValueAt65 != null && <p className="shrink-0 text-sm font-bold">{fmt(opt.projectedValueAt65)}</p>}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                  {opt.pros?.map((p: string, j: number) => (
-                    <span key={j} className="rounded bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">✓ {p}</span>
-                  ))}
-                  {opt.cons?.map((c: string, j: number) => (
-                    <span key={j} className="rounded bg-red-100 px-2 py-0.5 text-red-700 dark:bg-red-900/30 dark:text-red-300">✗ {c}</span>
-                  ))}
-                </div>
-              </div>
+            <text x="42" y="52" fill="#1B365D" fontSize="14" fontWeight="700">Big</text>
+            <text x="42" y="72" fill="#1B365D" fontSize="14" fontWeight="700">Resp.</text>
+            <text x={svgWidth - 80} y="45" fill="#8B0000" fontSize="14" fontWeight="700" textAnchor="end">Big</text>
+            <text x={svgWidth - 80} y="62" fill="#8B0000" fontSize="14" fontWeight="700" textAnchor="end">Savings</text>
+            <text x={moneyLineStartX - 5} y={moneyLineStartY - 12} fill="#8B0000" fontSize="14" fontWeight="700" textAnchor="end">No</text>
+            <text x={moneyLineStartX - 5} y={moneyLineStartY + 3} fill="#8B0000" fontSize="14" fontWeight="700" textAnchor="end">Savings</text>
+            <text x={respLineEndX + 5} y={respLineEndY - 12} fill="#1B365D" fontSize="14" fontWeight="700">No</text>
+            <text x={respLineEndX + 5} y={respLineEndY + 3} fill="#1B365D" fontSize="14" fontWeight="700">Resp.</text>
+
+            {responsibilities.map((item, idx) => (
+              <g key={`resp-${idx}`}>
+                <text x="78" y={leftDataStartY + idx * lineHeight} fill="#1B365D" fontSize="13">
+                  {item.value === "Not captured" ? "⚠" : "✓"}
+                </text>
+                <text x="103" y={leftDataStartY + idx * lineHeight} fill="#1B365D" fontSize="13">
+                  {truncateText(item.label, 16)}
+                </text>
+                <text
+                  x={Math.min(maxValueRightEdge, upperLeftMaxX - 20)}
+                  y={leftDataStartY + idx * lineHeight}
+                  textAnchor="end"
+                  fill={item.value === "Not captured" ? "#D4A84B" : "#1B365D"}
+                  fontSize="13"
+                  fontWeight="700"
+                >
+                  {item.value === "Not captured" ? "⚠ Not captured" : truncateText(item.value, 13)}
+                </text>
+              </g>
             ))}
 
-            {/* Systematic vs FIA comparison */}
-            {(data.systematicWithdrawal || data.fiaProjection) && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {data.systematicWithdrawal && (
-                  <div className="rounded-xl border-2 border-amber-300 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
-                    <h5 className="text-sm font-bold text-amber-700 dark:text-amber-300">Systematic Withdrawal (4% Rule)</h5>
-                    <div className="mt-2 space-y-1 text-sm">
-                      <p>Monthly Income: <strong>{fmt(data.systematicWithdrawal.monthlyIncome)}</strong></p>
-                      <p className="text-xs text-muted-foreground">Risk: Market downturn + longevity = could deplete</p>
-                    </div>
-                  </div>
-                )}
-                {data.fiaProjection && (
-                  <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
-                    <h5 className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Fixed Index Annuity (Private Pension)</h5>
-                    <div className="mt-2 space-y-1 text-sm">
-                      <p>Guaranteed Monthly: <strong>{fmt(data.fiaProjection.guaranteedMonthlyIncome)}</strong></p>
-                      <p className="text-xs text-muted-foreground">Income for life · 0% floor · Never depletes</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            {[
+              "Food expenses covered",
+              `Mortgage off by ${milestones.mortgagePayoff ?? "-"}`,
+              "Education funded",
+              "Healthcare covered",
+              `Debt-free by ${milestones.debtFreeAge ?? "-"}`,
+              `${formatAmount(inputs.retirement.desiredMonthlyIncome || retirementIncomeTotal / 12)}/mo passive`,
+            ].map((item, idx) => (
+              <g key={`target-${idx}`}>
+                <text x={freedomCheckX} y={rightDataStartY + idx * lineHeight} fill="#8B0000" fontSize="13" fontWeight="700">✓</text>
+                <text x={freedomTextX} y={rightDataStartY + idx * lineHeight} fill="#8B0000" fontSize="13">{truncateText(item, 24)}</text>
+              </g>
+            ))}
 
-            {data.recommendation && (
-              <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4 dark:border-indigo-900 dark:bg-indigo-950/20">
-                <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{typeof data.recommendation === "string" ? data.recommendation : JSON.stringify(data.recommendation)}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+            <text x={svgWidth * 0.25} y={lowerTextStartY} fill="#1B365D" fontSize="16" fontWeight="700" textDecoration="underline" textAnchor="middle">Active Income</text>
+            <text x={svgWidth * 0.25} y={lowerTextStartY + 20} fill="#1B365D" fontSize="13" textAnchor="middle">(Man At Work)</text>
+            <text x={svgWidth * 0.25} y={lowerTextStartY + 42} fill="#1B365D" fontSize="12" textAnchor="middle">
+              {inputs.client.primaryName} earns {formatAmount(inputs.risk.annualIncome)}/yr
+            </text>
 
-// ── Main Screen ──────────────────────────────────────────────
+            <text x={svgWidth * 0.75} y={lowerTextStartY} fill="#8B0000" fontSize="16" fontWeight="700" textDecoration="underline" textAnchor="middle">Passive Income</text>
+            <text x={svgWidth * 0.75} y={lowerTextStartY + 20} fill="#8B0000" fontSize="13" textAnchor="middle">(Money At Work)</text>
+            <text x={svgWidth * 0.75} y={lowerTextStartY + 42} fill="#8B0000" fontSize="12" textAnchor="middle">
+              Target {formatAmount(inputs.retirement.desiredMonthlyIncome || retirementIncomeTotal / 12)}/mo by age {inputs.retirement.targetAge}
+            </text>
 
-export function XCurveScreen({ caseId, onContinue }: XCurveScreenProps) {
-  const [activeTab, setActiveTab] = useState<SubTab>("xcurve");
+            {(() => {
+              const timelineY = svgHeight * 0.94;
+              return (
+                <>
+                  <line x1="60" y1={timelineY} x2={svgWidth - 60} y2={timelineY} stroke="#1B365D" strokeWidth="2" />
+            <text x="70" y={svgHeight * 0.9} fill="#1B365D" fontSize="28" fontWeight="700">YOUNG</text>
+                  <text x={centerX} y={svgHeight - 20} fill="#1B365D" fontSize="24" fontWeight="700" textAnchor="middle" textDecoration="underline">LIFE</text>
+            <text x={svgWidth - 70} y={svgHeight * 0.9} fill="#1B365D" fontSize="28" fontWeight="700" textAnchor="end">OLD</text>
 
-  return (
-    <div className="space-y-0">
-      <div className="flex items-center gap-3 rounded-t-xl border-b bg-muted/30 px-4 py-2.5">
-        <h2 className="text-base font-bold">Presentation Flow</h2>
-        <span className="text-xs text-muted-foreground">X-Curve, Tax Strategy, Comparisons & Planning</span>
-      </div>
+                  {positionedMilestones.map((m, idx) => {
+                    const x = m.x;
+                    const labelY = m.labelAbove ? timelineY - 18 : timelineY + 16;
+                    const isCurrentAge = m.label === "Age" && m.age === inputs.client.primaryAge;
+                    return (
+                      <g key={`${m.label}-${m.age}-${idx}`}>
+                        <line x1={x} y1={timelineY} x2={x} y2={m.labelAbove ? timelineY - 12 : timelineY + 10} stroke="#636E72" strokeWidth="2" />
+                        <circle cx={x} cy={timelineY} r={isCurrentAge ? 6 : 4} fill={isCurrentAge ? "#E74C3C" : "#636E72"} stroke={isCurrentAge ? "white" : "none"} strokeWidth={isCurrentAge ? 2 : 0} />
+                        {isCurrentAge ? (
+                          <>
+                            <text x={x} y={timelineY - 12} textAnchor="middle" fill="#E74C3C" fontSize="11" fontWeight="700">
+                              ▲ You are here
+                            </text>
+                            <text x={x} y={timelineY + 16} textAnchor="middle" fill="#636E72" fontSize="10" fontWeight="700">
+                              Age {m.age}
+                            </text>
+                          </>
+                        ) : (
+                          <text x={x} y={labelY} textAnchor="middle" fill="#636E72" fontSize="10" fontWeight="700">
+                            {m.label} {m.age}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </>
+              );
+            })()}
 
-      {/* Sub-tab navigation */}
-      <div className="flex gap-1 border-b bg-muted/10 px-4 py-1.5">
-        {SUB_TABS.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                activeTab === tab.id
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            <g className="crossing-point-overlay">
+              <rect x={centerX - 58} y={centerY + 12} width="116" height="38" fill="white" rx="8" opacity="0.95" />
+              <circle className="xcurve-cross-pulse" cx={centerX} cy={centerY} r="11" fill="#D4A84B" stroke="white" strokeWidth="3" />
+              <text x={centerX} y={centerY + 28} textAnchor="middle" fill="#D4A84B" fontSize="12" fontWeight="700">Crossing Point</text>
+              {curve.crossingAge !== null && (
+                <text x={centerX} y={centerY + 43} textAnchor="middle" fill="#D4A84B" fontSize="11">Age {curve.crossingAge}</text>
               )}
-            >
-              <Icon className="size-3.5" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="p-5">
-        {activeTab === "xcurve" && <XCurveTab caseId={caseId} />}
-        {activeTab === "tax" && <TaxBucketTab caseId={caseId} />}
-        {activeTab === "roth7702" && <RothVs7702Tab caseId={caseId} />}
-        {activeTab === "college" && <CollegePlanningTab caseId={caseId} />}
-        {activeTab === "retirement" && <RetirementIncomeTab caseId={caseId} />}
-
-        <div className="mt-8 flex justify-end">
-          <Button onClick={onContinue} className="gap-1.5">
-            Continue to Recommendations <ChevronRight className="size-4" />
-          </Button>
+            </g>
+          </svg>
         </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border border-[#1B365D]/35 bg-white p-3">
+            <p className="text-base font-bold text-[#1B365D]">a. DIE TOO SOON</p>
+            <p className="text-sm font-semibold text-[#1B365D]">PROTECT YOUR FAMILY</p>
+            <p className="text-xs text-muted-foreground">(Life Insurance / Income Replacement)</p>
+            <p className="mt-1 font-mono text-lg font-bold text-[#E74C3C]">Coverage Gap: {formatCurrency(curve.coverageGap)}</p>
+          </div>
+          <div className="rounded-lg border border-[#8B0000]/35 bg-white p-3">
+            <p className="text-base font-bold text-[#8B0000]">b. LIVE TOO LONG</p>
+            <p className="text-sm font-semibold text-[#8B0000]">PROTECT YOURSELF</p>
+            <p className="text-xs text-muted-foreground">(Investments / Living on Interest)</p>
+            <p className="mt-1 font-mono text-lg font-bold text-[#8B0000]">Retirement Gap: {formatCurrency(retirementDeficit)}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-[#E74C3C]/30 bg-white p-3">
+            <p className="text-xs text-muted-foreground">Coverage Gap</p>
+            <p className="font-mono text-xl font-bold text-[#E74C3C]">{formatCurrency(curve.currentGap)}</p>
+            <p className="text-xs text-muted-foreground">Unprotected risk today</p>
+          </div>
+          <div className="rounded-lg border border-[#D4A84B]/40 bg-white p-3">
+            <p className="text-xs text-muted-foreground">Crossing Point</p>
+            <p className="text-xl font-bold text-[#1B365D]">
+              {curve.crossingAge !== null ? `Age ${curve.crossingAge}` : "Beyond age 90"}
+            </p>
+            <p className="text-xs text-muted-foreground">When accumulation exceeds risk</p>
+          </div>
+          <div
+            className={`rounded-lg border bg-white p-3 ${
+              curve.crossingAge !== null && milestones.retirementAge < curve.crossingAge
+                ? "border-amber-300"
+                : "border-[#00838F]/40"
+            }`}
+          >
+            <p className="text-xs text-muted-foreground">Retirement Goal</p>
+            <p className="text-xl font-bold text-[#00838F]">Age {milestones.retirementAge}</p>
+            <p className="text-xs text-muted-foreground">
+              {curve.crossingAge === null
+                ? "Gap still open beyond 90"
+                : milestones.retirementAge < curve.crossingAge
+                  ? "Retirement goal before crossing point"
+                  : "Retirement goal after crossing point"}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <div className="rounded-xl border bg-card p-4">
+          <h3 className="text-base font-bold text-[#1B365D]">DIME Analysis - Risk Breakdown</h3>
+          <div className="mt-3 space-y-3">
+            <DimeRow
+              letter="D"
+              title="Debt"
+              colorClass="bg-[#E74C3C]"
+              amount={editable.debt}
+              onChange={(next) => setEditable((prev) => ({ ...prev, debt: next }))}
+              breakdown={inputs.risk.debtBreakdown}
+            />
+            <div className="rounded-lg border bg-background p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex size-7 items-center justify-center rounded-full bg-[#3498DB] text-xs font-bold text-white">
+                    I
+                  </span>
+                  <p className="text-sm font-semibold">Income Replacement</p>
+                </div>
+                <p className="font-mono text-sm font-semibold">
+                  {formatCurrency(inputs.risk.annualIncome * editable.replacementYears)}
+                </p>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span>{formatCurrency(inputs.risk.annualIncome)}/year ×</span>
+                <select
+                  value={editable.replacementYears}
+                  onChange={(e) =>
+                    setEditable((prev) => ({ ...prev, replacementYears: n(e.target.value) }))
+                  }
+                  className="h-8 rounded border bg-background px-2"
+                >
+                  {[5, 7, 8, 10, 12, 15, 20].map((y) => (
+                    <option key={y} value={y}>
+                      {y} years
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <DimeRow
+              letter="M"
+              title="Mortgage"
+              colorClass="bg-[#27AE60]"
+              amount={editable.mortgage}
+              onChange={(next) => setEditable((prev) => ({ ...prev, mortgage: next }))}
+            />
+            <DimeRow
+              letter="E"
+              title="Education"
+              colorClass="bg-[#8E44AD]"
+              amount={editable.education}
+              onChange={(next) => setEditable((prev) => ({ ...prev, education: next }))}
+            />
+            <div className="rounded-lg border bg-background p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span>Final Expenses</span>
+                <Input
+                  type="number"
+                  value={editable.finalExpenses}
+                  onChange={(e) => setEditable((prev) => ({ ...prev, finalExpenses: n(e.target.value) }))}
+                  className="h-8 w-32 text-right"
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-sm">
+                <span>Estate / Probate Costs</span>
+                <span className="font-mono">{formatCurrency(inputs.risk.estateCosts)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-1 rounded-lg border bg-muted/20 p-3 font-mono text-sm">
+            <div className="flex justify-between">
+              <span>GROSS RISK</span>
+              <span>{formatCurrency(curve.grossRisk)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>- Existing Assets</span>
+              <span>({formatCurrency(inputs.accumulation.totalCurrentAssets)})</span>
+            </div>
+            <div className="flex justify-between border-t pt-1">
+              <span>NET RISK</span>
+              <span>{formatCurrency(curve.netRisk)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>- Existing Life Insurance</span>
+              <span>({formatCurrency(inputs.accumulation.existingLifeInsurance)})</span>
+            </div>
+            <div className="flex justify-between border-t pt-1 text-base font-bold text-[#E67E22]">
+              <span>COVERAGE GAP</span>
+              <span>{formatCurrency(curve.coverageGap)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-4">
+          <h3 className="text-base font-bold text-[#1B365D]">Retirement Projection</h3>
+          <p className="text-xs text-muted-foreground">
+            Planning for age {inputs.retirement.targetAge} to 90
+          </p>
+
+          <div className="mt-3 rounded-lg border bg-background p-3">
+            <p className="text-sm font-semibold">Projected Monthly Expenses in Retirement</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between"><span>Food/Groceries</span><span>{formatCurrency(retirementExpenses.food)}/mo</span></div>
+              <div className="flex justify-between"><span>Insurance Premiums</span><span>{formatCurrency(retirementExpenses.insurancePremiums)}/mo</span></div>
+              <div className="flex justify-between"><span>Medical/Healthcare</span><span>{formatCurrency(retirementExpenses.medical)}/mo</span></div>
+              <div className="flex justify-between"><span>Housing</span><span>{formatCurrency(retirementExpenses.housing)}/mo</span></div>
+              <div className="flex justify-between"><span>Utilities</span><span>{formatCurrency(retirementExpenses.utilities)}/mo</span></div>
+              <div className="flex justify-between"><span>Transportation</span><span>{formatCurrency(retirementExpenses.transportation)}/mo</span></div>
+              <div className="flex justify-between"><span>Other</span><span>{formatCurrency(retirementExpenses.other)}/mo</span></div>
+              <div className="mt-1 flex justify-between border-t pt-1 font-semibold">
+                <span>Total Monthly</span>
+                <span>{formatCurrency(retirementExpenses.totalMonthly)}/mo</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Annual</span>
+                <span>{formatCurrency(retirementExpenses.totalAnnual)}/yr</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Need ({inputs.retirement.yearsInRetirement} yrs)</span>
+                <span>{formatCurrency(retirementExpenses.totalAnnual * inputs.retirement.yearsInRetirement)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Inflation-adjusted corpus</span>
+                <span>{formatCurrency(retirementCorpus.recommended)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border bg-background p-3">
+            <p className="text-sm font-semibold">Retirement Income Sources</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between"><span>Current Savings</span><span>{formatCurrency(inputs.accumulation.totalCurrentAssets)}</span></div>
+              <div className="flex justify-between"><span>Projected at Retirement</span><span>{formatCurrency(inputs.accumulation.projectedNetWorthAtRetirement)}</span></div>
+              <div className="flex justify-between"><span>401(k) Withdrawal</span><span>{formatCurrency(inputs.retirement.projected401kWithdrawal)}/yr</span></div>
+              <div className="flex justify-between"><span>Social Security</span><span>{formatCurrency(inputs.retirement.projectedSocialSecurity)}/yr</span></div>
+              <div className="flex justify-between"><span>Pension</span><span>{formatCurrency(inputs.retirement.projectedPension)}/yr</span></div>
+              <div className="flex justify-between border-t pt-1"><span>Total Income</span><span>{formatCurrency(retirementIncomeTotal)}/yr</span></div>
+              <div className="flex justify-between"><span>Need</span><span>{formatCurrency(retirementExpenses.totalAnnual)}/yr</span></div>
+              <div className="flex justify-between font-semibold text-[#E67E22]">
+                <span>Annual Gap</span>
+                <span>{formatCurrency(Math.max(0, retirementExpenses.totalAnnual - retirementIncomeTotal))}/yr</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Monthly Gap</span>
+                <span>{formatCurrency(Math.max(0, (retirementExpenses.totalAnnual - retirementIncomeTotal) / 12))}/mo</span>
+              </div>
+              <div className="mt-1 flex justify-between border-t pt-1 font-semibold text-[#E74C3C]">
+                <span>Retirement Deficit</span>
+                <span>{formatCurrency(retirementDeficit)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-[#00838F]/30 bg-[#00838F]/5 p-3 text-sm">
+            <p>
+              The coverage gap of <strong>{formatCompactCurrency(curve.coverageGap)}</strong> protects your family today.
+              The retirement deficit of <strong>{formatCompactCurrency(retirementDeficit)}</strong> protects your future.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="print:hidden rounded-xl border bg-card p-4">
+        <details>
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#1B365D]">
+            <Info className="size-4" />
+            Agent Notes
+          </summary>
+          <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <p>
+              1. The red curve shows what the family would need today ({formatCurrency(curve.grossRisk)}). The green curve shows what has been built ({formatCurrency(inputs.accumulation.totalCurrentAssets)}). The gap is {formatCurrency(curve.coverageGap)}.
+            </p>
+            <p>
+              2. The curves cross at {curve.crossingAge === null ? "beyond age 90" : `age ${curve.crossingAge}`}. Retirement goal is age {inputs.retirement.targetAge}, which is {curve.crossingAge !== null && inputs.retirement.targetAge < curve.crossingAge ? "before crossing point." : "after crossing point."}
+            </p>
+            <p>
+              3. DIME shows where {formatCurrency(curve.grossRisk)} comes from; the largest lever is income replacement ({formatCurrency(inputs.risk.annualIncome * editable.replacementYears)}) at {editable.replacementYears} years.
+            </p>
+            <p>
+              4. Retirement projection shows a separate retirement deficit of {formatCurrency(retirementDeficit)}.
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <div className="flex justify-end">
+        <Button onClick={onContinue} className="gap-1.5">
+          Continue to Recommendations <ChevronRight className="size-4" />
+        </Button>
       </div>
+
+      <style jsx>{`
+        .xcurve-diagram {
+          animation: xcurveFadeIn 0.25s ease-out forwards;
+        }
+        .xcurve-responsibility-line {
+          clip-path: inset(0 100% 0 0);
+          animation: revealLine 1.2s ease-out 0.2s forwards;
+        }
+        .xcurve-money-line {
+          clip-path: inset(0 100% 0 0);
+          animation: revealLine 1.2s ease-out 0.6s forwards;
+        }
+        .xcurve-cross-pulse {
+          opacity: 0;
+          animation: crossPulse 0.4s ease-out 1.4s forwards;
+        }
+        @keyframes xcurveFadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        @keyframes revealLine {
+          to {
+            clip-path: inset(0 0 0 0);
+          }
+        }
+        @keyframes crossPulse {
+          0% {
+            opacity: 0;
+            transform: scale(0.7);
+          }
+          80% {
+            opacity: 1;
+            transform: scale(1.2);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -457,6 +457,9 @@ export default function FinancialInterviewPage() {
         {currentSection === "financial-x-curve" && (
           <XCurveScreen
             caseId={caseId}
+            caseData={caseData}
+            healthScore={healthScore}
+            fullAnalysis={fullAnalysisData}
             onContinue={() => setCurrentSection("recommendations")}
           />
         )}
