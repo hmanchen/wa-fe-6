@@ -992,6 +992,8 @@ export type FinancialInterviewSection =
   | "financial-home-pyramid"
   | "financial-x-curve"
   | "recommendations"
+  | "iul-illustration"
+  | "college-funding"
   | "delivery";
 
 export type FinancialInterviewStatus = "not-started" | "in-progress" | "completed";

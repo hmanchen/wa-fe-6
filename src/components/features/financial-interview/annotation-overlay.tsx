@@ -26,9 +26,12 @@ const COLORS = [
 ];
 
 const PEN_WIDTH_MOUSE = 2.5;
+const PEN_WIDTH_STYLUS_MIN = 1.8;
 const PEN_WIDTH_STYLUS_MAX = 5;
 const HIGHLIGHTER_WIDTH = 22;
 const HIGHLIGHTER_ALPHA = 0.35;
+const HIGHLIGHTER_WIDTH_STYLUS_MIN = 14;
+const HIGHLIGHTER_WIDTH_STYLUS_MAX = 30;
 const ERASER_RADIUS = 14;
 
 /** Interactive elements the user can click through to */
@@ -52,6 +55,15 @@ interface Stroke {
 interface AnnotationOverlayProps {
   isActive: boolean;
   onClose: () => void;
+}
+
+function isLikelyIPad(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const iPadUA = /iPad/i.test(ua);
+  // iPadOS 13+ can report as Macintosh.
+  const iPadOSDesktopUA = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+  return iPadUA || iPadOSDesktopUA;
 }
 
 // ── Drawing helpers ──────────────────────────────────────────
@@ -103,7 +115,8 @@ function drawPenStroke(
   points: Point[],
   color: string,
   offsetX: number,
-  offsetY: number
+  offsetY: number,
+  fallbackWidth: number
 ) {
   if (points.length === 0) return;
 
@@ -113,7 +126,7 @@ function drawPenStroke(
   ctx.lineJoin = "round";
 
   if (points.length === 1) {
-    const w = points[0].w ?? PEN_WIDTH_MOUSE;
+    const w = points[0].w ?? fallbackWidth;
     ctx.beginPath();
     ctx.arc(points[0].x + offsetX, points[0].y + offsetY, w / 2, 0, Math.PI * 2);
     ctx.fill();
@@ -123,7 +136,7 @@ function drawPenStroke(
   for (let i = 1; i < points.length; i++) {
     const p0 = points[i - 1];
     const p1 = points[i];
-    ctx.lineWidth = p1.w ?? PEN_WIDTH_MOUSE;
+    ctx.lineWidth = p1.w ?? fallbackWidth;
     ctx.beginPath();
     ctx.moveTo(p0.x + offsetX, p0.y + offsetY);
     ctx.lineTo(p1.x + offsetX, p1.y + offsetY);
@@ -140,16 +153,26 @@ function renderStroke(
   ctx.save();
   if (stroke.tool === "highlighter") {
     ctx.globalAlpha = HIGHLIGHTER_ALPHA;
+    // Multiply blend gives a more natural marker look on iPad.
+    ctx.globalCompositeOperation = "multiply";
     ctx.strokeStyle = stroke.color;
     ctx.fillStyle = stroke.color;
-    drawPath(ctx, stroke.points, HIGHLIGHTER_WIDTH, offsetX, offsetY);
+    // Use a smoothed path for highlighter to avoid dotted/circle artifacts.
+    const widths = stroke.points
+      .map((p) => p.w)
+      .filter((w) => typeof w === "number" && Number.isFinite(w));
+    const smoothWidth =
+      widths.length > 0
+        ? widths.reduce((sum, w) => sum + (w as number), 0) / widths.length
+        : HIGHLIGHTER_WIDTH;
+    drawPath(ctx, stroke.points, smoothWidth, offsetX, offsetY);
   } else if (stroke.tool === "eraser") {
     ctx.globalCompositeOperation = "destination-out";
     ctx.strokeStyle = "rgba(0,0,0,1)";
     ctx.fillStyle = "rgba(0,0,0,1)";
     drawPath(ctx, stroke.points, ERASER_RADIUS * 2, offsetX, offsetY);
   } else {
-    drawPenStroke(ctx, stroke.points, stroke.color, offsetX, offsetY);
+    drawPenStroke(ctx, stroke.points, stroke.color, offsetX, offsetY, PEN_WIDTH_MOUSE);
   }
   ctx.restore();
 }
@@ -184,13 +207,23 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
   const [activeTool, setActiveTool] = useState<Tool>("pen");
   const [activeColor, setActiveColor] = useState("#ef4444");
   const [showColors, setShowColors] = useState(false);
+  const [pencilOnlyMode, setPencilOnlyMode] = useState(false);
   const [, setRenderTick] = useState(0);
 
   // Store current tool/color in refs so window-level handlers see latest values
   const activeToolRef = useRef(activeTool);
   const activeColorRef = useRef(activeColor);
+  const pencilOnlyModeRef = useRef(pencilOnlyMode);
+  const activePointerIdRef = useRef<number | null>(null);
   useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
   useEffect(() => { activeColorRef.current = activeColor; }, [activeColor]);
+  useEffect(() => { pencilOnlyModeRef.current = pencilOnlyMode; }, [pencilOnlyMode]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    // iPad default: ignore finger input while annotating; use Apple Pencil only.
+    if (isLikelyIPad()) setPencilOnlyMode(true);
+  }, [isActive]);
 
   // ── Canvas sizing ────────────────────────────────────────
   const sizeCanvas = useCallback(() => {
@@ -239,22 +272,41 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
   useEffect(() => {
     if (!isActive) return;
 
-    const getPagePoint = (e: PointerEvent): Point => ({
-      x: e.clientX + window.scrollX,
-      y: e.clientY + window.scrollY,
-      w:
-        e.pointerType === "pen"
-          ? Math.max(1, e.pressure * PEN_WIDTH_STYLUS_MAX)
-          : PEN_WIDTH_MOUSE,
-    });
+    const getPagePoint = (e: PointerEvent): Point => {
+      const isPen = e.pointerType === "pen";
+      const tool = activeToolRef.current;
+      const pressure = Number.isFinite(e.pressure) ? e.pressure : 0;
+      let stylusWidth = Math.max(PEN_WIDTH_STYLUS_MIN, pressure * PEN_WIDTH_STYLUS_MAX);
+      if (tool === "highlighter") {
+        // Pressure-aware highlighter width for Apple Pencil.
+        // Safari may report pressure=0 for some events, so default to medium stroke.
+        const p = pressure > 0 ? pressure : 0.5;
+        stylusWidth =
+          HIGHLIGHTER_WIDTH_STYLUS_MIN +
+          (HIGHLIGHTER_WIDTH_STYLUS_MAX - HIGHLIGHTER_WIDTH_STYLUS_MIN) * p;
+      }
+      return {
+        x: e.clientX + window.scrollX,
+        y: e.clientY + window.scrollY,
+        w: isPen
+          ? stylusWidth
+          : tool === "highlighter"
+            ? HIGHLIGHTER_WIDTH
+            : PEN_WIDTH_MOUSE,
+      };
+    };
 
     const onPointerDown = (e: PointerEvent) => {
+      if (activePointerIdRef.current !== null) return;
       // If the target is an interactive element, let it handle the event
       if (isInteractiveElement(e.target)) return;
+      if (pencilOnlyModeRef.current && e.pointerType !== "pen") return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
 
       e.preventDefault();
       isDrawing.current = true;
       redoStack.current = [];
+      activePointerIdRef.current = e.pointerId;
 
       const pt = getPagePoint(e);
       activeStroke.current = {
@@ -266,32 +318,40 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerId !== activePointerIdRef.current) return;
       if (!isDrawing.current || !activeStroke.current) return;
       e.preventDefault();
-      const pt = getPagePoint(e);
-      activeStroke.current.points.push(pt);
+      const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      for (const ev of events) {
+        activeStroke.current.points.push(getPagePoint(ev));
+      }
       requestRedraw();
     };
 
-    const onPointerUp = () => {
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerId !== activePointerIdRef.current) return;
       if (!isDrawing.current || !activeStroke.current) return;
+      e.preventDefault();
+      activeStroke.current.points.push(getPagePoint(e));
       isDrawing.current = false;
+      activePointerIdRef.current = null;
       completedStrokes.current.push(activeStroke.current);
       activeStroke.current = null;
       requestRedraw();
       setRenderTick((t) => t + 1);
     };
 
-    window.addEventListener("pointerdown", onPointerDown, { capture: true });
-    window.addEventListener("pointermove", onPointerMove, { capture: true });
-    window.addEventListener("pointerup", onPointerUp, { capture: true });
-    window.addEventListener("pointercancel", onPointerUp, { capture: true });
+    const opts = { capture: true, passive: false } as const;
+    window.addEventListener("pointerdown", onPointerDown, opts);
+    window.addEventListener("pointermove", onPointerMove, opts);
+    window.addEventListener("pointerup", onPointerUp, opts);
+    window.addEventListener("pointercancel", onPointerUp, opts);
 
     return () => {
-      window.removeEventListener("pointerdown", onPointerDown, { capture: true });
-      window.removeEventListener("pointermove", onPointerMove, { capture: true });
-      window.removeEventListener("pointerup", onPointerUp, { capture: true });
-      window.removeEventListener("pointercancel", onPointerUp, { capture: true });
+      window.removeEventListener("pointerdown", onPointerDown, opts);
+      window.removeEventListener("pointermove", onPointerMove, opts);
+      window.removeEventListener("pointerup", onPointerUp, opts);
+      window.removeEventListener("pointercancel", onPointerUp, opts);
     };
   }, [isActive, requestRedraw]);
 
@@ -370,7 +430,7 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
       <canvas
         ref={canvasRef}
         className="pointer-events-none fixed inset-0 z-50 h-full w-full"
-        style={{ touchAction: "none" }}
+        style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
       />
 
       {/* Floating toolbar */}
@@ -386,6 +446,15 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
           title="Pen"
         >
           <Pen className="size-4" />
+        </Button>
+        <Button
+          size="sm"
+          variant={pencilOnlyMode ? "default" : "ghost"}
+          className="h-8 rounded-full px-3 text-xs"
+          onClick={() => setPencilOnlyMode((v) => !v)}
+          title="Pencil-only mode (recommended on iPad)"
+        >
+          Pencil only
         </Button>
 
         <Button

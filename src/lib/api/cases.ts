@@ -22,9 +22,9 @@ export interface CreateCaseData {
   clientPhone: string;
   country?: string;
   street?: string;
-  city?: string;
+  city: string;
   state?: string;
-  postalCode?: string;
+  postalCode: string;
   partnerFirstName?: string;
   partnerLastName?: string;
   partnerDateOfBirth?: string;
@@ -55,6 +55,12 @@ export interface UpdateCaseData {
   caseType?: string;
   description?: string;
   status?: string;
+}
+
+export interface ZipLookupResult {
+  city: string | null;
+  state_code: string | null;
+  metro_area: string | null;
 }
 
 export interface ArchiveCaseResult {
@@ -142,6 +148,8 @@ function toBackendCreatePayload(formData: CreateCaseData) {
     client_name: fullName,
     client_email: formData.clientEmail,
     client_phone: formData.clientPhone || undefined,
+    city: formData.city,
+    postal_code: formData.postalCode,
     meeting_date: toDateString(formData.meetingDate),
     case_type: formData.caseType,
     description: formData.description || undefined,
@@ -180,6 +188,8 @@ function toBackendUpdatePayload(formData: UpdateCaseData) {
   }
   if (formData.clientEmail !== undefined) payload.client_email = formData.clientEmail;
   if (formData.clientPhone !== undefined) payload.client_phone = formData.clientPhone;
+  if (formData.city !== undefined) payload.city = formData.city;
+  if (formData.postalCode !== undefined) payload.postal_code = formData.postalCode;
   if (formData.meetingDate !== undefined) payload.meeting_date = toDateString(formData.meetingDate);
   if (formData.caseType !== undefined) payload.case_type = formData.caseType;
   if (formData.description !== undefined) payload.description = formData.description;
@@ -239,4 +249,11 @@ export async function deleteCase(id: string): Promise<ArchiveCaseResult> {
     archived: Boolean(raw.archived),
     message: String(raw.message ?? "Case archived successfully."),
   };
+}
+
+export async function lookupZip(zip: string): Promise<ZipLookupResult> {
+  const { data } = await apiClient.get<ZipLookupResult>("/prefill/zip-lookup", {
+    params: { zip },
+  });
+  return data;
 }

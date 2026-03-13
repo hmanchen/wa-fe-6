@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -201,7 +201,7 @@ interface GoalsDiscoveryScreenProps {
   spouseName?: string;
   primaryAge?: number;
   spouseAge?: number;
-  onAutoSave: (data: Partial<GoalsDiscoveryData>) => Promise<void> | void;
+  onSave: (data: Partial<GoalsDiscoveryData>) => Promise<void> | void;
   isSaving?: boolean;
   onBack: () => void;
   onNext: () => Promise<void> | void;
@@ -214,7 +214,7 @@ export function GoalsDiscoveryScreen({
   spouseName,
   primaryAge,
   spouseAge,
-  onAutoSave,
+  onSave,
   isSaving = false,
   onBack,
   onNext,
@@ -225,7 +225,6 @@ export function GoalsDiscoveryScreen({
   const [pendingPatch, setPendingPatch] = useState<Partial<GoalsDiscoveryData>>({});
   const [error, setError] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [saveTick, setSaveTick] = useState(0);
 
   const monthlyExpenses = useMemo(() => sumMonthlyExpenses(primaryBackground), [primaryBackground]);
   const debtOptions = useMemo(() => listDebtOptions(primaryBackground), [primaryBackground]);
@@ -246,38 +245,18 @@ export function GoalsDiscoveryScreen({
     }
   }, [defaultValues]);
 
-  const saveRef = useRef(onAutoSave);
-  useEffect(() => {
-    saveRef.current = onAutoSave;
-  }, [onAutoSave]);
-
-  const pendingSerialized = JSON.stringify(pendingPatch);
-  const mounted = useRef(false);
-
   const triggerSave = useCallback(async () => {
     if (Object.keys(pendingPatch).length === 0) return;
     try {
-      await saveRef.current(pendingPatch);
+      await onSave(pendingPatch);
       setPendingPatch({});
-      setSaveTick((v) => v + 1);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Unable to save Goals & Discovery";
       setError(message);
       throw err;
     }
-  }, [pendingPatch]);
-
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-    const id = window.setTimeout(() => {
-      void triggerSave();
-    }, 2500);
-    return () => window.clearTimeout(id);
-  }, [pendingSerialized, triggerSave]);
+  }, [onSave, pendingPatch]);
 
   const updateData = useCallback((patch: Partial<GoalsDiscoveryData>) => {
     setData((prev) => ({ ...prev, ...patch }));
@@ -389,7 +368,7 @@ export function GoalsDiscoveryScreen({
       : "text-green-600";
 
   return (
-    <div className="space-y-4" onBlurCapture={() => void triggerSave()}>
+    <div className="space-y-4">
       <div className="rounded-xl border bg-card p-5">
         <h2 className="text-lg font-bold">Goals & Discovery</h2>
         <p className="text-sm text-muted-foreground">
@@ -1088,7 +1067,7 @@ export function GoalsDiscoveryScreen({
           </Button>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground">
-              {isSaving ? "Saving..." : saveTick > 0 ? "All changes saved" : "Auto-save enabled"}
+              {isSaving ? "Saving..." : "Changes are saved when you click Next"}
             </span>
             <Button onClick={() => void handleNext()} className="gap-1.5">
               Next: Income Replacement Risk

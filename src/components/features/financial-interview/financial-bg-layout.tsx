@@ -47,9 +47,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import {
+  PrefillErrorBanner,
+  PrefillLoadingBanner,
+  PrefillSuccessBanner,
+} from "@/components/features/financial-interview/prefill-banners";
 import { useCalculate401k } from "@/hooks/use-financial-interview";
 import type { Calculate401kRequest } from "@/lib/api/financial-interview";
 import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore, IncomeSource, IncomeSourceType, Previous401k, DebtEntry, DebtType, ContributionLimitsData, ContributionLimitPlan, MarketSnapshot, MatchStructureType, TenureTier } from "@/types/financial-interview";
+import type { Case } from "@/types/case";
 
 // ── Sub-section definitions ──────────────────────────────────
 
@@ -78,6 +84,12 @@ const SUB_SECTIONS: SubSectionDef[] = [
   { id: "debts", label: "Debts & Liabilities", icon: CreditCard, fieldCount: 5 },
   { id: "expenses", label: "Monthly Expenses", icon: Receipt, fieldCount: 9 },
 ];
+
+// Prevent repeated prefill loops from remount/re-render churn.
+// - inFlight: dedupe concurrent same-key requests
+// - successful: avoid refetching the same completed key
+const prefillInFlightRequestKeys = new Set<string>();
+const prefillSuccessfulRequestKeys = new Set<string>();
 
 // ── Reusable account card ────────────────────────────────────
 
@@ -158,15 +170,30 @@ function CurrencyField({
   value,
   onChange,
   placeholder = "0",
+  isPrefilled = false,
+  isUserEdited = false,
 }: {
   label: string;
   value?: number;
   onChange: (v: number | undefined) => void;
   placeholder?: string;
+  isPrefilled?: boolean;
+  isUserEdited?: boolean;
 }) {
+  const parseNonNegative = (raw: string): number | undefined => {
+    if (raw === "") return undefined;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return undefined;
+    return Math.max(0, parsed);
+  };
+
   return (
-    <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
+    <div className={cn("space-y-1", isUserEdited ? "expense-field--edited" : isPrefilled ? "expense-field--prefilled" : "")}>
+      <Label className="text-xs">
+        {label}
+        {isPrefilled && !isUserEdited && <span className="prefill-badge">~ avg</span>}
+        {isUserEdited && <span className="edited-badge">✏️</span>}
+      </Label>
       <div className="relative">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
         <Input
@@ -175,7 +202,7 @@ function CurrencyField({
           className="h-8 pl-6 text-sm"
           placeholder={placeholder}
           value={value ?? ""}
-          onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+          onChange={(e) => onChange(parseNonNegative(e.target.value))}
         />
       </div>
     </div>
@@ -345,7 +372,13 @@ function IncomeSourceCard({
           <Label className="text-xs">Years at this job</Label>
           <Input className="h-8 text-sm" type="number" min={0} placeholder="0"
             value={source.yearsAtJob ?? ""}
-            onChange={(e) => onUpdate({ yearsAtJob: e.target.value ? Number(e.target.value) : undefined })}
+            onChange={(e) =>
+              onUpdate({
+                yearsAtJob: e.target.value
+                  ? Math.max(0, Number(e.target.value))
+                  : undefined,
+              })
+            }
           />
         </div>
         <div className="flex items-end pb-1">
@@ -2293,16 +2326,35 @@ function RealEstateSection({
       ...realEstate,
       ...patch,
     };
+    const mergedPrimary = merged.primaryResidence ?? {};
+    const mergedHasPrimaryResidence = Boolean(
+      merged.hasPrimaryResidence ??
+        mergedPrimary.estimatedMarketValue ??
+        mergedPrimary.propertyAddress ??
+        mergedPrimary.mortgageBalance ??
+        mergedPrimary.monthlyPaymentPiti
+    );
     const hasAnyProperty = Boolean(
-      merged.hasPrimaryResidence ||
+      mergedHasPrimaryResidence ||
         merged.hasRentalProperties ||
         merged.hasInternationalProperties
     );
+    const nextMonthlyExpenses = { ...(data.monthlyExpenses ?? {}) };
+    const nextHousing = mergedHasPrimaryResidence
+      ? mergedPrimary.monthlyPaymentPiti ?? undefined
+      : undefined;
+    if (nextHousing === undefined) {
+      delete nextMonthlyExpenses.housing;
+    } else {
+      nextMonthlyExpenses.housing = nextHousing;
+    }
     update({
       realEstate: {
         ...merged,
+        hasPrimaryResidence: mergedHasPrimaryResidence,
         hasRealEstate: hasAnyProperty,
       },
+      monthlyExpenses: nextMonthlyExpenses,
     });
   };
 
@@ -2811,13 +2863,217 @@ function DebtsSection({
 }
 
 function MonthlyExpensesSection({
+  caseId,
+  caseData,
   data,
   update,
 }: {
+  caseId: string;
+  caseData?: Case | null;
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
   const [expandedMonthlyExpenses, setExpandedMonthlyExpenses] = useState(false);
+  const [prefillData, setPrefillData] = useState<Record<string, unknown> | null>(null);
+  const [prefillStatus, setPrefillStatus] = useState<"idle" | "loading" | "success" | "error" | "dismissed">("idle");
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [userEdited, setUserEdited] = useState<Set<string>>(new Set());
+  const hasFetched = useRef(false);
+  const lastAttemptedPrefillTick = useRef(0);
+
+  const primaryResidence = data.realEstate?.primaryResidence;
+  const hasPrimaryResidence = Boolean(
+    data.realEstate?.hasPrimaryResidence ??
+      primaryResidence?.estimatedMarketValue ??
+      primaryResidence?.propertyAddress ??
+      primaryResidence?.mortgageBalance ??
+      primaryResidence?.monthlyPaymentPiti
+  );
+  const pitiAmount = primaryResidence?.monthlyPaymentPiti;
+  const personalInfo = (caseData?.clientPersonalInfo ?? {}) as Record<string, unknown>;
+  const address = ((personalInfo.address as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+  const prefillZip = String(address.postal_code ?? address.postalCode ?? "").trim();
+  const hasValidPrefillZip = /^\d{5}$/.test(prefillZip);
+  const prefillCity = String(address.city ?? address.city_name ?? "").trim();
+  const prefillState = String(address.state ?? address.state_code ?? "").trim();
+  const prefillLocationLabel =
+    [prefillCity, prefillState].filter(Boolean).join(", ") ||
+    prefillCity ||
+    prefillState ||
+    (hasValidPrefillZip ? prefillZip : "your area");
+
+  const applyPrefill = useCallback(
+    (
+      payload: Record<string, unknown>,
+      ownsHome: boolean,
+      currentPiti?: number,
+      edited: Set<string> = userEdited
+    ) => {
+      const estimates = (payload.monthly_estimates ?? {}) as Record<string, Record<string, number>>;
+      const housingEst = estimates.housing ?? {};
+      const utilEst = estimates.utilities ?? {};
+      const foodEst = estimates.food ?? {};
+      const transportEst = estimates.transportation ?? {};
+      const healthEst = estimates.healthcare ?? {};
+      const childEst = estimates.children ?? {};
+      const personalEst = estimates.personal ?? {};
+      const entertainmentEst = estimates.entertainment ?? {};
+
+      const sum = (...values: Array<number | undefined>) =>
+        values.reduce((acc, val) => acc + (val ?? 0), 0);
+
+      const next: Partial<NonNullable<PersonFinancialBackground["monthlyExpenses"]>> = {
+        housing:
+          ownsHome && (currentPiti ?? 0) > 0
+            ? currentPiti
+            : ownsHome
+              ? housingEst.mortgage_payment
+              : (housingEst.rent_3br ?? housingEst.rent_2br ?? housingEst.rent_1br),
+        utilities: sum(
+          utilEst.electricity,
+          utilEst.water_trash,
+          utilEst.internet,
+          utilEst.natural_gas
+        ),
+        groceries: foodEst.groceries,
+        diningOut: foodEst.dining_out,
+        transportation: sum(
+          transportEst.car_payment,
+          transportEst.gas,
+          transportEst.car_insurance,
+          transportEst.maintenance,
+          transportEst.registration
+        ),
+        insurance: sum(
+          healthEst.insurance_premium,
+          ownsHome ? housingEst.homeowners_insurance : housingEst.renters_insurance
+        ),
+        childcare: sum(
+          childEst.afterschool_care,
+          childEst.daycare_toddler,
+          childEst.daycare_infant,
+          childEst.school_supplies,
+          childEst.activities_sports
+        ),
+        entertainment: sum(
+          entertainmentEst.family_outings,
+          entertainmentEst.streaming_services,
+          entertainmentEst.gym_memberships
+        ),
+        otherExpenses: sum(
+          healthEst.out_of_pocket,
+          healthEst.prescriptions,
+          healthEst.dental_vision,
+          personalEst.personal_care,
+          personalEst.household_supplies,
+          personalEst.clothing_adults,
+          personalEst.cell_phones_2adults
+        ),
+      };
+
+      const filtered = Object.fromEntries(
+        Object.entries(next).filter(([key, val]) => !edited.has(key) && (val ?? 0) > 0)
+      ) as Partial<NonNullable<PersonFinancialBackground["monthlyExpenses"]>>;
+      if (Object.keys(filtered).length === 0) return;
+      update({ monthlyExpenses: { ...(data.monthlyExpenses ?? {}), ...filtered } });
+    },
+    [data.monthlyExpenses, update, userEdited]
+  );
+
+  useEffect(() => {
+    if (prefillStatus !== "loading") return;
+    const timer = setTimeout(() => {
+      setPrefillStatus("error");
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [prefillStatus]);
+
+  useEffect(() => {
+    if (refreshTick === 0) return; // Manual trigger only.
+    if (!caseId) return;
+    if (lastAttemptedPrefillTick.current === refreshTick) return;
+    lastAttemptedPrefillTick.current = refreshTick;
+    let active = true;
+
+    const run = async () => {
+      let requestKey = "";
+      try {
+        const pi = personalInfo;
+        const zip = prefillZip;
+        if (!/^\d{5}$/.test(zip)) {
+          hasFetched.current = false;
+          if (active) setPrefillStatus("idle");
+          return;
+        }
+
+        requestKey = `${caseId}:${zip}:${hasPrimaryResidence ? "own" : "rent"}:${String(pitiAmount ?? "")}:${refreshTick}`;
+        if (prefillSuccessfulRequestKeys.has(requestKey) || prefillInFlightRequestKeys.has(requestKey)) {
+          return;
+        }
+        prefillInFlightRequestKeys.add(requestKey);
+
+        hasFetched.current = true;
+        setPrefillStatus("loading");
+
+        const dependents =
+          ((pi.dependents_detail as Array<Record<string, unknown>> | undefined) ??
+            (pi.dependentsDetail as Array<Record<string, unknown>> | undefined) ??
+            []) as Array<Record<string, unknown>>;
+        const childrenAges = Array.isArray(dependents)
+          ? dependents
+              .map((d) => Number(d.age ?? 0))
+              .filter((age) => Number.isFinite(age) && age < 18 && age >= 0)
+          : [];
+        const adults = String(pi.marital_status ?? pi.maritalStatus ?? "").toLowerCase() === "married" ? 2 : 1;
+
+        const prefillReq = apiClient.post<Record<string, unknown>>("/prefill/cost-of-living", {
+          zip_code: zip,
+          adults,
+          children_ages: childrenAges,
+          owns_home: hasPrimaryResidence,
+          piti_amount: hasPrimaryResidence ? pitiAmount : undefined,
+        });
+        const timeoutReq = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Prefill request timeout")), 20000)
+        );
+        const prefillRes = await Promise.race([prefillReq, timeoutReq]);
+        const payload = (prefillRes.data ?? {}) as Record<string, unknown>;
+        if (!active) return;
+        if (payload.error) {
+          if (process.env.NODE_ENV !== "production") {
+            // Keep this visible in dev while preserving user-facing fallback banner.
+            console.error("[COL Prefill] API returned error payload", payload);
+          }
+          setPrefillStatus("error");
+          prefillInFlightRequestKeys.delete(requestKey);
+          return;
+        }
+
+        setPrefillData(payload);
+        setPrefillStatus("success");
+        applyPrefill(payload, hasPrimaryResidence, pitiAmount);
+        prefillSuccessfulRequestKeys.add(requestKey);
+        prefillInFlightRequestKeys.delete(requestKey);
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") {
+          console.error("[COL Prefill] Request failed", err);
+        }
+        prefillInFlightRequestKeys.delete(requestKey);
+        if (active) setPrefillStatus("error");
+      }
+    };
+
+    void run();
+    return () => {
+      active = false;
+    };
+  }, [applyPrefill, caseId, hasPrimaryResidence, personalInfo, pitiAmount, prefillZip, refreshTick]);
+
+  const handleFieldChange = (fieldName: keyof NonNullable<PersonFinancialBackground["monthlyExpenses"]>, value: number | undefined) => {
+    setUserEdited((prev) => new Set([...prev, String(fieldName)]));
+    update({ monthlyExpenses: { ...data.monthlyExpenses, [fieldName]: value } });
+  };
+
   const totalMonthlyExpenses = (() => {
     const e = data.monthlyExpenses ?? {};
     return (
@@ -2836,6 +3092,32 @@ function MonthlyExpensesSection({
 
   return (
     <div className="space-y-3">
+      {prefillStatus === "loading" && (
+        <PrefillLoadingBanner cityLabel={prefillLocationLabel} />
+      )}
+      {prefillStatus === "success" && prefillData && (
+        <PrefillSuccessBanner
+          prefillData={prefillData}
+          ownsHome={hasPrimaryResidence}
+          pitiAmount={pitiAmount}
+          onDismiss={() => setPrefillStatus("dismissed")}
+          onRefresh={() => {
+            hasFetched.current = false;
+            setUserEdited(new Set());
+            setPrefillStatus("idle");
+            setRefreshTick((v) => v + 1);
+          }}
+        />
+      )}
+      {prefillStatus === "error" && (
+        <PrefillErrorBanner
+          onRetry={() => {
+            hasFetched.current = false;
+            setPrefillStatus("idle");
+            setRefreshTick((v) => v + 1);
+          }}
+        />
+      )}
       <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm", "border-l-orange-400")}>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -2843,6 +3125,22 @@ function MonthlyExpensesSection({
             <p className="text-xs text-muted-foreground">Total household monthly spending</p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              disabled={!hasValidPrefillZip || prefillStatus === "loading"}
+              onClick={() => {
+                if (!hasValidPrefillZip) return;
+                setPrefillStatus("idle");
+                setRefreshTick((v) => v + 1);
+              }}
+            >
+              {prefillStatus === "loading"
+                ? "Fetching averages..."
+                : `Prefill Data With National Averages for ${prefillLocationLabel}`}
+            </Button>
             <p className="text-sm font-semibold">${totalMonthlyExpenses.toLocaleString()}</p>
             <Button
               type="button"
@@ -2857,24 +3155,78 @@ function MonthlyExpensesSection({
         </div>
         {expandedMonthlyExpenses && (
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <CurrencyField label="Housing" value={data.monthlyExpenses?.housing}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, housing: v } })} />
-            <CurrencyField label="Utilities" value={data.monthlyExpenses?.utilities}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, utilities: v } })} />
-            <CurrencyField label="Transportation" value={data.monthlyExpenses?.transportation}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, transportation: v } })} />
-            <CurrencyField label="Groceries" value={data.monthlyExpenses?.groceries}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, groceries: v } })} />
-            <CurrencyField label="Insurance" value={data.monthlyExpenses?.insurance}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, insurance: v } })} />
-            <CurrencyField label="Childcare / Schooling / Education" value={data.monthlyExpenses?.childcare}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, childcare: v } })} />
-            <CurrencyField label="Entertainment" value={data.monthlyExpenses?.entertainment}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, entertainment: v } })} />
-            <CurrencyField label="Dining out" value={data.monthlyExpenses?.diningOut}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, diningOut: v } })} />
-            <CurrencyField label="Other" value={data.monthlyExpenses?.otherExpenses}
-              onChange={(v) => update({ monthlyExpenses: { ...data.monthlyExpenses, otherExpenses: v } })} />
+            {hasPrimaryResidence && (pitiAmount ?? 0) > 0 && !userEdited.has("housing") && (
+              <div className="sm:col-span-3 piti-notice">
+                <span>📋</span>
+                <span>
+                  Monthly housing is pre-filled from Real Estate PITI (
+                  <strong>${Number(pitiAmount ?? 0).toLocaleString()}/mo</strong>).
+                </span>
+              </div>
+            )}
+            <CurrencyField
+              label={hasPrimaryResidence ? "Mortgage Payment (PITI)" : "Housing"}
+              value={data.monthlyExpenses?.housing}
+              onChange={(v) => handleFieldChange("housing", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("housing")}
+            />
+            <CurrencyField
+              label="Utilities"
+              value={data.monthlyExpenses?.utilities}
+              onChange={(v) => handleFieldChange("utilities", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("utilities")}
+            />
+            <CurrencyField
+              label="Transportation"
+              value={data.monthlyExpenses?.transportation}
+              onChange={(v) => handleFieldChange("transportation", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("transportation")}
+            />
+            <CurrencyField
+              label="Groceries"
+              value={data.monthlyExpenses?.groceries}
+              onChange={(v) => handleFieldChange("groceries", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("groceries")}
+            />
+            <CurrencyField
+              label="Insurance"
+              value={data.monthlyExpenses?.insurance}
+              onChange={(v) => handleFieldChange("insurance", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("insurance")}
+            />
+            <CurrencyField
+              label="Childcare / Schooling / Education"
+              value={data.monthlyExpenses?.childcare}
+              onChange={(v) => handleFieldChange("childcare", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("childcare")}
+            />
+            <CurrencyField
+              label="Entertainment"
+              value={data.monthlyExpenses?.entertainment}
+              onChange={(v) => handleFieldChange("entertainment", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("entertainment")}
+            />
+            <CurrencyField
+              label="Dining out"
+              value={data.monthlyExpenses?.diningOut}
+              onChange={(v) => handleFieldChange("diningOut", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("diningOut")}
+            />
+            <CurrencyField
+              label="Other"
+              value={data.monthlyExpenses?.otherExpenses}
+              onChange={(v) => handleFieldChange("otherExpenses", v)}
+              isPrefilled={prefillStatus === "success" || prefillStatus === "dismissed"}
+              isUserEdited={userEdited.has("otherExpenses")}
+            />
           </div>
         )}
       </div>
@@ -2948,6 +3300,7 @@ export interface FinancialBgLayoutProps {
   healthScore?: FinancialHealthScore | null;
   contributionLimits?: ContributionLimitsData | null;
   marketSnapshot?: MarketSnapshot | null;
+  caseData?: Case | null;
   clientAge?: number;
   onSubmit: (data: PersonFinancialBackground) => void | Promise<void>;
   isSubmitting?: boolean;
@@ -2963,6 +3316,7 @@ export function FinancialBgLayout({
   healthScore,
   contributionLimits,
   marketSnapshot,
+  caseData,
   clientAge,
   onSubmit,
   isSubmitting = false,
@@ -3273,7 +3627,9 @@ export function FinancialBgLayout({
             )}
             {activeSection === "realEstate" && <RealEstateSection caseId={caseId} data={data} update={update} />}
             {activeSection === "debts" && <DebtsSection data={data} update={update} />}
-            {activeSection === "expenses" && <MonthlyExpensesSection data={data} update={update} />}
+            {activeSection === "expenses" && (
+              <MonthlyExpensesSection caseId={caseId} caseData={caseData} data={data} update={update} />
+            )}
 
             {/* ── Bottom navigation ── */}
             <div className="mt-8 flex items-center justify-between">

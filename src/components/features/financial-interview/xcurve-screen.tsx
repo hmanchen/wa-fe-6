@@ -630,6 +630,7 @@ export function XCurveScreen({
   const leftDataStartY = svgHeight * 0.30;
   const rightDataStartY = leftDataStartY;
   const lineHeight = 38;
+  const crossingAccent = "#7C3AED";
   const freedomCheckX = svgWidth * 0.64;
   const freedomTextX = svgWidth * 0.67;
   const moneyLineStartX = 60;
@@ -715,10 +716,10 @@ export function XCurveScreen({
               strokeLinecap="round"
             />
 
-            <text x="235" y="128" fill="#1B365D" fontSize="20" fontWeight="700" fontStyle="italic" transform="rotate(-18,235,128)">
+            <text x="255" y="122" fill="#1B365D" fontSize="20" fontWeight="700" fontStyle="italic" transform="rotate(28,255,122)">
               Responsibility Line
             </text>
-            <text x={svgWidth * 0.68} y="120" fill="#8B0000" fontSize="20" fontWeight="700" fontStyle="italic" transform={`rotate(-28, ${svgWidth * 0.68}, 120)`}>
+            <text x={svgWidth * 0.68} y="156" fill="#8B0000" fontSize="20" fontWeight="700" fontStyle="italic" transform={`rotate(-28, ${svgWidth * 0.68}, 156)`}>
               MONEY LINE
             </text>
 
@@ -818,10 +819,10 @@ export function XCurveScreen({
 
             <g className="crossing-point-overlay">
               <rect x={centerX - 58} y={centerY + 12} width="116" height="38" fill="white" rx="8" opacity="0.95" />
-              <circle className="xcurve-cross-pulse" cx={centerX} cy={centerY} r="11" fill="#D4A84B" stroke="white" strokeWidth="3" />
-              <text x={centerX} y={centerY + 28} textAnchor="middle" fill="#D4A84B" fontSize="12" fontWeight="700">Crossing Point</text>
+              <circle className="xcurve-cross-pulse" cx={centerX} cy={centerY} r="11" fill={crossingAccent} stroke="white" strokeWidth="3" />
+              <text x={centerX} y={centerY + 28} textAnchor="middle" fill={crossingAccent} fontSize="12" fontWeight="700">Crossing Point</text>
               {curve.crossingAge !== null && (
-                <text x={centerX} y={centerY + 43} textAnchor="middle" fill="#D4A84B" fontSize="11">Age {curve.crossingAge}</text>
+                <text x={centerX} y={centerY + 43} textAnchor="middle" fill={crossingAccent} fontSize="14" fontWeight="700">Age {curve.crossingAge}</text>
               )}
             </g>
           </svg>
@@ -848,9 +849,9 @@ export function XCurveScreen({
             <p className="font-mono text-xl font-bold text-[#E74C3C]">{formatCurrency(curve.currentGap)}</p>
             <p className="text-xs text-muted-foreground">Unprotected risk today</p>
           </div>
-          <div className="rounded-lg border border-[#D4A84B]/40 bg-white p-3">
+          <div className="rounded-lg border bg-white p-3" style={{ borderColor: `${crossingAccent}66` }}>
             <p className="text-xs text-muted-foreground">Crossing Point</p>
-            <p className="text-xl font-bold text-[#1B365D]">
+            <p className="text-2xl font-bold" style={{ color: crossingAccent }}>
               {curve.crossingAge !== null ? `Age ${curve.crossingAge}` : "Beyond age 90"}
             </p>
             <p className="text-xs text-muted-foreground">When accumulation exceeds risk</p>

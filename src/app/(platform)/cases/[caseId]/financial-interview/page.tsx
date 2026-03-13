@@ -34,10 +34,13 @@ import { GoalsDiscoveryScreen } from "@/components/features/financial-interview/
 import { IncomeReplacementScreen } from "@/components/features/financial-interview/income-replacement-screen";
 import { ProtectionEstateScreen } from "@/components/features/financial-interview/protection-estate-screen";
 import { FinancialBgInsights } from "@/components/features/financial-interview/financial-bg-insights";
+import FinancialFreedomEngine from "@/components/analysis/FinancialFreedomEngine";
 import { FinancialHomeScreen } from "@/components/features/financial-interview/financial-home-screen";
 import { FinancialHomePyramid } from "@/components/features/financial-interview/financial-home-pyramid/FinancialHomePyramid";
 import { XCurveScreen } from "@/components/features/financial-interview/xcurve-screen";
-import { RecommendationsScreen } from "@/components/features/financial-interview/recommendations-screen";
+import RecommendationsScreen from "@/components/recommendations/RecommendationsScreen";
+import IULIllustrationScreen from "@/components/recommendations/IULIllustrationScreen";
+import CollegeFundingScreen from "@/components/recommendations/CollegeFundingScreen";
 import { DeliveryScreen } from "@/components/features/financial-interview/delivery-screen";
 import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
@@ -72,6 +75,9 @@ export default function FinancialInterviewPage() {
   const [completedSections, setCompletedSections] = useState<
     FinancialInterviewSection[]
   >([]);
+  const [recommendationsCache, setRecommendationsCache] = useState<Record<string, unknown> | null>(null);
+  const [iulRecommendation, setIulRecommendation] = useState<Record<string, unknown>>({ monthly_cost: 1200 });
+  const [collegeRecommendation, setCollegeRecommendation] = useState<Record<string, unknown>>({ monthly_cost: 800 });
 
   const { data: marketSnapshot, isLoading: isMarketSnapshotLoading } = useMarketSnapshot(currentSection === "financial-background");
   const shouldLoadFullAnalysis =
@@ -80,6 +86,8 @@ export default function FinancialInterviewPage() {
     currentSection === "financial-home-pyramid" ||
     currentSection === "financial-x-curve" ||
     currentSection === "recommendations" ||
+    currentSection === "iul-illustration" ||
+    currentSection === "college-funding" ||
     currentSection === "delivery";
   const { data: fullAnalysisData } = useFullAnalysisData(
     caseId,
@@ -174,7 +182,7 @@ export default function FinancialInterviewPage() {
       return isCaseLoading || isInterviewLoading;
     }
     if (currentSection === "analysis-dashboard") {
-      return isCaseLoading || isHealthScoreLoading;
+      return isCaseLoading || isHealthScoreLoading || isInterviewLoading;
     }
     return false;
   })();
@@ -304,6 +312,7 @@ export default function FinancialInterviewPage() {
                 caseId={caseId}
                 defaultValues={interviewData?.primaryBackground}
                 role="primary"
+                caseData={caseData}
                 healthScore={healthScore}
                 contributionLimits={contributionLimits}
                 marketSnapshot={marketSnapshot}
@@ -320,6 +329,7 @@ export default function FinancialInterviewPage() {
                 caseId={caseId}
                 defaultValues={interviewData?.spouseBackground}
                 role="spouse"
+                caseData={caseData}
                 healthScore={healthScore}
                 contributionLimits={contributionLimits}
                 marketSnapshot={marketSnapshot}
@@ -346,7 +356,7 @@ export default function FinancialInterviewPage() {
               spouseName={spouseName}
               primaryAge={clientAge}
               spouseAge={spouseAge}
-              onAutoSave={handleGoalsDiscoverySave}
+              onSave={handleGoalsDiscoverySave}
               isSaving={saveGoalsDiscovery.isPending}
               onBack={() => setCurrentSection("financial-background")}
               onNext={handleGoalsDiscoveryNext}
@@ -420,6 +430,14 @@ export default function FinancialInterviewPage() {
               </span>
               <span className="text-xs text-muted-foreground">Full Health Score (0–100, all 5 categories)</span>
             </div>
+            <div className="p-4 pb-0">
+              <FinancialFreedomEngine
+                fullAnalysis={fullAnalysisData}
+                healthScore={healthScore}
+                caseData={caseData}
+                interviewData={interviewData}
+              />
+            </div>
             <FinancialBgInsights
               caseId={caseId}
               healthScore={healthScore}
@@ -468,8 +486,36 @@ export default function FinancialInterviewPage() {
         {currentSection === "recommendations" && (
           <RecommendationsScreen
             caseId={caseId}
-            clientState={caseData?.clientPersonalInfo?.address?.province}
-            onContinue={() => setCurrentSection("delivery")}
+            caseData={caseData}
+            onNavigateToDelivery={() => setCurrentSection("delivery")}
+            onOpenIULIllustration={(rec: unknown) => {
+              setIulRecommendation((rec as Record<string, unknown>) || { monthly_cost: 1200 });
+              setCurrentSection("iul-illustration");
+            }}
+            onOpenCollegeFunding={(rec: unknown) => {
+              setCollegeRecommendation((rec as Record<string, unknown>) || { monthly_cost: 800 });
+              setCurrentSection("college-funding");
+            }}
+            initialData={recommendationsCache}
+            onDataChange={setRecommendationsCache}
+          />
+        )}
+
+        {currentSection === "iul-illustration" && (
+          <IULIllustrationScreen
+            caseId={caseId}
+            caseData={caseData}
+            recommendation={iulRecommendation}
+            onBack={() => setCurrentSection("recommendations")}
+          />
+        )}
+
+        {currentSection === "college-funding" && (
+          <CollegeFundingScreen
+            caseId={caseId}
+            caseData={caseData}
+            recommendation={collegeRecommendation}
+            onBack={() => setCurrentSection("recommendations")}
           />
         )}
 

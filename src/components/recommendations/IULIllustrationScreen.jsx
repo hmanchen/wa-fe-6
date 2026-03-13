@@ -1,0 +1,408 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  Shield,
+  TrendingUp,
+  GraduationCap,
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ReferenceLine,
+  Area,
+} from "recharts";
+import { recommendationsService } from "../../services/recommendationsService";
+
+const fmt = (n) => "$" + (n || 0).toLocaleString("en-US");
+
+export default function IULIllustrationScreen({ caseId, caseData, recommendation, onBack }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const blendedMonthly = recommendation?.monthly_cost || 1200;
+  const iulMonthly =
+    recommendation?.iul_base_premium_only ||
+    recommendation?.iulBasePremiumOnly ||
+    blendedMonthly * 0.35 ||
+    500;
+  const firstName =
+    caseData?.clientPersonalInfo?.firstName ||
+    caseData?.firstName ||
+    caseData?.first_name ||
+    caseData?.client_name?.split(" ")[0] ||
+    "Client";
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await recommendationsService.fetchIULProjection(caseId, iulMonthly);
+        if (mounted) setData(res);
+      } catch (e) {
+        if (mounted) setError(e?.message || "Unable to load IUL projection");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    if (caseId) run();
+    return () => {
+      mounted = false;
+    };
+  }, [caseId, iulMonthly]);
+
+  const projectionRows = data?.projection || [];
+  const milestones = data?.milestones || {};
+
+  const chartData = useMemo(
+    () =>
+      projectionRows.map((d) => ({
+        year: d.year,
+        age: d.age,
+        cashValue: d.cash_value,
+        deathBenefit: d.death_benefit,
+        premiumsPaid: d.cumulative_premium,
+        netGain: Math.max((d.cash_value || 0) - (d.cumulative_premium || 0), 0),
+      })),
+    [projectionRows]
+  );
+
+  const tableRows = useMemo(() => {
+    if (!projectionRows.length) return [];
+    const retirementYear = milestones.retirement_year;
+    return projectionRows.filter(
+      (r) => r.year === 1 || r.year % 5 === 0 || r.year === retirementYear
+    );
+  }, [projectionRows, milestones.retirement_year]);
+
+  const termScenario = data?.comparison?.term_scenario || data?.term_only_scenario || {};
+  const iulScenario = data?.comparison?.iul_scenario || data?.iul_scenario || {};
+  const iulNet = iulScenario?.net_wealth_created || 0;
+  const isClearPositive = iulNet > 0;
+  const fullProtection =
+    recommendation?.gapSolved ||
+    caseData?.life_insurance_gap ||
+    caseData?.lifeInsuranceGap ||
+    0;
+
+  const chips = [
+    milestones?.break_even_year
+      ? `Break-even: Year ${milestones.break_even_year}`
+      : "Break-even projected in ~12 years",
+    milestones?.retirement_cash_value > 0
+      ? `${fmt(milestones.retirement_cash_value)} at retirement`
+      : "Cash value accumulates over time",
+    milestones?.retirement_monthly_income > 0
+      ? `${fmt(milestones.retirement_monthly_income)}/mo tax-free`
+      : "Tax-free income in retirement",
+  ];
+
+  return (
+    <div style={{ background: "#F8F7F4", minHeight: "100%", padding: 24 }}>
+      <button
+        onClick={onBack}
+        style={{
+          border: "none",
+          background: "none",
+          color: "#4A7C6F",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          marginBottom: 12,
+        }}
+      >
+        <ArrowLeft size={14} />
+        Back to Recommendations
+      </button>
+
+      <div
+        style={{
+          background: "#FFFFFF",
+          border: "1px solid #E8E4DC",
+          borderLeft: "4px solid #4A7C6F",
+          borderRadius: 16,
+          padding: "20px 24px",
+          marginBottom: 16,
+        }}
+      >
+        <h2 style={{ margin: 0, color: "#1B2B4B", fontSize: 24 }}>
+          {firstName}'s IUL - Protection Today. Wealth Tomorrow.
+        </h2>
+        <p style={{ color: "#4A5568", margin: "8px 0 14px 0" }}>
+          Here is exactly how your {fmt(iulMonthly)}/mo IUL base premium builds over time.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {chips.map((chip) => (
+            <Chip key={chip} text={chip} color="#4A7C6F" />
+          ))}
+        </div>
+      </div>
+
+      {data?.premium_breakdown && (
+        <div
+          style={{
+            background: "#F0F7F4",
+            border: "1px solid #4A7C6F40",
+            borderRadius: 12,
+            padding: "14px 20px",
+            marginBottom: 16,
+            display: "flex",
+            gap: 24,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#2D5F52" }}>
+            <span style={{ fontWeight: 700 }}>How your premium is split:</span>
+          </div>
+          <div style={{ fontSize: 12, color: "#4A5568" }}>
+            Term Life ({fmt(data.premium_breakdown.term_face)} coverage):
+            <strong style={{ color: "#1B2B4B" }}> {fmt(data.premium_breakdown.term_monthly)}/mo</strong>
+          </div>
+          <div style={{ fontSize: 12, color: "#4A5568" }}>
+            IUL Base ({fmt(data.premium_breakdown.iul_face)} face + wealth building):
+            <strong style={{ color: "#4A7C6F" }}> {fmt(data.premium_breakdown.iul_monthly)}/mo</strong>
+          </div>
+          <div style={{ fontSize: 12, color: "#718096", fontStyle: "italic" }}>
+            This illustration shows only the IUL layer accumulation.
+          </div>
+        </div>
+      )}
+
+      {loading && <InfoBanner text="Loading your IUL illustration..." />}
+      {error && <InfoBanner text={error} tone="error" />}
+
+      {!loading && !error && (
+        <>
+          <div
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #E8E4DC",
+              borderRadius: 12,
+              height: 320,
+              padding: 12,
+              marginBottom: 16,
+            }}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid stroke="#EFEAE0" />
+                <XAxis dataKey="year" />
+                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+                <Tooltip formatter={(v) => fmt(Number(v))} />
+                <Legend />
+                <Area dataKey="netGain" fill="rgba(74,124,111,0.12)" stroke="none" />
+                <Line type="monotone" dataKey="deathBenefit" stroke="#1B2B4B" strokeWidth={2} dot={false} name="Death Benefit" />
+                <Line type="monotone" dataKey="cashValue" stroke="#4A7C6F" strokeWidth={2} dot={false} name="Cash Value" />
+                <Line type="monotone" dataKey="premiumsPaid" stroke="#D4A520" strokeDasharray="6 4" strokeWidth={2} dot={false} name="Premiums Paid" />
+                {milestones.break_even_year && (
+                  <ReferenceLine x={milestones.break_even_year} stroke="#D4A520" strokeDasharray="3 3" label="Break-even" />
+                )}
+                {milestones.college_funding_year && (
+                  <ReferenceLine x={milestones.college_funding_year} stroke="#3B6CB7" strokeDasharray="3 3" label="College" />
+                )}
+                {milestones.retirement_year && (
+                  <ReferenceLine x={milestones.retirement_year} stroke="#4A7C6F" strokeDasharray="3 3" label="Retirement" />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #E8E4DC",
+              borderRadius: 12,
+              overflow: "hidden",
+              marginBottom: 16,
+            }}
+          >
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead style={{ background: "#1B2B4B", color: "#FFFFFF" }}>
+                <tr>
+                  {["Year", "Age", "Cash Value", "Death Benefit", "Available to Borrow", "Net Gain"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "10px 12px" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.map((r, idx) => {
+                  const isRet = r.year === milestones.retirement_year;
+                  const isCollege = r.year === milestones.college_funding_year;
+                  return (
+                    <tr
+                      key={r.year}
+                      style={{
+                        background: idx % 2 ? "#F8F7F4" : "#FFFFFF",
+                        borderLeft: isRet ? "3px solid #4A7C6F" : isCollege ? "3px solid #3B6CB7" : "none",
+                      }}
+                    >
+                      <td style={{ padding: "8px 12px" }}>Year {r.year}</td>
+                      <td style={{ padding: "8px 12px" }}>{r.age}</td>
+                      <td style={{ padding: "8px 12px" }}>{fmt(r.cash_value)}</td>
+                      <td style={{ padding: "8px 12px" }}>{fmt(r.death_benefit)}</td>
+                      <td style={{ padding: "8px 12px" }}>{fmt(r.loan_available)}</td>
+                      <td style={{ padding: "8px 12px" }}>{fmt(r.net_growth)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            <CompareCard
+              title="Term Life Only"
+              bg="#FFF9F0"
+              border="#E8D5A0"
+              monthly={termScenario.monthly_cost}
+              coverage={fullProtection || termScenario.death_benefit}
+              cash={termScenario.cash_value_at_65}
+              income={0}
+              paid={termScenario.total_premiums_paid}
+              net={termScenario.net_wealth_created}
+              good={false}
+            />
+            <CompareCard
+              title="IUL - Protection + Growth"
+              bg="#F0F7F4"
+              border="#4A7C6F"
+              monthly={iulScenario.monthly_cost}
+              coverage={fullProtection || iulScenario.death_benefit}
+              cash={iulScenario.cash_value_at_65}
+              income={milestones.retirement_monthly_income}
+              paid={iulScenario.total_premiums_paid}
+              net={iulScenario.net_wealth_created}
+              good
+              isClearPositive={isClearPositive}
+              breakEvenYear={milestones?.break_even_year}
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <Insight icon={<Shield size={14} color="#D4A520" />} title="Living Benefits" text="If disability occurs, policy value can provide income support without a separate claim path." />
+            <Insight icon={<GraduationCap size={14} color="#D4A520" />} title="College Funding" text={`${fmt(milestones.college_available)} may be available for education through policy loans around college start.`} />
+            <Insight icon={<TrendingUp size={14} color="#D4A520" />} title="Tax-Free Retirement" text="Policy loans can support tax-efficient income with no RMD constraints." />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Chip({ text, color }) {
+  return (
+    <span
+      style={{
+        background: `${color}1A`,
+        border: `1px solid ${color}40`,
+        color,
+        borderRadius: 20,
+        padding: "5px 12px",
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+function InfoBanner({ text, tone = "info" }) {
+  return (
+    <div
+      style={{
+        background: "#FFFFFF",
+        border: `1px solid ${tone === "error" ? "#D4A520" : "#E8E4DC"}`,
+        borderRadius: 10,
+        padding: "10px 14px",
+        color: "#4A5568",
+        marginBottom: 12,
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+function CompareCard({ title, bg, border, monthly, coverage, cash, income, paid, net, good, isClearPositive = true, breakEvenYear }) {
+  return (
+    <div
+      style={{
+        background: bg,
+        border: `1px solid ${border}`,
+        borderRadius: 12,
+        padding: 14,
+        position: "relative",
+      }}
+    >
+      {good && (
+        <span
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            background: "#4A7C6F",
+            color: "#fff",
+            fontSize: 10,
+            borderRadius: 12,
+            padding: "2px 8px",
+            fontWeight: 700,
+          }}
+        >
+          RECOMMENDED
+        </span>
+      )}
+      <div style={{ color: "#1B2B4B", fontWeight: 700, marginBottom: 8 }}>{title}</div>
+      <Row label="Monthly cost" value={fmt(monthly)} />
+      <Row label="Coverage" value={fmt(coverage)} />
+      <Row label="Cash value at 65" value={fmt(cash)} />
+      <Row label="Tax-free income" value={`${fmt(income)}/mo`} />
+      <Row label="Total premiums paid" value={fmt(paid)} />
+      {!good && (
+        <div style={{ marginTop: 8, fontWeight: 700, color: "#D4A520" }}>
+          -{fmt(Math.abs(net || 0))} Net (premiums never returned)
+        </div>
+      )}
+      {good && (
+        <div style={{ marginTop: 8, fontWeight: 700, color: isClearPositive ? "#4A7C6F" : "#D4A520" }}>
+          {isClearPositive
+            ? `+${fmt(net)} Net Wealth Created`
+            : `Building wealth - positive at Year ${breakEvenYear || "TBD"}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Row({ label, value }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#4A5568", marginBottom: 4 }}>
+      <span>{label}</span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
+
+function Insight({ icon, title, text }) {
+  return (
+    <div style={{ background: "#FDFCFA", border: "1px solid #E8E4DC", borderRadius: 10, padding: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#1B2B4B", fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+        {icon}
+        {title}
+      </div>
+      <div style={{ color: "#718096", fontSize: 12, lineHeight: 1.6 }}>{text}</div>
+    </div>
+  );
+}
+

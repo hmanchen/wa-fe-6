@@ -266,8 +266,10 @@ export function FinancialBgInsights({
   useEffect(() => {
     if (caseId && !hasRun.current) {
       hasRun.current = true;
+      // Always pull a fresh health score once on mount so factor rule updates
+      // (for example asset-backed debt trajectory relief) are reflected immediately.
+      fetchHealthScore();
       if (!disableAutoRefresh) {
-        fetchHealthScore();
         runFullAnalysis();
       }
     }
@@ -899,7 +901,7 @@ export function FinancialBgInsights({
           )}
         </div>
         <span className="shrink-0 font-semibold">
-          {f.points}/{f.maxPoints}
+          {isNA ? "N/A" : `${f.points}/${f.maxPoints}`}
         </span>
       </div>
     );

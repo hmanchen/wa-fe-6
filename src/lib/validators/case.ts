@@ -29,9 +29,12 @@ const baseCaseFields = z.object({
   // ── Address ──
   country: z.string().optional(),
   street: z.string().optional(),
-  city: z.string().optional(),
+  city: z.string().min(2, "City is required"),
   state: z.string().optional(),
-  postalCode: z.string().optional(),
+  postalCode: z
+    .string()
+    .min(5, "ZIP code is required")
+    .regex(/^\d{5}$/, "Please enter a valid 5-digit ZIP code"),
   // ── Spouse (conditional) ──
   partnerFirstName: z.string().optional(),
   partnerLastName: z.string().optional(),

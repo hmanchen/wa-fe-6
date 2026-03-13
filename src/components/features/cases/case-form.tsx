@@ -40,6 +40,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { formatDateOnly, parseDateOnly } from "@/lib/formatters/date";
 import { createCaseSchema, type CreateCaseInput } from "@/lib/validators/case";
+import { lookupZip } from "@/lib/api/cases";
 import type { Case } from "@/types/case";
 
 // ── Static data ──────────────────────────────────────────────
@@ -255,6 +256,7 @@ export function CaseForm({
   const maritalStatus = form.watch("maritalStatus");
   const partnerDateOfBirth = form.watch("partnerDateOfBirth");
   const selectedCountry = form.watch("country");
+  const postalCode = form.watch("postalCode");
   const dependentsCount = Number(form.watch("dependents") ?? 0);
   const isMarried = maritalStatus === "married";
   const regionOptions = getRegionOptions(selectedCountry ?? "");
@@ -269,6 +271,29 @@ export function CaseForm({
     }));
     form.setValue("dependentsDetail", next, { shouldValidate: true });
   }, [dependentsCount, form]);
+
+  useEffect(() => {
+    const zip = (postalCode ?? "").trim();
+    if (!/^\d{5}$/.test(zip)) return;
+    if (selectedCountry !== "US") return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await lookupZip(zip);
+        if (cancelled) return;
+        if (result.city && !form.getValues("city")) {
+          form.setValue("city", result.city, { shouldValidate: true });
+        }
+      } catch {
+        // Best effort UX lookup only.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form, postalCode, selectedCountry]);
 
   async function handleSubmit(values: CreateCaseInput) {
     await onSubmit(values);
@@ -621,7 +646,7 @@ export function CaseForm({
                   name="city"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>City</FormLabel>
+                      <FormLabel>City <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Input placeholder="City" {...field} />
                       </FormControl>
@@ -662,9 +687,19 @@ export function CaseForm({
                   name="postalCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{selectedCountry === "US" ? "ZIP code" : "Postal code"}</FormLabel>
+                      <FormLabel>{selectedCountry === "US" ? "ZIP code" : "Postal code"} <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
-                        <Input placeholder={selectedCountry === "US" ? "12345" : "A1A 1A1"} {...field} />
+                        <Input
+                          placeholder={selectedCountry === "US" ? "12345" : "A1A 1A1"}
+                          maxLength={selectedCountry === "US" ? 5 : undefined}
+                          {...field}
+                          onChange={(e) => {
+                            const next = selectedCountry === "US"
+                              ? e.target.value.replace(/\D/g, "").slice(0, 5)
+                              : e.target.value;
+                            field.onChange(next);
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

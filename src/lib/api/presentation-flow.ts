@@ -12,6 +12,15 @@ function extract(data: any): any {
   return data?.data ?? data;
 }
 
+function attachProvider<T>(payload: T, rawResponse: any): T {
+  const provider = rawResponse?.meta?.provider;
+  if (!provider) return payload;
+  if (payload && (typeof payload === "object" || Array.isArray(payload))) {
+    (payload as any).__provider = provider;
+  }
+  return payload;
+}
+
 // ── Compute endpoints ────────────────────────────────────────
 
 export async function computeFullAnalysis(caseId: string, state: string) {
@@ -109,7 +118,7 @@ export async function aiBackgroundSummary(caseId: string) {
     "/ai/background-summary",
     { case_id: caseId }
   );
-  return camelify<any>(extract(data));
+  return attachProvider(camelify<any>(extract(data)), data);
 }
 
 export async function aiHealthNarrative(caseId: string) {
@@ -117,7 +126,7 @@ export async function aiHealthNarrative(caseId: string) {
     "/ai/health-narrative",
     { case_id: caseId }
   );
-  return camelify<any>(extract(data));
+  return attachProvider(camelify<any>(extract(data)), data);
 }
 
 export async function aiProtectionGaps(caseId: string) {
@@ -125,7 +134,7 @@ export async function aiProtectionGaps(caseId: string) {
     "/ai/protection-gaps",
     { case_id: caseId }
   );
-  return camelify<any>(extract(data));
+  return attachProvider(camelify<any>(extract(data)), data);
 }
 
 export async function aiEstateUrgency(caseId: string) {
@@ -133,7 +142,7 @@ export async function aiEstateUrgency(caseId: string) {
     "/ai/estate-urgency",
     { case_id: caseId }
   );
-  return camelify<any>(extract(data));
+  return attachProvider(camelify<any>(extract(data)), data);
 }
 
 export async function aiBackgroundGaps(caseId: string) {
@@ -141,7 +150,7 @@ export async function aiBackgroundGaps(caseId: string) {
     "/ai/background-gaps",
     { case_id: caseId }
   );
-  return camelify<any>(extract(data));
+  return attachProvider(camelify<any>(extract(data)), data);
 }
 
 export async function aiXCurveNarration(caseId: string) {
