@@ -2920,7 +2920,7 @@ function MonthlyExpensesSection({
       const entertainmentEst = estimates.entertainment ?? {};
 
       const sum = (...values: Array<number | undefined>) =>
-        values.reduce((acc, val) => acc + (val ?? 0), 0);
+        values.reduce<number>((acc, val) => acc + (val ?? 0), 0);
 
       const next: Partial<NonNullable<PersonFinancialBackground["monthlyExpenses"]>> = {
         housing:

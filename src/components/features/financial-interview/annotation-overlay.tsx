@@ -158,12 +158,12 @@ function renderStroke(
     ctx.strokeStyle = stroke.color;
     ctx.fillStyle = stroke.color;
     // Use a smoothed path for highlighter to avoid dotted/circle artifacts.
-    const widths = stroke.points
-      .map((p) => p.w)
-      .filter((w) => typeof w === "number" && Number.isFinite(w));
+    const widths: number[] = stroke.points.flatMap((p) =>
+      typeof p.w === "number" && Number.isFinite(p.w) ? [p.w] : []
+    );
     const smoothWidth =
       widths.length > 0
-        ? widths.reduce((sum, w) => sum + (w as number), 0) / widths.length
+        ? widths.reduce((sum, w) => sum + w, 0) / widths.length
         : HIGHLIGHTER_WIDTH;
     drawPath(ctx, stroke.points, smoothWidth, offsetX, offsetY);
   } else if (stroke.tool === "eraser") {

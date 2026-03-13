@@ -13,7 +13,7 @@ export default function RecommendationsScreen({
   caseId,
   caseData,
   onNavigateToDelivery,
-  onContinue,
+  onContinue = undefined,
   onOpenIULIllustration,
   onOpenCollegeFunding,
   initialData,
