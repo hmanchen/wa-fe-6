@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   ResponsiveContainer,
-  LineChart,
+  ComposedChart,
   Line,
   XAxis,
   YAxis,
@@ -67,10 +67,9 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
       projectionRows.map((d) => ({
         year: d.year,
         age: d.age,
-        cashValue: d.cash_value,
-        deathBenefit: d.death_benefit,
-        premiumsPaid: d.cumulative_premium,
-        netGain: Math.max((d.cash_value || 0) - (d.cumulative_premium || 0), 0),
+        cash_value: d.cash_value,
+        loan_available: d.loan_available,
+        cumulative_premium: d.cumulative_premium,
       })),
     [projectionRows]
   );
@@ -104,6 +103,14 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
       ? `${fmt(milestones.retirement_monthly_income)}/mo tax-free`
       : "Tax-free income in retirement",
   ];
+  const wealthYAxisMax = Math.max(...projectionRows.map((r) => Number(r?.cash_value || 0)), 1000) * 1.2;
+  const breakEvenYear = milestones?.break_even_year;
+  const netAtRetirement = milestones?.net_wealth_created ?? iulScenario?.net_wealth_created ?? 0;
+  const inferredChildren = caseData?.children || caseData?.dependents || [];
+  const firstChildAge = Number(inferredChildren?.[0]?.age || inferredChildren?.[0]?.current_age || 9);
+  const collegeYear = Math.max(18 - firstChildAge, 1);
+  const collegeRow = projectionRows.find((p) => Number(p.year) >= collegeYear);
+  const collegeAmount = Number(collegeRow?.loan_available || 0);
 
   return (
     <div style={{ background: "#F8F7F4", minHeight: "100%", padding: 24 }}>
@@ -184,37 +191,43 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
 
       {!loading && !error && (
         <>
+          <div style={{ color: "#1B2B4B", fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
+            How Your Cash Value Grows - IUL Accumulation Story
+          </div>
+          <div style={{ color: "#718096", fontSize: 12, fontStyle: "italic", marginBottom: 8 }}>
+            The shaded area shows your policy's growing cash value. After Year {breakEvenYear || 12},
+            your wealth exceeds what you've paid in.
+          </div>
           <div
             style={{
               background: "#FFFFFF",
               border: "1px solid #E8E4DC",
               borderRadius: 12,
-              height: 320,
+              height: 280,
               padding: 12,
               marginBottom: 16,
             }}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
+              <ComposedChart data={chartData}>
                 <CartesianGrid stroke="#EFEAE0" />
                 <XAxis dataKey="year" />
-                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+                <YAxis domain={[0, wealthYAxisMax]} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
                 <Tooltip formatter={(v) => fmt(Number(v))} />
                 <Legend />
-                <Area dataKey="netGain" fill="rgba(74,124,111,0.12)" stroke="none" />
-                <Line type="monotone" dataKey="deathBenefit" stroke="#1B2B4B" strokeWidth={2} dot={false} name="Death Benefit" />
-                <Line type="monotone" dataKey="cashValue" stroke="#4A7C6F" strokeWidth={2} dot={false} name="Cash Value" />
-                <Line type="monotone" dataKey="premiumsPaid" stroke="#D4A520" strokeDasharray="6 4" strokeWidth={2} dot={false} name="Premiums Paid" />
+                <Area type="monotone" dataKey="cash_value" stroke="#4A7C6F" fill="#4A7C6F" fillOpacity={0.3} strokeWidth={2} name="Cash Value" />
+                <Area type="monotone" dataKey="loan_available" stroke="none" fill="#4A7C6F" fillOpacity={0.12} name="Available to Borrow" />
+                <Line type="monotone" dataKey="cumulative_premium" stroke="#D4A520" strokeDasharray="5 5" strokeWidth={2} dot={false} name="Premiums Paid" />
                 {milestones.break_even_year && (
-                  <ReferenceLine x={milestones.break_even_year} stroke="#D4A520" strokeDasharray="3 3" label="Break-even" />
+                  <ReferenceLine x={milestones.break_even_year} stroke="#1B2B4B" strokeDasharray="4 4" label="Break-even" />
                 )}
                 {milestones.college_funding_year && (
-                  <ReferenceLine x={milestones.college_funding_year} stroke="#3B6CB7" strokeDasharray="3 3" label="College" />
+                  <ReferenceLine x={milestones.college_funding_year} stroke="#1B2B4B" strokeDasharray="4 4" label="College" />
                 )}
                 {milestones.retirement_year && (
-                  <ReferenceLine x={milestones.retirement_year} stroke="#4A7C6F" strokeDasharray="3 3" label="Retirement" />
+                  <ReferenceLine x={milestones.retirement_year} stroke="#1B2B4B" strokeDasharray="4 4" label="Retire" />
                 )}
-              </LineChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
 
@@ -260,6 +273,47 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
             </table>
           </div>
 
+          <div
+            style={{
+              background: "linear-gradient(135deg, #1B2B4B 0%, #243A63 100%)",
+              borderRadius: 12,
+              padding: "20px 24px",
+              color: "#fff",
+              display: "flex",
+              gap: 32,
+              flexWrap: "wrap",
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 11, color: "#90A8CC", textTransform: "uppercase", letterSpacing: 1 }}>
+                Death Benefit (Day 1)
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800 }}>{fmt(data?.premium_breakdown?.iul_face || 0)}</div>
+              <div style={{ fontSize: 12, color: "#BFD0E8" }}>Immediate protection from policy start</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#90A8CC", textTransform: "uppercase", letterSpacing: 1 }}>
+                Total Family Coverage (Term + IUL)
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: "#4A7C6F" }}>
+                {fmt((data?.premium_breakdown?.term_face || 0) + (data?.premium_breakdown?.iul_face || 0))}
+              </div>
+              <div style={{ fontSize: 12, color: "#BFD0E8" }}>Combined Term + IUL layer protection</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#90A8CC", textTransform: "uppercase", letterSpacing: 1 }}>
+                Living Benefit Trigger
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#D4A520" }}>
+                Critical, Chronic,
+                <br />
+                or Terminal Illness
+              </div>
+              <div style={{ fontSize: 12, color: "#BFD0E8" }}>Access death benefit early</div>
+            </div>
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
             <CompareCard
               title="Term Life Only"
@@ -291,7 +345,15 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <Insight icon={<Shield size={14} color="#D4A520" />} title="Living Benefits" text="If disability occurs, policy value can provide income support without a separate claim path." />
-            <Insight icon={<GraduationCap size={14} color="#D4A520" />} title="College Funding" text={`${fmt(milestones.college_available)} may be available for education through policy loans around college start.`} />
+            <Insight
+              icon={<GraduationCap size={14} color="#D4A520" />}
+              title="College Funding"
+              text={
+                collegeAmount > 0
+                  ? `${fmt(collegeAmount)} available for education at Year ${collegeYear}`
+                  : `Policy loans available after Year ${breakEvenYear || 12}`
+              }
+            />
             <Insight icon={<TrendingUp size={14} color="#D4A520" />} title="Tax-Free Retirement" text="Policy loans can support tax-efficient income with no RMD constraints." />
           </div>
         </>
@@ -377,8 +439,10 @@ function CompareCard({ title, bg, border, monthly, coverage, cash, income, paid,
       {good && (
         <div style={{ marginTop: 8, fontWeight: 700, color: isClearPositive ? "#4A7C6F" : "#D4A520" }}>
           {isClearPositive
-            ? `+${fmt(net)} Net Wealth Created`
-            : `Building wealth - positive at Year ${breakEvenYear || "TBD"}`}
+            ? `+${fmt(net)} net wealth created`
+            : breakEvenYear
+              ? `Positive return from Year ${breakEvenYear}`
+              : "Positive return projected mid-policy"}
         </div>
       )}
     </div>

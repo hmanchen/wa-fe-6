@@ -994,6 +994,8 @@ export type FinancialInterviewSection =
   | "recommendations"
   | "iul-illustration"
   | "college-funding"
+  | "debt-freedom"
+  | "retirement-diversification"
   | "delivery";
 
 export type FinancialInterviewStatus = "not-started" | "in-progress" | "completed";

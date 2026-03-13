@@ -52,7 +52,14 @@ const GAP_SOLVE_FALLBACK = {
   debt: "Debt Optimization Gap in Your Profile",
 };
 
-export default function RecommendationCard({ rec, index, onOpenIUL, onOpenCollege }) {
+export default function RecommendationCard({
+  rec,
+  index,
+  onOpenIUL,
+  onOpenCollege,
+  onOpenDebt,
+  onOpenRetirement,
+}) {
   const [advisorOpen, setAdvisorOpen] = useState(false);
   const color = PRIORITY_COLORS[rec.priorityRank] || PRIORITY_COLORS[5];
   const Icon = CAT_ICONS[rec.category] || Shield;
@@ -73,6 +80,8 @@ export default function RecommendationCard({ rec, index, onOpenIUL, onOpenColleg
   const solvesLabel = rec.gapSolvedLabel || GAP_SOLVE_FALLBACK[rec.category] || "Profile gap coverage";
   const isPriority1IUL = rec.category === "protection" && rec.priorityRank === 1;
   const isPriority2College = rec.category === "education" && rec.priorityRank === 2;
+  const isDebt = rec.category === "debt";
+  const isRetirement = rec.category === "retirement";
   const fundingSourceText = rec.funding_source || rec.fundingSource || "";
   const iulBasePremiumOnly = rec.iul_base_premium_only ?? rec.iulBasePremiumOnly;
   const termMonthlyCost = rec.term_monthly_cost ?? rec.termMonthlyCost;
@@ -297,6 +306,56 @@ export default function RecommendationCard({ rec, index, onOpenIUL, onOpenColleg
         >
           <GraduationCap size={16} />
           {rec.iulLinkText || "See Your Children's Education Projection \u2192"}
+        </button>
+      )}
+
+      {isDebt && (
+        <button
+          onClick={onOpenDebt}
+          style={{
+            width: "100%",
+            background: "rgba(212,165,32,0.06)",
+            border: "1px dashed rgba(212,165,32,0.40)",
+            borderRadius: 8,
+            padding: "10px 20px",
+            color: "#D4A520",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            margin: "0 20px 10px 20px",
+            width: "calc(100% - 40px)",
+          }}
+        >
+          <CreditCard size={16} />
+          See Your 3 Paths to Debt Freedom {"\u2192"}
+        </button>
+      )}
+
+      {isRetirement && (
+        <button
+          onClick={onOpenRetirement}
+          style={{
+            width: "100%",
+            background: "rgba(27,43,75,0.05)",
+            border: "1px dashed rgba(27,43,75,0.30)",
+            borderRadius: 8,
+            padding: "10px 20px",
+            color: "#1B2B4B",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            margin: "0 20px 10px 20px",
+            width: "calc(100% - 40px)",
+          }}
+        >
+          <TrendingUp size={16} />
+          See Your Retirement Tax Diversification {"\u2192"}
         </button>
       )}
 

@@ -1,4 +1,8 @@
-export default function JoinTheTeamCard({ clientName, advisorName }) {
+export default function JoinTheTeamCard({ clientName, advisorName, clientAge }) {
+  const ageContext = clientAge
+    ? `At ${clientAge}, you have the ideal combination of life experience and earning years ahead of you.`
+    : "You're at a stage where earning potential and life experience are both working in your favor.";
+
   return (
     <div
       style={{
@@ -69,10 +73,12 @@ export default function JoinTheTeamCard({ clientName, advisorName }) {
         </div>
 
         <p style={{ fontSize: 14, color: "#BFD0E8", lineHeight: 1.8, marginBottom: 20 }}>
-          You've just seen a complete picture of your financial future and what it takes to secure it. If
-          the monthly investment feels like a stretch today, there is a path to change that:{" "}
-          <strong style={{ color: "#FFFFFF" }}>become a licensed insurance professional yourself</strong>, mentor
-          under {advisorName || "your advisor"}, and use WealthArchitect with your own clients.
+          {ageContext} You've just seen a complete picture of your financial future and what it takes to
+          secure it. If the monthly investment feels like a stretch today, there is a genuine path to
+          change that:{" "}
+          <strong style={{ color: "#FFFFFF" }}>become a licensed insurance professional yourself</strong>,
+          mentor under {advisorName || "your advisor"}, and use WealthArchitect with your own clients to
+          build the income that funds this very plan.
         </p>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>

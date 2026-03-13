@@ -13,6 +13,23 @@ import {
 import { recommendationsService } from "../../services/recommendationsService";
 
 const fmt = (n) => "$" + (n || 0).toLocaleString("en-US");
+const TUITION_DATA = {
+  sources: [
+    "College Board: Trends in College Pricing 2023-24",
+    "AAMC: Medical School Tuition and Student Fees 2023-24",
+    "U.S. News & World Report: Average College Tuition 2024",
+    "National Center for Education Statistics (NCES) 2023",
+  ],
+  public_university: {
+    generic: { annual_tuition_fees: 11610, room_board: 12770, total_annual: 24380, total_4yr: 97520, note: "Average in-state tuition + fees + room & board" },
+    medical: { annual_tuition_fees: 37556, room_board: 14000, total_annual: 51556, total_4yr_preclinical: 206224, note: "Median public medical school tuition (AAMC)" },
+  },
+  private_university: {
+    generic: { annual_tuition_fees: 41540, room_board: 15220, total_annual: 56760, total_4yr: 227040, note: "Average private tuition + fees + room & board" },
+    medical: { annual_tuition_fees: 62278, room_board: 14000, total_annual: 76278, total_4yr_preclinical: 305112, note: "Median private medical school tuition (AAMC)" },
+  },
+  inflation_rate: 0.05,
+};
 
 export default function CollegeFundingScreen({ caseId, caseData, recommendation, onBack }) {
   const clientChildren = extractChildren(caseData);
@@ -45,9 +62,12 @@ export default function CollegeFundingScreen({ caseId, caseData, recommendation,
     };
   }, [caseId, monthlyContrib]);
 
-  const children = data?.children || [];
-  const c1 = clientChildren[0];
-  const c2 = clientChildren[1];
+  const children = (data?.children || []).map((child, i) => ({
+    ...child,
+    name: getChildName(i, caseData),
+  }));
+  const c1 = children[0];
+  const c2 = children[1];
 
   const waitLoss = useMemo(() => {
     const childrenData = children;
@@ -64,6 +84,29 @@ export default function CollegeFundingScreen({ caseId, caseData, recommendation,
       in2y,
     };
   }, [children, monthlyContrib]);
+  const ytc1 = Number(c1?.years_to_college || Math.max(18 - (clientChildren[0]?.age || 9), 1));
+  const projectedRows = [
+    {
+      label: "Public University",
+      today: TUITION_DATA.public_university.generic.total_annual,
+      future: projectTuition(TUITION_DATA.public_university.generic.total_annual, ytc1, TUITION_DATA.inflation_rate),
+    },
+    {
+      label: "Private University",
+      today: TUITION_DATA.private_university.generic.total_annual,
+      future: projectTuition(TUITION_DATA.private_university.generic.total_annual, ytc1, TUITION_DATA.inflation_rate),
+    },
+    {
+      label: "Public Medical School",
+      today: TUITION_DATA.public_university.medical.total_annual,
+      future: projectTuition(TUITION_DATA.public_university.medical.total_annual, ytc1, TUITION_DATA.inflation_rate),
+    },
+    {
+      label: "Private Medical School",
+      today: TUITION_DATA.private_university.medical.total_annual,
+      future: projectTuition(TUITION_DATA.private_university.medical.total_annual, ytc1, TUITION_DATA.inflation_rate),
+    },
+  ];
 
   return (
     <div style={{ background: "#F8F7F4", minHeight: "100%", padding: 24 }}>
@@ -113,6 +156,50 @@ export default function CollegeFundingScreen({ caseId, caseData, recommendation,
         </div>
       </div>
 
+      <div style={{ background: "#FFFFFF", border: "1px solid #E8E4DC", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+        <div style={{ color: "#1B2B4B", fontSize: 15, fontWeight: 700, marginBottom: 10 }}>
+          {"\uD83D\uDCDA"} What Does College Actually Cost Today?
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <TuitionCard title="Public University - General" border="#4A7C6F" item={TUITION_DATA.public_university.generic} />
+          <TuitionCard title="Public University - Medical" border="#3B6CB7" item={TUITION_DATA.public_university.medical} medical />
+          <TuitionCard title="Private University - General" border="#D4A520" item={TUITION_DATA.private_university.generic} />
+          <TuitionCard title="Private University - Medical" border="#1B2B4B" item={TUITION_DATA.private_university.medical} medical />
+        </div>
+
+        <div style={{ background: "#FFFBF0", border: "1px solid #D4A52040", borderRadius: 10, padding: 12 }}>
+          <div style={{ color: "#1B2B4B", fontWeight: 700, marginBottom: 8 }}>
+            {"\uD83D\uDCC8"} Projected Cost When {getChildName(0, caseData)} Starts College
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 8 }}>
+            <thead style={{ background: "#fff" }}>
+              <tr>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: "#4A5568" }}>Program</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: "#4A5568" }}>Today (2025)</th>
+                <th style={{ textAlign: "left", padding: "6px 8px", color: "#4A5568" }}>In {ytc1} yrs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projectedRows.map((r) => (
+                <tr key={r.label} style={{ borderTop: "1px solid #F0ECE5" }}>
+                  <td style={{ padding: "6px 8px", color: "#1B2B4B", fontWeight: 600 }}>{r.label}</td>
+                  <td style={{ padding: "6px 8px", color: "#4A5568" }}>{fmt(r.today)}/yr</td>
+                  <td style={{ padding: "6px 8px", color: r.future > 75000 ? "#D4A520" : "#4A5568", fontWeight: r.future > 75000 ? 700 : 500 }}>
+                    {fmt(r.future)}/yr
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ fontSize: 10, color: "#718096", marginBottom: 4 }}>
+            Sources: {TUITION_DATA.sources.join(" · ")}
+          </div>
+          <div style={{ fontSize: 12, color: "#1B2B4B", fontStyle: "italic" }}>
+            At 5% annual tuition inflation, costs will be {Math.round(((1.05 ** ytc1) - 1) * 100)}% higher by the time {getChildName(0, caseData)} starts college.
+          </div>
+        </div>
+      </div>
+
       <div style={{ marginBottom: 16 }}>
         <div style={{ color: "#1B2B4B", fontWeight: 700, marginBottom: 8 }}>Monthly IUL Contribution for Education</div>
         <input
@@ -137,8 +224,8 @@ export default function CollegeFundingScreen({ caseId, caseData, recommendation,
       {!loading && !error && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: children.length > 1 ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 16 }}>
-            {children.map((child) => (
-              <ChildCard key={child.name} child={child} />
+            {children.map((child, i) => (
+              <ChildCard key={child.name + i} child={child} />
             ))}
           </div>
 
@@ -231,6 +318,28 @@ function ChildCard({ child }) {
   );
 }
 
+function TuitionCard({ title, border, item, medical = false }) {
+  return (
+    <div style={{ border: "1px solid #E8E4DC", borderLeft: `4px solid ${border}`, borderRadius: 10, padding: 10, background: "#fff" }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#1B2B4B", marginBottom: 6 }}>{title}</div>
+      <RowKV label="Annual tuition & fees" value={fmt(item.annual_tuition_fees)} />
+      <RowKV label="Room & board" value={fmt(item.room_board)} />
+      <RowKV label="Total annual cost" value={fmt(item.total_annual)} strong />
+      <RowKV label="4-year total today" value={fmt(medical ? item.total_4yr_preclinical : item.total_4yr)} blue />
+      <div style={{ fontSize: 10, color: "#718096", fontStyle: "italic", marginTop: 4 }}>Source: {item.note}</div>
+    </div>
+  );
+}
+
+function RowKV({ label, value, strong = false, blue = false }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 }}>
+      <span style={{ color: "#718096" }}>{label}</span>
+      <span style={{ color: blue ? "#3B6CB7" : "#1B2B4B", fontWeight: strong || blue ? 700 : 500 }}>{value}</span>
+    </div>
+  );
+}
+
 function comparisonRows(data) {
   const first = data?.children?.[0] || {};
   return [
@@ -294,5 +403,21 @@ function extractChildren(cd) {
       age: parseInt(c?.age || c?.current_age || c?.childAge || 0, 10),
     }))
     .filter((c) => !Number.isNaN(c.age));
+}
+
+function getChildName(index, caseData) {
+  const children =
+    caseData?.children ||
+    caseData?.financial_background?.children ||
+    caseData?.dependents ||
+    caseData?.goals?.children ||
+    [];
+  const child = Array.isArray(children) ? children[index] : null;
+  if (!child) return `Child ${index + 1}`;
+  return child.name || child.childName || child.first_name || child.child_name || `Child ${index + 1}`;
+}
+
+function projectTuition(annualToday, yearsAhead, inflationRate) {
+  return Math.round(annualToday * Math.pow(1 + inflationRate, yearsAhead));
 }
 

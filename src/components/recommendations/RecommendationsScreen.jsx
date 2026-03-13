@@ -16,6 +16,8 @@ export default function RecommendationsScreen({
   onContinue = undefined,
   onOpenIULIllustration,
   onOpenCollegeFunding,
+  onOpenDebtFreedom,
+  onOpenRetirementDiversification,
   initialData,
   onDataChange,
 }) {
@@ -120,12 +122,25 @@ export default function RecommendationsScreen({
     recs.find((r) => r.priorityRank === 2) ||
     recs.find((r) => r.category === "education") ||
     { monthly_cost: Math.max(Math.round((primaryRec?.monthly_cost || 1200) * 0.6), 400) };
-  const showJoinTeam = (
-    ((caseData?.net_worth ?? caseData?.netWorth ?? 0) < 0) ||
-    ((summary?.monthlyAvailable ?? 0) < 500) ||
-    (((caseData?.total_savings ?? caseData?.totalSavings ?? 0) === 0) &&
-      ((caseData?.net_worth ?? caseData?.netWorth ?? 0) < 10_000))
+  const primaryClientAge = toNum(
+    caseData?.client_age ||
+      caseData?.primary_client_age ||
+      caseData?.age ||
+      caseData?.primary_age ||
+      caseData?.financial_background?.primary_age ||
+      caseData?.financial_background?.client_age ||
+      caseData?.employment_income?.primary_age ||
+      summary?.primary_client_age ||
+      null
   );
+
+  const clientIsAdult = primaryClientAge === null || primaryClientAge >= 18;
+  const hasNegativeNetWorth = (toNum(caseData?.net_worth) ?? toNum(caseData?.netWorth) ?? 0) < 0;
+  const hasConstrainedCashFlow = (summary?.monthlyAvailable ?? 0) < 500;
+  const hasNoSavings =
+    (toNum(caseData?.total_savings) ?? toNum(caseData?.totalSavings) ?? 0) === 0 &&
+    ((toNum(caseData?.net_worth) ?? toNum(caseData?.netWorth) ?? 0) < 10_000);
+  const showJoinTeam = clientIsAdult && (hasNegativeNetWorth || hasConstrainedCashFlow || hasNoSavings);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100%", background: "#F8F7F4", padding: "24px" }}>
@@ -190,6 +205,8 @@ export default function RecommendationsScreen({
             index={i}
             onOpenIUL={() => onOpenIULIllustration?.(primaryRec)}
             onOpenCollege={() => onOpenCollegeFunding?.(collegeRec)}
+            onOpenDebt={() => onOpenDebtFreedom?.(rec)}
+            onOpenRetirement={() => onOpenRetirementDiversification?.(rec)}
           />
         ))}
 
@@ -198,6 +215,7 @@ export default function RecommendationsScreen({
           <JoinTheTeamCard
             clientName={firstName}
             advisorName="Hari"
+            clientAge={primaryClientAge}
           />
         )}
       </div>
@@ -377,6 +395,7 @@ function normalizeRecommendations(result, caseData) {
 }
 
 function toNum(v) {
+  if (v === null || v === undefined || v === "") return null;
   const n = Number(String(v ?? "").replace(/,/g, "").trim());
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? n : null;
 }

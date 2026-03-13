@@ -41,6 +41,8 @@ import { XCurveScreen } from "@/components/features/financial-interview/xcurve-s
 import RecommendationsScreen from "@/components/recommendations/RecommendationsScreen";
 import IULIllustrationScreen from "@/components/recommendations/IULIllustrationScreen";
 import CollegeFundingScreen from "@/components/recommendations/CollegeFundingScreen";
+import DebtFreedomScreen from "@/components/recommendations/DebtFreedomScreen";
+import RetirementDiversificationScreen from "@/components/recommendations/RetirementDiversificationScreen";
 import { DeliveryScreen } from "@/components/features/financial-interview/delivery-screen";
 import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
@@ -88,6 +90,8 @@ export default function FinancialInterviewPage() {
     currentSection === "recommendations" ||
     currentSection === "iul-illustration" ||
     currentSection === "college-funding" ||
+    currentSection === "debt-freedom" ||
+    currentSection === "retirement-diversification" ||
     currentSection === "delivery";
   const { data: fullAnalysisData } = useFullAnalysisData(
     caseId,
@@ -496,6 +500,12 @@ export default function FinancialInterviewPage() {
               setCollegeRecommendation((rec as Record<string, unknown>) || { monthly_cost: 800 });
               setCurrentSection("college-funding");
             }}
+            onOpenDebtFreedom={(_rec: unknown) => {
+              setCurrentSection("debt-freedom");
+            }}
+            onOpenRetirementDiversification={(_rec: unknown) => {
+              setCurrentSection("retirement-diversification");
+            }}
             initialData={recommendationsCache}
             onDataChange={setRecommendationsCache}
           />
@@ -515,6 +525,22 @@ export default function FinancialInterviewPage() {
             caseId={caseId}
             caseData={caseData}
             recommendation={collegeRecommendation}
+            onBack={() => setCurrentSection("recommendations")}
+          />
+        )}
+
+        {currentSection === "debt-freedom" && (
+          <DebtFreedomScreen
+            caseId={caseId}
+            caseData={caseData}
+            onBack={() => setCurrentSection("recommendations")}
+          />
+        )}
+
+        {currentSection === "retirement-diversification" && (
+          <RetirementDiversificationScreen
+            caseId={caseId}
+            caseData={caseData}
             onBack={() => setCurrentSection("recommendations")}
           />
         )}

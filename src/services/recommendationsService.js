@@ -73,4 +73,37 @@ export const recommendationsService = {
     }
     return res.json();
   },
+  async fetchDebtPayoffStrategies(caseId, extraMonthlyPayment) {
+    const token = await getAuthToken();
+    const res = await fetch(`${BASE_URL}/api/v1/ai/debt-payoff-strategies`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        case_id: caseId,
+        extra_monthly_payment: extraMonthlyPayment,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`API error: ${res.status}`);
+    }
+    return res.json();
+  },
+  async fetchRetirementProjection(caseId) {
+    const token = await getAuthToken();
+    const res = await fetch(`${BASE_URL}/api/v1/ai/retirement-projection`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ case_id: caseId }),
+    });
+    if (!res.ok) {
+      throw new Error(`API error: ${res.status}`);
+    }
+    return res.json();
+  },
 };
