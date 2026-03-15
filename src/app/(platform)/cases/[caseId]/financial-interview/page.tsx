@@ -48,7 +48,7 @@ import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay
 import type { FinancialInterviewSection } from "@/types/financial-interview";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
 import type { GoalsDiscoveryData } from "@/types/financial-interview";
-import { useFullAnalysisData } from "@/hooks/use-presentation-flow";
+import { useFullAnalysisData, useXCurveData } from "@/hooks/use-presentation-flow";
 
 // Lazy-load the annotation overlay since it's heavy (canvas-based)
 const AnnotationOverlay = dynamic(
@@ -82,6 +82,16 @@ export default function FinancialInterviewPage() {
   const [collegeRecommendation, setCollegeRecommendation] = useState<Record<string, unknown>>({ monthly_cost: 800 });
 
   const { data: marketSnapshot, isLoading: isMarketSnapshotLoading } = useMarketSnapshot(currentSection === "financial-background");
+  const retirementTargetAge = Number(
+    healthScore?.goalSummary?.retirementTargetAge ??
+      healthScore?.goalSummary?.retirement_target_age ??
+      65
+  );
+  const { data: xcurveData } = useXCurveData(
+    caseId,
+    retirementTargetAge,
+    currentSection === "financial-x-curve"
+  );
   const shouldLoadFullAnalysis =
     currentSection === "analysis-dashboard" ||
     currentSection === "financial-home" ||
@@ -482,6 +492,7 @@ export default function FinancialInterviewPage() {
             caseData={caseData}
             healthScore={healthScore}
             fullAnalysis={fullAnalysisData}
+            xcurveData={xcurveData}
             onContinue={() => setCurrentSection("recommendations")}
           />
         )}

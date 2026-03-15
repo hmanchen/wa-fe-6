@@ -37,6 +37,7 @@ type XCurveInputs = {
     replacementYears: number;
     mortgageBalance: number;
     educationNeed: number;
+    educationDerivation: string;
     educationChildren: Child[];
     finalExpenses: number;
     estateCosts: number;
@@ -83,6 +84,7 @@ interface XCurveScreenProps {
   caseData: unknown;
   healthScore: FinancialHealthScore | null | undefined;
   fullAnalysis: unknown;
+  xcurveData?: unknown;
   onContinue: () => void;
 }
 
@@ -118,6 +120,19 @@ function calculateEducationNeedAtAge(children: Child[], age: number, currentPare
 }
 
 function estimateRetirementExpenses(currentMonthlyExpenses: number, mortgagePaidOff: boolean) {
+  if (currentMonthlyExpenses <= 0) {
+    return {
+      food: 0,
+      insurancePremiums: 0,
+      medical: 0,
+      housing: 0,
+      utilities: 0,
+      transportation: 0,
+      other: 0,
+      totalMonthly: 0,
+      totalAnnual: 0,
+    };
+  }
   const base = currentMonthlyExpenses * (mortgagePaidOff ? 0.65 : 0.8);
   const healthcareIncrease = 1_000;
   const totalMonthly = Math.round(base + healthcareIncrease);
@@ -152,7 +167,8 @@ function calculateRetirementCorpus(annualNeed: number, yearsInRetirement: number
 function deriveXCurveInputs(
   caseData: unknown,
   healthScore: FinancialHealthScore | null | undefined,
-  fullAnalysis: unknown
+  fullAnalysis: unknown,
+  xcurveData?: unknown
 ): XCurveInputs {
   const cd = (caseData as Dict | null) ?? {};
   const pi = (cd["clientPersonalInfo"] as Dict | undefined) ?? {};
@@ -170,6 +186,10 @@ function deriveXCurveInputs(
   const goalRet = (fa["goalRetirementProjection"] as Dict | undefined) ?? {};
   const goalNetWorth = (fa["goalNetWorth"] as Dict | undefined) ?? {};
   const hsGoalSummary = (hs["goalSummary"] as Dict | undefined) ?? {};
+  const xcurveRaw =
+    (xcurveData as Dict | undefined) ?? (fa["xcurve"] as Dict | undefined) ?? {};
+  const xcurve =
+    ((xcurveRaw["data"] as Dict | undefined) ?? xcurveRaw);
 
   const primaryAge = calculateAgeFromDob(String(pi["dateOfBirth"] ?? "")) ?? 40;
   const retirementAge = n(hsGoalSummary["retirementTargetAge"]) || 65;
@@ -226,7 +246,33 @@ function deriveXCurveInputs(
     n(cashFlow["monthlyRetirementContributions"] ?? cashFlow["monthly_retirement_contributions"]) || 0;
 
   const employerMatch = n(cashFlow["monthlyEmployerMatch"] ?? cashFlow["monthly_employer_match"]) || 0;
+  const xcurveComponents = (xcurve["components"] as unknown[] | undefined) ?? [];
+  const xcurveByKey = new Map<string, number>();
+  const xcurveFormulaByKey = new Map<string, string>();
+  xcurveComponents.forEach((raw) => {
+    const row = (raw as Dict | null) ?? {};
+    const key = String(row["key"] ?? "");
+    if (!key) return;
+    xcurveByKey.set(key, n(row["amount"]));
+    const formula = String(row["formula"] ?? "").trim();
+    if (formula) xcurveFormulaByKey.set(key, formula);
+  });
+  const xcurveIncomeReplacement = n(xcurveByKey.get("income_replacement"));
+  const xcurveDebtPayoff = n(xcurveByKey.get("debt_payoff"));
+  const xcurveMortgage = n(xcurveByKey.get("mortgage_payoff"));
+  const xcurveEducation = n(xcurveByKey.get("education_fund"));
+  const xcurveFinalExpenses = n(xcurveByKey.get("final_expenses"));
+  const educationDerivation =
+    xcurveFormulaByKey.get("education_fund") ||
+    "Derived from children profiles and education funding assumptions.";
+
+  let replacementYears = n(goalIncome["replacementYears"] ?? goalIncome["replacement_years"]) || 10;
+  if (xcurveIncomeReplacement > 0 && annualIncome > 0) {
+    replacementYears = Math.max(1, Math.round(xcurveIncomeReplacement / annualIncome));
+  }
+
   const existingLifeCoverage =
+    n(xcurve["existingCoverage"] ?? xcurve["existing_coverage"]) ||
     n(goalCoverage["existingCoverage"] ?? goalCoverage["existing_coverage"]) ||
     n(goalCoverage["existingLifeInsurance"] ?? goalCoverage["existing_life_insurance"]);
 
@@ -242,17 +288,19 @@ function deriveXCurveInputs(
       children: educationChildren,
     },
     risk: {
-      totalDebt: n(debt["totalConsumerDebt"] ?? debt["total_consumer_debt"]),
+      totalDebt: xcurveDebtPayoff || n(debt["totalConsumerDebt"] ?? debt["total_consumer_debt"]),
       debtBreakdown,
       annualIncome,
-      replacementYears: n(goalIncome["replacementYears"] ?? goalIncome["replacement_years"]) || 10,
-      mortgageBalance: mortgageFromCase,
+      replacementYears,
+      mortgageBalance: xcurveMortgage || mortgageFromCase,
       educationNeed: n(
-        goalEducation["projectedTotalEducationNeed"] ?? goalEducation["projected_total_education_need"]
+        xcurveEducation ||
+          n(goalEducation["projectedTotalEducationNeed"] ?? goalEducation["projected_total_education_need"])
       ),
+      educationDerivation,
       educationChildren,
-      finalExpenses: 25_000,
-      estateCosts: n(goalEstate["baseEstateNeed"] ?? goalEstate["base_estate_need"]),
+      finalExpenses: xcurveFinalExpenses || 25_000,
+      estateCosts: xcurveByKey.size > 0 ? 0 : n(goalEstate["baseEstateNeed"] ?? goalEstate["base_estate_need"]),
       debtPayoffMonths:
         n(((debt["avalancheStrategy"] as Dict | undefined) ?? {})["payoffMonths"]) || 36,
     },
@@ -418,7 +466,7 @@ function buildCurve(
   };
 }
 
-function calculateMilestones(inputs: XCurveInputs) {
+function calculateMilestones(inputs: XCurveInputs, currentMortgageBalance: number) {
   const currentAge = inputs.client.primaryAge;
   const childrenCollege = (inputs.client.children ?? [])
     .map((child) => ({
@@ -427,7 +475,7 @@ function calculateMilestones(inputs: XCurveInputs) {
     }))
     .filter((x) => x.parentAgeAtCollege > currentAge && x.parentAgeAtCollege < 90);
 
-  const mortgagePayoff = currentAge + 30;
+  const mortgagePayoff = currentMortgageBalance > 0 ? currentAge + 30 : null;
   const debtFreeAge = currentAge + Math.ceil(inputs.risk.debtPayoffMonths / 12);
   return {
     currentAge,
@@ -581,11 +629,12 @@ export function XCurveScreen({
   caseData,
   healthScore,
   fullAnalysis,
+  xcurveData,
   onContinue,
 }: XCurveScreenProps) {
   const inputs = useMemo(
-    () => deriveXCurveInputs(caseData, healthScore, fullAnalysis),
-    [caseData, healthScore, fullAnalysis]
+    () => deriveXCurveInputs(caseData, healthScore, fullAnalysis, xcurveData),
+    [caseData, healthScore, fullAnalysis, xcurveData]
   );
 
   const [editable, setEditable] = useState<DimeEditable>({
@@ -613,7 +662,10 @@ export function XCurveScreen({
   ]);
 
   const curve = useMemo(() => buildCurve(inputs, editable), [inputs, editable]);
-  const milestones = useMemo(() => calculateMilestones(inputs), [inputs]);
+  const milestones = useMemo(
+    () => calculateMilestones(inputs, editable.mortgage),
+    [inputs, editable.mortgage]
+  );
   const responsibilities = useMemo(
     () => getResponsibilities(inputs, editable),
     [inputs, editable]
@@ -650,8 +702,20 @@ export function XCurveScreen({
 
   const retirementExpenses = useMemo(() => {
     const mortgagePaidOff = milestones.mortgagePayoff !== null && milestones.mortgagePayoff <= inputs.retirement.targetAge;
-    return estimateRetirementExpenses(inputs.retirement.monthlyExpenses || 5_000, mortgagePaidOff);
-  }, [inputs.retirement.monthlyExpenses, inputs.retirement.targetAge, milestones.mortgagePayoff]);
+    const baselineMonthly =
+      inputs.retirement.monthlyExpenses > 0
+        ? inputs.retirement.monthlyExpenses
+        : inputs.retirement.desiredMonthlyIncome > 0
+          ? inputs.retirement.desiredMonthlyIncome
+          : Math.round((inputs.risk.annualIncome * 0.5) / 12);
+    return estimateRetirementExpenses(Math.max(0, baselineMonthly), mortgagePaidOff);
+  }, [
+    inputs.retirement.monthlyExpenses,
+    inputs.retirement.desiredMonthlyIncome,
+    inputs.retirement.targetAge,
+    inputs.risk.annualIncome,
+    milestones.mortgagePayoff,
+  ]);
 
   const retirementCorpus = useMemo(
     () =>
@@ -663,8 +727,34 @@ export function XCurveScreen({
     inputs.retirement.projected401kWithdrawal +
     inputs.retirement.projectedSocialSecurity +
     inputs.retirement.projectedPension;
+  const replacementYearOptions = useMemo(() => {
+    const defaults = [5, 7, 8, 10, 12, 15, 20];
+    const current = Math.round(editable.replacementYears);
+    if (current > 0 && !defaults.includes(current)) {
+      return [...defaults, current].sort((a, b) => a - b);
+    }
+    return defaults;
+  }, [editable.replacementYears]);
 
   const retirementDeficit = Math.max(0, retirementCorpus.recommended - inputs.accumulation.projectedNetWorthAtRetirement);
+  const projectedAtRetirementDerivation = useMemo(() => {
+    const years = Math.max(0, inputs.retirement.targetAge - inputs.client.primaryAge);
+    const annualSavings = Math.max(0, inputs.accumulation.monthlySurplus) * 12;
+    const liabilitiesNow = Math.max(
+      0,
+      inputs.risk.totalDebt + Math.max(0, editable.mortgage)
+    );
+    return `Derived by goal net worth projection: current assets (${formatCurrency(
+      inputs.accumulation.totalCurrentAssets
+    )}) + annual savings (${formatCurrency(annualSavings)}/yr) over ${years} years at assumed growth, minus projected liabilities and planned major purchases.`;
+  }, [
+    inputs.retirement.targetAge,
+    inputs.client.primaryAge,
+    inputs.accumulation.monthlySurplus,
+    inputs.accumulation.totalCurrentAssets,
+    inputs.risk.totalDebt,
+    editable.mortgage,
+  ]);
 
   const timelineMilestones = [
     { label: "Age", age: inputs.client.primaryAge },
@@ -845,9 +935,9 @@ export function XCurveScreen({
 
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-[#E74C3C]/30 bg-white p-3">
-            <p className="text-xs text-muted-foreground">Coverage Gap</p>
+              <p className="text-xs text-muted-foreground">Current Risk Gap</p>
             <p className="font-mono text-xl font-bold text-[#E74C3C]">{formatCurrency(curve.currentGap)}</p>
-            <p className="text-xs text-muted-foreground">Unprotected risk today</p>
+              <p className="text-xs text-muted-foreground">At current age after timeline adjustment</p>
           </div>
           <div className="rounded-lg border bg-white p-3" style={{ borderColor: `${crossingAccent}66` }}>
             <p className="text-xs text-muted-foreground">Crossing Point</p>
@@ -909,7 +999,7 @@ export function XCurveScreen({
                   }
                   className="h-8 rounded border bg-background px-2"
                 >
-                  {[5, 7, 8, 10, 12, 15, 20].map((y) => (
+                  {replacementYearOptions.map((y) => (
                     <option key={y} value={y}>
                       {y} years
                     </option>
@@ -930,18 +1020,10 @@ export function XCurveScreen({
               colorClass="bg-[#8E44AD]"
               amount={editable.education}
               onChange={(next) => setEditable((prev) => ({ ...prev, education: next }))}
+              subtitle={inputs.risk.educationDerivation}
             />
             <div className="rounded-lg border bg-background p-3">
               <div className="flex items-center justify-between text-sm">
-                <span>Final Expenses</span>
-                <Input
-                  type="number"
-                  value={editable.finalExpenses}
-                  onChange={(e) => setEditable((prev) => ({ ...prev, finalExpenses: n(e.target.value) }))}
-                  className="h-8 w-32 text-right"
-                />
-              </div>
-              <div className="mt-2 flex items-center justify-between text-sm">
                 <span>Estate / Probate Costs</span>
                 <span className="font-mono">{formatCurrency(inputs.risk.estateCosts)}</span>
               </div>
@@ -1012,6 +1094,7 @@ export function XCurveScreen({
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex justify-between"><span>Current Savings</span><span>{formatCurrency(inputs.accumulation.totalCurrentAssets)}</span></div>
               <div className="flex justify-between"><span>Projected at Retirement</span><span>{formatCurrency(inputs.accumulation.projectedNetWorthAtRetirement)}</span></div>
+              <p className="text-xs text-muted-foreground">{projectedAtRetirementDerivation}</p>
               <div className="flex justify-between"><span>401(k) Withdrawal</span><span>{formatCurrency(inputs.retirement.projected401kWithdrawal)}/yr</span></div>
               <div className="flex justify-between"><span>Social Security</span><span>{formatCurrency(inputs.retirement.projectedSocialSecurity)}/yr</span></div>
               <div className="flex justify-between"><span>Pension</span><span>{formatCurrency(inputs.retirement.projectedPension)}/yr</span></div>

@@ -72,7 +72,7 @@ export function LevelDetailPanel({
         <DataCard title="Retirement Planning" tooltip={EDUCATIONAL_TOOLTIPS.retirement}>
           <p>Target Age: {data.retirement.targetAge}</p>
           <p>Current Savings: {usd(data.retirement.currentSavings)}</p>
-          <p>Projected: {usd(data.retirement.projectedAtRetirement)}</p>
+          <p>Projected Net Worth at Retirement: {usd(data.retirement.projectedAtRetirement)}</p>
           <p>Monthly Gap: {usd(data.retirement.retirementGapMonthly)}</p>
           <div className="mt-2"><ProgressBar value={data.retirement.readinessScore || 0} /></div>
         </DataCard>

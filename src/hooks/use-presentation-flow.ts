@@ -39,10 +39,10 @@ export function useFullAnalysisData(
   });
 }
 
-export function useXCurveData(caseId: string | null, enabled = true) {
+export function useXCurveData(caseId: string | null, retirementAge = 65, enabled = true) {
   return useQuery({
-    queryKey: ["xcurve-data", caseId],
-    queryFn: () => computeXCurveData(caseId!),
+    queryKey: ["xcurve-data", caseId, retirementAge],
+    queryFn: () => computeXCurveData(caseId!, retirementAge),
     enabled: !!caseId && enabled,
     staleTime: 5 * 60 * 1000,
   });

@@ -151,6 +151,12 @@ function n(v: unknown): number {
   return Number.isFinite(x) ? x : 0;
 }
 
+function toCount(v: unknown, fallback = 0): number {
+  if (Array.isArray(v)) return v.length;
+  const parsed = Number(v);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function factorMet(healthScore: FinancialHealthScore | null | undefined, id: string): boolean {
   const hs = healthScore as unknown as Dict;
   const categories = (hs["categories"] as Dict | undefined) ?? {};
@@ -168,8 +174,8 @@ export type PyramidMappedData = {
   level5: Level5Data;
 };
 
-function emergencyStatus(months: number): Status {
-  if (months >= 3) return "healthy";
+function emergencyStatus(months: number, targetMonths: number): Status {
+  if (months >= targetMonths) return "healthy";
   if (months > 0) return "attention";
   return "not_started";
 }
@@ -190,7 +196,10 @@ export function getLevelSummary(level: number, data: PyramidMappedData): string 
     return "Building your foundation is the most important step. Let's start here.";
   }
   if (level === 2) {
-    if (data.level2.emergencyFund.currentMonths >= 3 && data.level2.retirement.onTrack) {
+    if (
+      data.level2.emergencyFund.currentMonths >= data.level2.emergencyFund.targetMonths &&
+      data.level2.retirement.onTrack
+    ) {
       return "Excellent stability. Emergency reserves and retirement trajectory are both on track.";
     }
     if (data.level2.emergencyFund.currentMonths >= 1) {
@@ -247,10 +256,11 @@ export function mapPyramidData(params: {
     });
 
   const dependentsNum =
-    n(clientPersonalInfo["dependents"]) || children.length;
+    toCount(clientPersonalInfo["dependents"], children.length) || children.length;
   const coverageAmount = n(goalCov["existingCoverage"]) || 0;
   const coverageGap = n(goalCov["coverageGap"]);
   const recommendedCoverage = n(goalCov["recommendedCoverage"]);
+  const emergencyTargetMonths = 6;
 
   const emergencyMonths = (() => {
     const categories = (hsAny["categories"] as Dict | undefined) ?? {};
@@ -312,7 +322,7 @@ export function mapPyramidData(params: {
     },
     protection: {
       lifeInsurance: {
-        exists: factorMet(healthScore, "life_insurance_exists"),
+        exists: factorMet(healthScore, "life_insurance_exists") || coverageAmount > 0,
         coverageAmount,
         coverageGap,
         recommended: recommendedCoverage,
@@ -329,21 +339,25 @@ export function mapPyramidData(params: {
   const level2: Level2Data = {
     emergencyFund: {
       currentMonths: emergencyMonths,
-      targetMonths: 6,
+      targetMonths: emergencyTargetMonths,
       currentBalance: n(savCat["total"]),
       monthlyExpenses: n(cf["totalMonthlyExpenses"]),
-      targetBalance: n(cf["totalMonthlyExpenses"]) * 6,
-      gap: Math.max(0, n(cf["totalMonthlyExpenses"]) * 6 - n(savCat["total"])),
-      status: emergencyStatus(emergencyMonths),
+      targetBalance: n(cf["totalMonthlyExpenses"]) * emergencyTargetMonths,
+      gap: Math.max(
+        0,
+        n(cf["totalMonthlyExpenses"]) * emergencyTargetMonths - n(savCat["total"])
+      ),
+      status: emergencyStatus(emergencyMonths, emergencyTargetMonths),
     },
     criticalExpenses: {
-      totalCritical: n(cf["monthlyFixedExpenses"]),
-      monthlyIncome: n(cf["monthlyNetTakeHome"]),
+      totalCritical: n(cf["monthlyFixedExpenses"]) || n(cf["totalMonthlyExpenses"]),
+      monthlyIncome: n(cf["monthlyNetTakeHome"]) || n(cf["monthlyNetIncome"]),
       criticalExpenseRatio:
-        n(cf["monthlyNetTakeHome"]) > 0
-          ? n(cf["monthlyFixedExpenses"]) / n(cf["monthlyNetTakeHome"])
+        (n(cf["monthlyNetTakeHome"]) || n(cf["monthlyNetIncome"])) > 0
+          ? (n(cf["monthlyFixedExpenses"]) || n(cf["totalMonthlyExpenses"])) /
+            (n(cf["monthlyNetTakeHome"]) || n(cf["monthlyNetIncome"]))
           : 0,
-      housing: n(cf["monthlyFixedExpenses"]),
+      housing: n(cf["monthlyFixedExpenses"]) || n(cf["totalMonthlyExpenses"]) * 0.3,
     },
     retirement: {
       targetAge: n(((hsAny["goalSummary"] as Dict | undefined) ?? {})["retirementTargetAge"]) || 65,
@@ -373,8 +387,16 @@ export function mapPyramidData(params: {
       hasInvestments: n(invCat["total"]) > 0,
     },
     growth: {
-      monthlyInvestmentContributions: n(((hsAny["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]),
-      surplusAvailable: n(((hsAny["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]),
+      monthlyInvestmentContributions:
+        n(((hsAny["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]) ||
+        n(((fa["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]) ||
+        n(((fa["hiddenMoney"] as Dict | undefined) ?? {})["totalMonthlyRedirectable"]) ||
+        Math.max(0, n(cf["monthlySurplusOrDeficit"])),
+      surplusAvailable:
+        n(((hsAny["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]) ||
+        n(((fa["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]) ||
+        n(((fa["hiddenMoney"] as Dict | undefined) ?? {})["totalMonthlyRedirectable"]) ||
+        Math.max(0, n(cf["monthlySurplusOrDeficit"])),
       inflationTarget: 0.04,
       minimumGrowthTarget: 0.05,
     },
@@ -411,7 +433,7 @@ export function mapPyramidData(params: {
 
   const pillars = [
     level1.income.monthlyGross > 0,
-    level2.emergencyFund.currentMonths >= 3,
+    level2.emergencyFund.currentMonths >= emergencyTargetMonths,
     level1.protection.lifeInsurance.exists && level1.protection.disabilityInsurance.exists,
     level2.retirement.onTrack,
     level4.estate.estateScorePct >= 70,
@@ -426,7 +448,7 @@ export function mapPyramidData(params: {
       allDebtsManaged:
         n(debt["totalConsumerDebt"]) === 0 ||
         n(((debt["avalancheStrategy"] as Dict | undefined) ?? {})["payoffMonths"]) < 36,
-      emergencyFundComplete: level2.emergencyFund.currentMonths >= 3,
+      emergencyFundComplete: level2.emergencyFund.currentMonths >= emergencyTargetMonths,
       protectionInPlace:
         level1.protection.lifeInsurance.exists && level1.protection.disabilityInsurance.exists,
       retirementOnTrack: level2.retirement.onTrack,
@@ -450,14 +472,13 @@ export function mapPyramidData(params: {
     level1.assets.totalAssets > 0,
     level1.liabilities.totalConsumerDebt === 0 || level1.liabilities.debtFreeMonths < 36,
     level1.income.monthlyGross > 0,
-    true,
     level1.protection.lifeInsurance.exists && level1.protection.disabilityInsurance.exists,
   ].filter(Boolean).length;
   level1.foundationHealthyCount = foundationHealthyCount;
-  level1.foundationStatus = levelStatus(foundationHealthyCount, 5);
+  level1.foundationStatus = levelStatus(foundationHealthyCount, 4);
   level2.status = levelStatus(
     [
-      level2.emergencyFund.currentMonths >= 3,
+      level2.emergencyFund.currentMonths >= emergencyTargetMonths,
       level2.criticalExpenses.criticalExpenseRatio > 0 &&
         level2.criticalExpenses.criticalExpenseRatio <= 0.5,
       level2.retirement.onTrack,

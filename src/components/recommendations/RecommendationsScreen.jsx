@@ -25,13 +25,30 @@ export default function RecommendationsScreen({
   const [data, setData] = useState(initialData || null);
   const [error, setError] = useState(null);
 
+  const hasUsableRecommendations = (payload) =>
+    Array.isArray(payload?.recommendations) && payload.recommendations.length > 0;
+
   const load = async () => {
     setStatus("loading");
     setError(null);
     try {
-      const result = normalizeRecommendations(recommendationsService ? await recommendationsService.fetch(caseId) : null, caseData);
-      setData(result || null);
-      if (onDataChange) onDataChange(result || null);
+      let result = null;
+      let lastPayload = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const raw = recommendationsService ? await recommendationsService.fetch(caseId) : null;
+        const normalized = normalizeRecommendations(raw, caseData);
+        lastPayload = normalized;
+        if (hasUsableRecommendations(normalized)) {
+          result = normalized;
+          break;
+        }
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+        }
+      }
+      const finalResult = result || lastPayload;
+      setData(finalResult || null);
+      if (onDataChange) onDataChange(finalResult || null);
       setStatus("success");
     } catch (e) {
       setError(e?.message || "Failed to generate recommendations");

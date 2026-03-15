@@ -27,6 +27,27 @@ export function FinancialHomePyramid({
     () => mapPyramidData({ caseData, healthScore, fullAnalysis }),
     [caseData, healthScore, fullAnalysis]
   );
+  const hasAnalysisData =
+    !!fullAnalysis &&
+    typeof fullAnalysis === "object" &&
+    Object.keys(fullAnalysis).length > 0;
+
+  if (!hasAnalysisData) {
+    return (
+      <div className="space-y-4 rounded-xl border bg-[#FAFAF7] p-4 text-[#2D3436]">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">Financial Home Pyramid</h2>
+          <p className="text-sm text-muted-foreground">
+            Calculating pyramid values from your latest analysis...
+          </p>
+        </div>
+        <div className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
+          We are syncing your net worth, cash flow, debt, and protection calculations.
+          This usually takes a few seconds.
+        </div>
+      </div>
+    );
+  }
 
   const statuses = {
     1: mapped.level1.foundationStatus,
