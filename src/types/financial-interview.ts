@@ -136,8 +136,20 @@ export interface CashOnHandDetails {
   checkingBalance?: number;
   /** Savings account balance */
   savingsBalance?: number;
+  /** Dedicated emergency fund value */
+  emergencyFundBalance?: number;
   /** Emergency fund target (months of expenses) */
   emergencyFundMonths?: number;
+}
+
+export interface OtherSavingsDetails {
+  hasOtherSavings: boolean;
+  /** Precious metals like gold/silver */
+  preciousMetalsValue?: number;
+  /** Jewelry value */
+  jewelryValue?: number;
+  /** Other tangible savings assets */
+  otherAssetsValue?: number;
 }
 
 export interface PensionDetails {
@@ -732,6 +744,7 @@ export interface PersonFinancialBackground {
   realEstate: RealEstateDetails;
   crypto: CryptoDetails;
   cashOnHand: CashOnHandDetails;
+  otherSavings?: OtherSavingsDetails;
   socialSecurity: SocialSecurityDetails;
   systematicInvestments: SystematicInvestment;
   fundsAbroad: FundsAbroad;

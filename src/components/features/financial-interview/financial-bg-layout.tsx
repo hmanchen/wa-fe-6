@@ -409,9 +409,11 @@ function IncomeSourceCard({
 function EmploymentSection({
   data,
   update,
+  householdAnnualIncome,
 }: {
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
+  householdAnnualIncome?: number;
 }) {
   const status = data.income?.employmentStatus ?? "employed";
   const sources: IncomeSource[] = data.income?.incomeSources ?? [];
@@ -535,9 +537,17 @@ function EmploymentSection({
             />
           </div>
           <div className="flex items-end">
-            <div className="rounded-md bg-muted/60 px-3 py-1.5">
-              <p className="text-[10px] text-muted-foreground">Total combined income</p>
-              <p className="text-sm font-bold text-foreground">${totalIncome.toLocaleString()}</p>
+            <div className="space-y-1.5">
+              <div className="rounded-md bg-muted/60 px-3 py-1.5">
+                <p className="text-[10px] text-muted-foreground">Total combined income</p>
+                <p className="text-sm font-bold text-foreground">${totalIncome.toLocaleString()}</p>
+              </div>
+              <div className="rounded-md bg-blue-50 px-3 py-1.5 dark:bg-blue-950/30">
+                <p className="text-[10px] text-muted-foreground">Total household income (primary + spouse)</p>
+                <p className="text-sm font-bold text-foreground">
+                  ${Math.round(householdAnnualIncome ?? totalIncome).toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1746,6 +1756,7 @@ function InvestmentsSection({
 }) {
   const [expandedInvestmentsSections, setExpandedInvestmentsSections] = useState({
     investmentAccounts: false,
+    otherSavings: false,
     cashAndSavings: false,
     socialSecurity: false,
   });
@@ -1797,6 +1808,68 @@ function InvestmentsSection({
         )}
       </div>
 
+      {/* Other Savings */}
+      <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-slate-500")}>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Other Savings</p>
+            <p className="text-xs text-muted-foreground">Precious metals, jewelry, and other tangible savings assets</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => toggleInvestmentsSection("otherSavings")}
+          >
+            {expandedInvestmentsSections.otherSavings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
+        {expandedInvestmentsSections.otherSavings && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <CurrencyField
+              label="Precious Metals (Gold/Silver)"
+              value={data.otherSavings?.preciousMetalsValue}
+              onChange={(v) =>
+                update({
+                  otherSavings: {
+                    ...data.otherSavings,
+                    hasOtherSavings: true,
+                    preciousMetalsValue: v,
+                  },
+                })
+              }
+            />
+            <CurrencyField
+              label="Jewelry"
+              value={data.otherSavings?.jewelryValue}
+              onChange={(v) =>
+                update({
+                  otherSavings: {
+                    ...data.otherSavings,
+                    hasOtherSavings: true,
+                    jewelryValue: v,
+                  },
+                })
+              }
+            />
+            <CurrencyField
+              label="Other Assets"
+              value={data.otherSavings?.otherAssetsValue}
+              onChange={(v) =>
+                update({
+                  otherSavings: {
+                    ...data.otherSavings,
+                    hasOtherSavings: true,
+                    otherAssetsValue: v,
+                  },
+                })
+              }
+            />
+          </div>
+        )}
+      </div>
+
       {/* Cash & Savings — compact 2-col grid */}
       <div className={cn("rounded-xl border border-l-4 bg-card px-5 py-4 shadow-sm border-l-amber-400")}>
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -1820,13 +1893,32 @@ function InvestmentsSection({
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, checkingBalance: v } })} />
           <CurrencyField label="Savings" value={data.cashOnHand?.savingsBalance}
             onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, savingsBalance: v } })} />
+          <CurrencyField label="Emergency Fund Value" value={data.cashOnHand?.emergencyFundBalance}
+            onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, emergencyFundBalance: v } })} />
           <CurrencyField label="HSA" value={data.hsa?.currentBalance}
             onChange={(v) => update({ hsa: { ...data.hsa, hasHSA: true, currentBalance: v } })} />
           <CurrencyField label="CDs" value={data.cd?.totalValue}
             onChange={(v) => update({ cd: { ...data.cd, hasCDs: true, totalValue: v } })} />
-          <CurrencyField label="Emergency Fund (months)" value={data.cashOnHand?.emergencyFundMonths}
-            onChange={(v) => update({ cashOnHand: { ...data.cashOnHand, hasCashOnHand: true, emergencyFundMonths: v } })}
-            placeholder="e.g. 6" />
+          <div className="space-y-1">
+            <Label className="text-xs">Emergency Fund Target (months)</Label>
+            <Input
+              type="number"
+              min={0}
+              className="h-8 text-sm"
+              placeholder="e.g. 6"
+              value={data.cashOnHand?.emergencyFundMonths ?? ""}
+              onChange={(e) =>
+                update({
+                  cashOnHand: {
+                    ...data.cashOnHand,
+                    hasCashOnHand: true,
+                    emergencyFundMonths:
+                      e.target.value === "" ? undefined : Number(e.target.value),
+                  },
+                })
+              }
+            />
+          </div>
         </div>
         )}
       </div>
@@ -3283,6 +3375,7 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
     realEstate: { hasRealEstate: false },
     crypto: { hasCrypto: false },
     cashOnHand: { hasCashOnHand: false },
+    otherSavings: { hasOtherSavings: false },
     socialSecurity: { hasEstimate: false },
     systematicInvestments: { hasSystematicInvestments: false },
     fundsAbroad: { sendsFundsAbroad: false },
@@ -3290,6 +3383,34 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
     lifeInsurance: {},
     estate: {},
   };
+}
+
+function annualIncomeFromBackground(background: unknown): number {
+  if (!background || typeof background !== "object") return 0;
+  const bg = background as Record<string, unknown>;
+  const income = (bg["income"] as Record<string, unknown> | undefined) ?? {};
+  const sources = (income["income_sources"] as Array<Record<string, unknown>> | undefined)
+    ?? (income["incomeSources"] as Array<Record<string, unknown>> | undefined)
+    ?? [];
+
+  const sourcesTotal = Array.isArray(sources)
+    ? sources.reduce((sum, src) => {
+        if (!src || typeof src !== "object") return sum;
+        const annualIncome = Number(src["annual_income"] ?? src["annualIncome"] ?? 0) || 0;
+        const annualBonus = Number(src["annual_bonus"] ?? src["annualBonus"] ?? 0) || 0;
+        return sum + annualIncome + annualBonus;
+      }, 0)
+    : 0;
+  if (sourcesTotal > 0) {
+    return sourcesTotal;
+  }
+
+  return (
+    Number(income["annual_salary"] ?? income["annualSalary"] ?? 0) +
+    Number(income["annual_bonus"] ?? income["annualBonus"] ?? 0) +
+    Number(income["other_income"] ?? income["otherIncome"] ?? 0) +
+    Number(income["business_income"] ?? income["businessIncome"] ?? 0)
+  );
 }
 
 export interface FinancialBgLayoutProps {
@@ -3336,6 +3457,7 @@ export function FinancialBgLayout({
   const [activeSection, setActiveSection] = useState<SubSection>("employment");
   const [showCollegeSection, setShowCollegeSection] = useState(true);
   const [dependentSeed, setDependentSeed] = useState<Array<{ name: string; age: number }>>([]);
+  const [householdAnnualIncome, setHouseholdAnnualIncome] = useState<number>(0);
   const initializedFromProps = useRef(!!defaultValues);
 
   useEffect(() => {
@@ -3378,6 +3500,14 @@ export function FinancialBgLayout({
           ((payload["financial_profile"] as Record<string, unknown> | undefined) ??
             (payload["financialProfile"] as Record<string, unknown> | undefined) ??
             {}) as Record<string, unknown>;
+        const primaryBg =
+          (fp["primary_background"] as Record<string, unknown> | undefined) ??
+          (fp["primaryBackground"] as Record<string, unknown> | undefined) ??
+          {};
+        const spouseBg =
+          (fp["spouse_background"] as Record<string, unknown> | undefined) ??
+          (fp["spouseBackground"] as Record<string, unknown> | undefined) ??
+          {};
         const goalsDiscovery =
           ((fp["goals_discovery"] as Record<string, unknown> | undefined) ??
             (fp["goalsDiscovery"] as Record<string, unknown> | undefined) ??
@@ -3410,10 +3540,14 @@ export function FinancialBgLayout({
         }
 
         if (!mounted) return;
+        setHouseholdAnnualIncome(
+          annualIncomeFromBackground(primaryBg) + annualIncomeFromBackground(spouseBg)
+        );
         setDependentSeed(seedRows);
         setShowCollegeSection(dependentCount > 0 || hasEducationGoal);
       } catch {
         if (!mounted) return;
+        setHouseholdAnnualIncome(0);
         setShowCollegeSection(true);
       }
     };
@@ -3619,7 +3753,13 @@ export function FinancialBgLayout({
               )}
             </div>
 
-            {activeSection === "employment" && <EmploymentSection data={data} update={update} />}
+            {activeSection === "employment" && (
+              <EmploymentSection
+                data={data}
+                update={update}
+                householdAnnualIncome={householdAnnualIncome}
+              />
+            )}
             {activeSection === "retirement" && <RetirementSection data={data} update={update} limits={contributionLimits} clientAge={clientAge} />}
             {activeSection === "investments" && <InvestmentsSection data={data} update={update} />}
             {activeSection === "college" && showCollegeSection && (

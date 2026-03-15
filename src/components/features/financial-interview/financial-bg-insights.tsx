@@ -1042,7 +1042,7 @@ export function FinancialBgInsights({
 
           {showHiddenMoney && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">💰 Hidden Money Found</p>
+              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">💰 Cash Flow Optimization Opportunities</p>
               <p className="mt-1 text-sm text-emerald-800/90 dark:text-emerald-200/90">
                 We found {fmtDollars(hiddenRedirect + unallocatedSurplus)}/month already in your finances that could work harder for you.
               </p>
@@ -1153,14 +1153,14 @@ export function FinancialBgInsights({
                       <span>{fmtDollars(unallocatedSurplus)}/mo</span>
                     </div>
                     <div className="flex justify-between border-t pt-1.5 font-semibold">
-                      <span>Total hidden money (Redirectable + Surplus)</span>
+                      <span>Total available cash flow (Redirectable + Surplus)</span>
                       <span>{fmtDollars(hiddenRedirect + unallocatedSurplus)}/mo</span>
                     </div>
                   </div>
                 )}
               </div>
               <p className="mt-3 text-base font-black text-emerald-700 dark:text-emerald-300">
-                TOTAL AVAILABLE: {fmtDollars(hiddenRedirect + unallocatedSurplus)}/month
+                TOTAL AVAILABLE CASH FLOW: {fmtDollars(hiddenRedirect + unallocatedSurplus)}/month
               </p>
             </div>
           )}
