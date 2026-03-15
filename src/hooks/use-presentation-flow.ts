@@ -12,6 +12,7 @@ import {
   aiProtectionGaps,
   aiEstateUrgency,
   aiBackgroundGaps,
+  aiFinancialHome,
   aiXCurveNarration,
   aiTaxNarrative,
   aiRecommendations,
@@ -108,6 +109,15 @@ export function useBackgroundGaps(caseId: string | null, enabled = true) {
   return useQuery({
     queryKey: ["ai-background-gaps", caseId],
     queryFn: () => aiBackgroundGaps(caseId!),
+    enabled: !!caseId && enabled,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useFinancialHome(caseId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["ai-financial-home", caseId],
+    queryFn: () => aiFinancialHome(caseId!, false),
     enabled: !!caseId && enabled,
     staleTime: 10 * 60 * 1000,
   });

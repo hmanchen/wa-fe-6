@@ -153,6 +153,14 @@ export async function aiBackgroundGaps(caseId: string) {
   return attachProvider(camelify<any>(extract(data)), data);
 }
 
+export async function aiFinancialHome(caseId: string, forceRefresh = false) {
+  const { data } = await apiClient.post<ApiResponse<any>>(
+    "/ai/financial-home",
+    { case_id: caseId, force_refresh: forceRefresh }
+  );
+  return attachProvider(camelify<any>(extract(data)), data);
+}
+
 export async function aiXCurveNarration(caseId: string) {
   const { data } = await apiClient.post<ApiResponse<any>>(
     "/ai/xcurve-narration",
