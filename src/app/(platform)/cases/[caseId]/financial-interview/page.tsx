@@ -43,7 +43,7 @@ import IULIllustrationScreen from "@/components/recommendations/IULIllustrationS
 import CollegeFundingScreen from "@/components/recommendations/CollegeFundingScreen";
 import DebtFreedomScreen from "@/components/recommendations/DebtFreedomScreen";
 import RetirementDiversificationScreen from "@/components/recommendations/RetirementDiversificationScreen";
-import { DeliveryScreen } from "@/components/features/financial-interview/delivery-screen";
+import DeliveryScreen from "@/components/delivery/DeliveryScreen";
 import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
@@ -559,7 +559,11 @@ export default function FinancialInterviewPage() {
 
         {/* ── PHASE 9: Delivery ── */}
         {currentSection === "delivery" && (
-          <DeliveryScreen caseId={caseId} clientNames={clientNames} />
+          <DeliveryScreen
+            caseId={caseId}
+            caseData={caseData}
+            onBack={() => setCurrentSection("recommendations")}
+          />
         )}
       </div>
     </>
