@@ -8,7 +8,7 @@ const ANALYSIS_STEPS = [
   { message: "Analyzing housing strategy...", duration: 1800 },
   { message: "Checking debt structure...", duration: 1700 },
   { message: "Modeling retirement scenarios...", duration: 1800 },
-  { message: "Finding hidden money...", duration: 1800 },
+  { message: "Identifying unallocated surplus...", duration: 1800 },
   { message: "Building action plan...", duration: 1600 },
   { message: "Finalizing your report...", duration: 1000 },
 ];

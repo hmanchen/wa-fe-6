@@ -6,10 +6,9 @@ export const CaseStatus = {
   DRAFT: 'draft',
   DISCOVERY: 'discovery',
   ANALYSIS: 'analysis',
-  RECOMMENDATION: 'recommendation',
-  REPORT: 'report',
-  COMPLETED: 'completed',
-  ARCHIVED: 'archived',
+  REVIEW: 'review',
+  PRESENTED: 'presented',
+  CLOSED: 'closed',
 } as const;
 
 export type CaseStatus =
@@ -64,6 +63,13 @@ export interface Case {
   meetingDate?: string; // ISO 8601 date string
   caseType: CaseType;
   clientPersonalInfo?: CasePersonalInfo;
+  consentGiven?: boolean;
+  consentAcknowledgedAt?: string;
+  consentGivenAt?: string;
+  consentVersion?: string;
+  consentGivenBy?: string;
+  riskScore?: number;
+  riskProfile?: string;
   createdAt: string; // ISO 8601 date string
   updatedAt: string; // ISO 8601 date string
   completedAt?: string; // ISO 8601 date string
@@ -81,6 +87,8 @@ export interface CaseListItem {
   clientName: string;
   title: string;
   caseType: CaseType;
+  clientPhone?: string;
+  meetingDate?: string;
   updatedAt: string;
 }
 

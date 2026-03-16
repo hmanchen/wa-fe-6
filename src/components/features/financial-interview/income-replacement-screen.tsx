@@ -451,7 +451,7 @@ export function IncomeReplacementScreen({
           Skip this section
         </Button>
         <Button onClick={onContinue} className="gap-1.5 px-6">
-          Continue to Life Insurance
+          Continue to Protection Analysis
           <ArrowRight className="size-4" />
         </Button>
       </div>

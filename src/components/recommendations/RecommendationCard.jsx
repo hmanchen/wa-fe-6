@@ -144,6 +144,12 @@ export default function RecommendationCard({
   const fundingSourceText = rec.funding_source || rec.fundingSource || "";
   const iulBasePremiumOnly = rec.iul_base_premium_only ?? rec.iulBasePremiumOnly;
   const termMonthlyCost = rec.term_monthly_cost ?? rec.termMonthlyCost;
+  const breakdownText = String(rec.monthlyBreakdown || rec.protectionRatio || "").trim();
+  const isPlaceholderBreakdown =
+    !breakdownText ||
+    breakdownText.toLowerCase().includes("pending") ||
+    breakdownText.toLowerCase().includes("analysis") ||
+    breakdownText.toLowerCase().includes("efficiency");
   const handleIULClick = () => {
     if (typeof onNavigate === "function") {
       onNavigate("iul-illustration", rec);
@@ -255,7 +261,7 @@ export default function RecommendationCard({
               marginBottom: 8,
             }}
           >
-            What's Protected
+            What&apos;s Protected
           </div>
           <div
             style={{
@@ -323,9 +329,9 @@ export default function RecommendationCard({
               <div>IUL (builds wealth): {fmtUSD(iulBasePremiumOnly)}/mo</div>
             </div>
           )}
-          {(rec.monthlyBreakdown || rec.protectionRatio) && (
+          {!isPlaceholderBreakdown && breakdownText && (
             <div style={{ fontSize: 11, color: "#4A7C6F", fontStyle: "italic", opacity: 0.8 }}>
-              {rec.monthlyBreakdown || rec.protectionRatio}
+              {breakdownText}
             </div>
           )}
         </div>
@@ -513,7 +519,7 @@ export default function RecommendationCard({
               background: "#4A7C6F0D",
             }}
           >
-            Funded from your existing cash flow
+            Funded from your unallocated surplus
           </span>
           {rec.fundedFromRecoveredCashFlow && (
             <span

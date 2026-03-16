@@ -51,17 +51,14 @@ const GOAL_OPTIONS: { id: GoalOptionId; title: string; label: string; icon: stri
 ];
 
 const FEAR_OPTIONS = [
-  { id: "outliving_money", label: "Outliving my money", icon: "😟" },
-  { id: "dying_too_young", label: "Dying too young and leaving my family struggling", icon: "💔" },
-  { id: "market_crash", label: "A market crash wiping out my savings", icon: "📉" },
-  { id: "job_loss", label: "Losing my job or income disruption", icon: "🏢" },
-  { id: "disability_illness", label: "A disability or serious illness", icon: "🏥" },
-  { id: "buried_in_debt", label: "Being buried in debt", icon: "💳" },
-  { id: "children_future", label: "My children's financial future", icon: "👶" },
-  { id: "too_much_taxes", label: "Paying too much in taxes", icon: "💰" },
-  { id: "losing_home", label: "Losing my home", icon: "🏠" },
-  { id: "burden_on_family", label: "Becoming a burden on my family", icon: "👴" },
-  { id: "no_plan", label: "Not having a plan at all", icon: "🤷" },
+  { id: "dying_too_soon", label: "Dying too soon and leaving my family without income", icon: "💔" },
+  { id: "running_out_retirement", label: "Running out of money in retirement", icon: "😟" },
+  { id: "college_funding", label: "Not being able to pay for my children's education", icon: "🎓" },
+  { id: "disability_income", label: "Becoming disabled and unable to work", icon: "🏥" },
+  { id: "high_taxes", label: "High taxes eroding my wealth", icon: "💸" },
+  { id: "market_volatility", label: "Market volatility destroying my savings", icon: "📉" },
+  { id: "not_enough_life_insurance", label: "Not having enough life insurance", icon: "🛡️" },
+  { id: "aging_parents", label: "Aging parents needing financial support", icon: "👵" },
   { id: "other", label: "Other", icon: "➕" },
 ] as const;
 
@@ -192,6 +189,77 @@ function toRankedGoals(goalIds: GoalOptionId[]): GoalRankingItem[] {
     goalId,
     label: GOAL_OPTIONS.find((g) => g.id === goalId)?.title ?? goalId,
   }));
+}
+
+function computeRiskScore(riskProfile: GoalsDiscoveryData["riskProfile"]): number {
+  if (!riskProfile) return 0;
+  const tolerance = {
+    conservative: 1,
+    moderate: 2,
+    growth: 3,
+    aggressive: 4,
+  }[String(riskProfile.riskTolerance || "").toLowerCase()] ?? 1;
+  const horizon = {
+    short_term: 1,
+    medium_term: 2,
+    long_term: 4,
+  }[String(riskProfile.timeHorizon || "").toLowerCase()] ?? 1;
+  const reaction = {
+    sell_everything: 1,
+    sell_some: 2,
+    hold_steady: 3,
+    buy_more: 4,
+  }[String(riskProfile.marketLossReaction || "").toLowerCase()] ?? 1;
+  const downturnAction = {
+    sell_everything: 1,
+    sell_some: 2,
+    hold_steady: 3,
+    buy_more: 4,
+  }[String(riskProfile.downturnActionTaken || "").toLowerCase()] ?? 1;
+  const experiences = Array.isArray(riskProfile.marketExperience)
+    ? riskProfile.marketExperience
+    : [];
+  const experienceValue = String(experiences[0] || "").toLowerCase();
+  const experienceScore = {
+    no_major_downturn: 1,
+    "2022_tech_crypto_crash": 2,
+    "2020_covid_crash": 3,
+    "2008_financial_crisis": 4,
+  }[experienceValue] ?? 1;
+  return tolerance + horizon + reaction + downturnAction + experienceScore;
+}
+
+function getRiskProfileMeta(score: number): {
+  label: string;
+  color: string;
+  description: string;
+} {
+  if (score <= 8) {
+    return {
+      label: "Conservative",
+      color: "#1B2B4B",
+      description: "You prioritize stability and capital preservation over growth.",
+    };
+  }
+  if (score <= 12) {
+    return {
+      label: "Moderate",
+      color: "#4A7C6F",
+      description: "You prefer balanced growth with manageable downside risk.",
+    };
+  }
+  if (score <= 16) {
+    return {
+      label: "Growth",
+      color: "#3B6CB7",
+      description: "You can accept volatility for higher long-term growth potential.",
+    };
+  }
+  return {
+    label: "Aggressive",
+    color: "#7B3FE4",
+    description: "You are comfortable with significant volatility for maximum growth.",
+  };
 }
 
 interface GoalsDiscoveryScreenProps {
@@ -350,16 +418,45 @@ export function GoalsDiscoveryScreen({
       return;
     }
     try {
-      await triggerSave();
+      const fallbackRetirementIncomeGoal =
+        data.retirementVision.desiredMonthlyIncome || monthlyExpenses || 0;
+      const shouldApplyFallback =
+        !(data.retirementVision.desiredMonthlyIncome > 0) &&
+        fallbackRetirementIncomeGoal > 0;
+
+      if (shouldApplyFallback) {
+        await onSave({
+          ...pendingPatch,
+          retirementVision: {
+            ...data.retirementVision,
+            desiredMonthlyIncome: fallbackRetirementIncomeGoal,
+          },
+        });
+        setPendingPatch({});
+      } else {
+        await triggerSave();
+      }
       await onNext();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Unable to continue to next step";
       setError(message);
     }
-  }, [onNext, triggerSave, validateBeforeNext]);
+  }, [
+    data.retirementVision,
+    monthlyExpenses,
+    onNext,
+    onSave,
+    pendingPatch,
+    triggerSave,
+    validateBeforeNext,
+  ]);
 
   const confidence = data.retirementVision.retirementConfidence ?? 5;
+  const usingCurrentExpensesAsRetirementGoal =
+    !(data.retirementVision.desiredMonthlyIncome > 0) && monthlyExpenses > 0;
+  const riskScore = computeRiskScore(data.riskProfile);
+  const riskProfileMeta = getRiskProfileMeta(riskScore);
   const confidenceClass =
     confidence <= 3
       ? "text-red-600"
@@ -382,7 +479,7 @@ export function GoalsDiscoveryScreen({
         </div>
       )}
 
-      <Accordion type="multiple" defaultValue={["goals", "retirement"]} className="space-y-3">
+      <Accordion type="multiple" defaultValue={["goals", "retirement", "risk"]} className="space-y-3">
         <AccordionItem value="goals" className="rounded-xl border bg-card px-4">
           <AccordionTrigger>
             <div className="text-left">
@@ -537,6 +634,12 @@ export function GoalsDiscoveryScreen({
                 <p className="mt-1 text-xs text-muted-foreground">
                   Your current monthly expenses are ${monthlyExpenses.toLocaleString()}.
                 </p>
+                {usingCurrentExpensesAsRetirementGoal && (
+                  <div className="mt-1 text-xs text-amber-600">
+                    Using current expenses (${monthlyExpenses.toLocaleString()}/mo) as retirement
+                    income goal. Update if different.
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -564,6 +667,9 @@ export function GoalsDiscoveryScreen({
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border p-3">
                 <Label className="text-xs">What do you expect from Social Security?</Label>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  This estimate affects retirement income projections only; benefits can vary by claiming age and future policy changes.
+                </p>
                 <div className="mt-2 grid gap-2">
                   {[
                     { key: "full_benefits", label: "Full benefits" },
@@ -678,6 +784,7 @@ export function GoalsDiscoveryScreen({
                 {[
                   { id: "conservative", title: "Conservative", desc: "Safety over growth." },
                   { id: "moderate", title: "Moderate", desc: "Balanced growth and stability." },
+                  { id: "growth", title: "Growth", desc: "Growth first, with moderate swings." },
                   { id: "aggressive", title: "Aggressive", desc: "Maximum growth, can handle swings." },
                 ].map((o) => (
                   <button
@@ -744,33 +851,98 @@ export function GoalsDiscoveryScreen({
             </div>
 
             <div>
-              <Label className="text-xs">Have you experienced any of these market events?</Label>
-              <div className="mt-2 grid gap-2">
+              <Label className="text-xs">Which market event best reflects your investing experience?</Label>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
                 {[
                   { id: "2008_financial_crisis", label: "2008 Financial Crisis (market dropped ~38%)" },
                   { id: "2020_covid_crash", label: "2020 COVID Crash (market dropped ~34%)" },
                   { id: "2022_tech_crypto_crash", label: "2022 Tech/Crypto Crash (many portfolios dropped 20-30%)" },
                   { id: "no_major_downturn", label: "I haven't experienced a major downturn" },
                 ].map((evt) => {
-                  const checked = data.riskProfile.marketExperience?.includes(evt.id) ?? false;
+                  const selected = data.riskProfile.marketExperience?.[0] === evt.id;
                   return (
-                    <label key={evt.id} className="flex items-center gap-2 rounded-md border bg-muted/20 p-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const current = new Set(data.riskProfile.marketExperience ?? []);
-                          if (e.target.checked) current.add(evt.id);
-                          else current.delete(evt.id);
-                          setRiskProfile({ marketExperience: Array.from(current) });
-                        }}
-                      />
+                    <button
+                      key={evt.id}
+                      type="button"
+                      onClick={() => setRiskProfile({ marketExperience: [evt.id] })}
+                      className={cn(
+                        "rounded-md border p-2 text-left text-xs",
+                        selected ? "border-primary bg-primary/5" : "bg-muted/20"
+                      )}
+                    >
                       {evt.label}
-                    </label>
+                    </button>
                   );
                 })}
               </div>
             </div>
+            <div className="rounded-lg border p-3">
+              <Label className="text-xs">
+                During the last major downturn, what did you do?
+              </Label>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {[
+                  { id: "sell_everything", label: "Sold most positions to avoid losses" },
+                  { id: "sell_some", label: "Reduced exposure and moved to safer assets" },
+                  { id: "hold_steady", label: "Held steady and waited for recovery" },
+                  { id: "buy_more", label: "Added investments while prices were lower" },
+                ].map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() =>
+                      setRiskProfile({
+                        downturnActionTaken:
+                          o.id as GoalsDiscoveryData["riskProfile"]["downturnActionTaken"],
+                      })
+                    }
+                    className={cn(
+                      "rounded-md border p-2 text-left text-xs",
+                      data.riskProfile.downturnActionTaken === o.id
+                        ? "border-primary bg-primary/5"
+                        : "bg-muted/20"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {riskScore > 0 && (
+              <div
+                style={{
+                  background: "#F0F7F4",
+                  border: "1px solid rgba(74,124,111,0.25)",
+                  borderRadius: 10,
+                  padding: "14px 18px",
+                  marginTop: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#718096",
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                  }}
+                >
+                  Your Risk Profile
+                </div>
+                <div
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 800,
+                    color: riskProfileMeta.color,
+                    marginTop: 4,
+                  }}
+                >
+                  {riskProfileMeta.label} ({riskScore}/20)
+                </div>
+                <div style={{ fontSize: 12, color: "#4A5568", marginTop: 4 }}>
+                  {riskProfileMeta.description}
+                </div>
+              </div>
+            )}
           </AccordionContent>
         </AccordionItem>
 
@@ -1070,7 +1242,7 @@ export function GoalsDiscoveryScreen({
               {isSaving ? "Saving..." : "Changes are saved when you click Next"}
             </span>
             <Button onClick={() => void handleNext()} className="gap-1.5">
-              Next: Income Replacement Risk
+              Continue to Protection Analysis
               <ArrowRight className="size-4" />
             </Button>
           </div>

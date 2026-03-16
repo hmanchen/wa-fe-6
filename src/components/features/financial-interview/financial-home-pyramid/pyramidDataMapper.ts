@@ -189,11 +189,10 @@ function levelStatus(healthy: number, total: number): Status {
 
 export function getLevelSummary(level: number, data: PyramidMappedData): string {
   if (level === 1) {
-    const h = data.level1.foundationHealthyCount;
-    if (h >= 4) return "Your foundation is solid. Great work building this base.";
-    if (h >= 3) return "Your foundation is mostly in place. A few areas would strengthen it further.";
-    if (h >= 2) return "Your foundation has some good elements. Let's work on strengthening the gaps.";
-    return "Building your foundation is the most important step. Let's start here.";
+    if (data.level1.foundationStatus === "healthy") {
+      return "Defensive planning is on track with emergency reserves and baseline protection in place.";
+    }
+    return "Defensive planning needs attention: build emergency reserves and confirm life protection.";
   }
   if (level === 2) {
     if (
@@ -257,8 +256,14 @@ export function mapPyramidData(params: {
 
   const dependentsNum =
     toCount(clientPersonalInfo["dependents"], children.length) || children.length;
-  const coverageAmount = n(goalCov["existingCoverage"]) || 0;
-  const coverageGap = n(goalCov["coverageGap"]);
+  const coverageAmount =
+    n(goalCov["existingCoverage"]) || n(goalCov["existing_coverage"]) || 0;
+  const xcurve = (fa["xcurve"] as Dict | undefined) ?? {};
+  const coverageGap =
+    n(goalCov["coverageGap"]) ||
+    n(goalCov["coverage_gap"]) ||
+    n(xcurve["coverageGap"]) ||
+    n(xcurve["coverage_gap"]);
   const recommendedCoverage = n(goalCov["recommendedCoverage"]);
   const emergencyTargetMonths = 6;
 
@@ -378,6 +383,14 @@ export function mapPyramidData(params: {
     status: "not_started",
   };
 
+  const systematicMonthly =
+    n(invCat["monthlyContribution"]) ||
+    n(invCat["monthly_contribution"]) ||
+    n(invCat["systematicMonthly"]) ||
+    n(invCat["systematic_monthly"]) ||
+    n(((fa["goalNetWorth"] as Dict | undefined) ?? {})["systematicMonthly"]) ||
+    n(((fa["goalNetWorth"] as Dict | undefined) ?? {})["systematic_monthly"]);
+
   const level3: Level3Data = {
     investments: {
       brokerage: n(invCat["total"]),
@@ -387,11 +400,7 @@ export function mapPyramidData(params: {
       hasInvestments: n(invCat["total"]) > 0,
     },
     growth: {
-      monthlyInvestmentContributions:
-        n(((hsAny["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]) ||
-        n(((fa["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]) ||
-        n(((fa["hiddenMoney"] as Dict | undefined) ?? {})["totalMonthlyRedirectable"]) ||
-        Math.max(0, n(cf["monthlySurplusOrDeficit"])),
+      monthlyInvestmentContributions: systematicMonthly,
       surplusAvailable:
         n(((hsAny["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]) ||
         n(((fa["hiddenMoney"] as Dict | undefined) ?? {})["totalAvailable"]) ||
@@ -468,14 +477,11 @@ export function mapPyramidData(params: {
     status: "not_started",
   };
 
-  const foundationHealthyCount = [
-    level1.assets.totalAssets > 0,
-    level1.liabilities.totalConsumerDebt === 0 || level1.liabilities.debtFreeMonths < 36,
-    level1.income.monthlyGross > 0,
-    level1.protection.lifeInsurance.exists && level1.protection.disabilityInsurance.exists,
-  ].filter(Boolean).length;
-  level1.foundationHealthyCount = foundationHealthyCount;
-  level1.foundationStatus = levelStatus(foundationHealthyCount, 4);
+  const level1OnTrack =
+    level2.emergencyFund.currentMonths >= 3 &&
+    level1.protection.lifeInsurance.coverageAmount > 0;
+  level1.foundationHealthyCount = level1OnTrack ? 1 : 0;
+  level1.foundationStatus = level1OnTrack ? "healthy" : "attention";
   level2.status = levelStatus(
     [
       level2.emergencyFund.currentMonths >= emergencyTargetMonths,
@@ -487,7 +493,10 @@ export function mapPyramidData(params: {
     ].filter(Boolean).length,
     4
   );
-  level3.status = level3.investments.hasInvestments ? "healthy" : "attention";
+  const level3OnTrack =
+    level3.investments.totalInvested >= level1.income.annualGross * 0.25 ||
+    level3.growth.monthlyInvestmentContributions > 0;
+  level3.status = level3OnTrack ? "healthy" : "attention";
   level4.status = level4.estate.estateScorePct >= 70 ? "healthy" : "attention";
   level5.status =
     level5.freedom.freedomPercentage >= 70

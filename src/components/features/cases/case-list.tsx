@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { useCases, useDeleteCase } from "@/hooks/use-cases";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCases, useDeleteCase, useUpdateCase } from "@/hooks/use-cases";
 import { useDebounce } from "@/hooks/use-debounce";
 import { CaseFilters, type CaseFiltersValues } from "./case-filters";
 import { CaseCard } from "./case-card";
@@ -18,6 +18,13 @@ import type { Case } from "@/types/case";
 import { LayoutGrid, Table2, FileSpreadsheet, Archive } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const DEFAULT_FILTERS: CaseFiltersValues = {
   search: "",
@@ -27,14 +34,45 @@ const DEFAULT_FILTERS: CaseFiltersValues = {
 
 export function CaseList() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const deleteCase = useDeleteCase();
-  const [filters, setFilters] = useState<CaseFiltersValues>(DEFAULT_FILTERS);
+  const updateCase = useUpdateCase();
+  const [filters, setFilters] = useState<CaseFiltersValues>(() => ({
+    ...DEFAULT_FILTERS,
+    status: searchParams.get("status") ?? DEFAULT_FILTERS.status,
+  }));
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [page, setPage] = useState(1);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
 
   const debouncedSearch = useDebounce(filters.search, 300);
+  const statusToPipeline = (status: string) => {
+    if (status === "draft") return "draft";
+    if (status === "analysis" || status === "discovery") return "active";
+    if (status === "review") return "proposal_sent";
+    if (status === "presented") return "follow_up";
+    if (status === "closed") return "closed";
+    return "draft";
+  };
+  const pipelineToStatus = (pipeline: string) => {
+    if (pipeline === "draft") return "draft";
+    if (pipeline === "active") return "analysis";
+    if (pipeline === "proposal_sent") return "review";
+    if (pipeline === "follow_up") return "presented";
+    if (pipeline === "closed") return "closed";
+    return "draft";
+  };
+  const handlePipelineUpdate = async (caseItem: Case, pipeline: string) => {
+    try {
+      const mappedStatus = pipelineToStatus(pipeline);
+      await updateCase.mutateAsync({ id: caseItem.id, data: { status: mappedStatus } });
+      toast.success("Case pipeline updated.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to update case status.";
+      toast.error(message);
+    }
+  };
 
   const { data, isLoading, isError } = useCases({
     search: debouncedSearch || undefined,
@@ -65,13 +103,43 @@ export function CaseList() {
           <p className="text-muted-foreground text-xs">
             {item.caseNumber} • {item.caseType.charAt(0).toUpperCase() + item.caseType.slice(1)}
           </p>
+          <p className="text-muted-foreground text-xs">
+            {item.clientPhone ? `📞 ${item.clientPhone}` : "📞 —"}
+            {"  "}•{"  "}
+            {item.meetingDate
+              ? `Last meeting ${new Date(item.meetingDate).toLocaleDateString()}`
+              : "No meeting date"}
+          </p>
         </div>
       ),
     },
     {
       key: "status",
       header: "Status",
-      cell: (item: Case) => <StatusBadge status={item.status} />,
+      cell: (item: Case) => (
+        <div className="space-y-1">
+          <StatusBadge status={item.status} />
+          <Select
+            value={statusToPipeline(item.status)}
+            onValueChange={(v) => handlePipelineUpdate(item, v)}
+            disabled={updateCase.isPending}
+          >
+            <SelectTrigger
+              className="h-7 w-[130px] text-xs"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="proposal_sent">Proposal Sent</SelectItem>
+              <SelectItem value="follow_up">Follow-Up</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ),
       className: "w-32",
     },
     {
@@ -196,6 +264,9 @@ export function CaseList() {
                 }}
                 onArchive={(item) => openArchiveDialog(item as Case)}
                 isArchiving={deleteCase.isPending}
+                pipelineStatus={statusToPipeline(caseItem.status)}
+                onPipelineChange={(v) => handlePipelineUpdate(caseItem, v)}
+                isStatusUpdating={updateCase.isPending}
               />
             ))}
           </div>

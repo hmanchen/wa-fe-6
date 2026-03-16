@@ -98,10 +98,9 @@ export const updateCaseSchema = baseCaseFields.partial().extend({
       "draft",
       "discovery",
       "analysis",
-      "recommendation",
-      "report",
-      "completed",
-      "archived",
+      "review",
+      "presented",
+      "closed",
     ])
     .optional(),
 });

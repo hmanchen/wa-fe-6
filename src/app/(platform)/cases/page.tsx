@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,12 +13,12 @@ export default function CasesPage() {
         title="Cases"
         description="Manage and track your client cases"
       >
-        <Button asChild>
-          <Link href="/cases/new">
+        <Link href="/cases/new">
+          <Button>
             <Plus className="size-4" />
             New Case
-          </Link>
-        </Button>
+          </Button>
+        </Link>
       </PageHeader>
       <CaseList />
     </div>

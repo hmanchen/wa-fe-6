@@ -236,7 +236,10 @@ export default function DebtFreedomScreen({ caseId, caseData, onBack }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <Insight title="The Momentum Effect" text="Every debt you eliminate permanently redirects that payment toward the next debt. Your payoff speed accelerates automatically - called the debt roll." />
             <Insight title="The Hidden Income" text={`When your last debt is paid off, ${fmtUSD(summary.total_min_payments)}/mo becomes permanent additional income with no lifestyle change.`} />
-            <Insight title="The True Cost" text={`At your weighted APR, this debt costs about ${fmtUSD(weightedMonthlyInterest(debts))}/mo in interest charges alone.`} />
+            <Insight
+              title="The True Cost"
+              text={`At your weighted APR, this debt costs about ${fmtUSD(Number(summary?.monthly_interest_cost || weightedMonthlyInterest(debts)))}/mo in interest charges alone.`}
+            />
           </div>
         </>
       )}

@@ -29,10 +29,9 @@ function getWorkflowContext(status: string): { currentStep: string; completedSte
     draft: "overview",
     discovery: "discovery",
     analysis: "analysis",
-    recommendation: "recommendations",
-    report: "report",
-    completed: "report",
-    archived: "report",
+    review: "recommendations",
+    presented: "report",
+    closed: "report",
   };
   const currentStep = statusToStep[status] ?? "overview";
   const currentIndex = steps.indexOf(currentStep);

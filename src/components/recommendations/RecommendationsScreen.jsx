@@ -8,6 +8,8 @@ import ActionBar from "./ActionBar";
 import StretchOpportunityCard from "./StretchOpportunityCard";
 import JoinTheTeamCard from "./JoinTheTeamCard";
 import { recommendationsService } from "../../services/recommendationsService";
+import { apiClient } from "@/lib/api/client";
+import { createClient } from "@/lib/supabase/client";
 
 export default function RecommendationsScreen({
   caseId,
@@ -24,6 +26,9 @@ export default function RecommendationsScreen({
   const [status, setStatus] = useState(initialData ? "success" : "idle");
   const [data, setData] = useState(initialData || null);
   const [error, setError] = useState(null);
+  const [cachedRecommendations, setCachedRecommendations] = useState(null);
+  const [lastGeneratedAt, setLastGeneratedAt] = useState(null);
+  const [showTeamCardPref, setShowTeamCardPref] = useState(false);
 
   const hasUsableRecommendations = (payload) =>
     Array.isArray(payload?.recommendations) && payload.recommendations.length > 0;
@@ -48,6 +53,12 @@ export default function RecommendationsScreen({
       }
       const finalResult = result || lastPayload;
       setData(finalResult || null);
+      setLastGeneratedAt(
+        finalResult?.created_at ||
+          finalResult?.generated_at ||
+          finalResult?.generatedAt ||
+          new Date().toISOString()
+      );
       if (onDataChange) onDataChange(finalResult || null);
       setStatus("success");
     } catch (e) {
@@ -65,6 +76,68 @@ export default function RecommendationsScreen({
       setStatus("idle");
     }
   }, [initialData, caseId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCached = async () => {
+      try {
+        const { data: snapshot } = await apiClient.get(
+          `/cases/${caseId}/snapshots/recommendations/current`
+        );
+        if (cancelled) return;
+        const payload = snapshot?.recommendations?.length
+          ? {
+              recommendations: snapshot.recommendations,
+              summary: snapshot.recommendations_summary || {},
+              phaseTwo: snapshot.milestones || [],
+              created_at: snapshot.created_at,
+            }
+          : null;
+        if (payload?.recommendations?.length) {
+          setCachedRecommendations(payload);
+          setLastGeneratedAt(snapshot.created_at || null);
+          if (!initialData) {
+            setData(payload);
+            if (onDataChange) onDataChange(payload);
+            setStatus("success");
+          }
+        }
+      } catch {
+        // No cached snapshot available.
+      }
+    };
+    void loadCached();
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId, initialData, onDataChange]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAdvisorPreference = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from("advisor_profiles")
+          .select("show_team_card")
+          .eq("advisor_id", user.id)
+          .maybeSingle();
+        if (!cancelled) {
+          setShowTeamCardPref(Boolean(data?.show_team_card));
+        }
+      } catch {
+        if (!cancelled) setShowTeamCardPref(false);
+      }
+    };
+    void loadAdvisorPreference();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (status === "loading") {
     return (
@@ -102,16 +175,18 @@ export default function RecommendationsScreen({
           }}
         >
           <AlertTriangle size={42} color="#4A7C6F" style={{ marginBottom: 12 }} />
-          <h3 style={{ color: "#1B2B4B", fontSize: 22, marginBottom: 10 }}>
-            We're just a moment away from your plan.
+          <h3 style={{ color: "#E05252", fontSize: 22, marginBottom: 10 }}>
+            Unable to generate recommendations
           </h3>
           <p style={{ color: "#4A5568", fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>
-            Refresh once and we will continue building this personalized financial blueprint.
+            {cachedRecommendations?.recommendations?.length > 0 && lastGeneratedAt
+              ? `Showing your last saved recommendations from ${new Date(lastGeneratedAt).toLocaleDateString("en-US")}.`
+              : "Please check your connection and try again."}
           </p>
           <button
             onClick={load}
             style={{
-              background: "#4A7C6F",
+              background: "#E05252",
               color: "#fff",
               border: "none",
               borderRadius: 10,
@@ -122,8 +197,29 @@ export default function RecommendationsScreen({
               boxShadow: "0 2px 8px rgba(74,124,111,0.35)",
             }}
           >
-            Build My Plan
+            Try Again
           </button>
+          {cachedRecommendations?.recommendations?.length > 0 && (
+            <button
+              onClick={() => {
+                setData(cachedRecommendations);
+                setStatus("success");
+              }}
+              style={{
+                marginLeft: 10,
+                background: "#FFFFFF",
+                color: "#4A7C6F",
+                border: "1px solid #4A7C6F",
+                borderRadius: 10,
+                padding: "10px 24px",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Use Last Saved Version
+            </button>
+          )}
           {error && <p style={{ color: "#718096", fontSize: 12, marginTop: 10 }}>{error}</p>}
         </div>
       </div>
@@ -162,6 +258,26 @@ export default function RecommendationsScreen({
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100%", background: "#F8F7F4", padding: "24px" }}>
       <div style={{ flex: 1, padding: "24px 0", paddingBottom: 120, overflowY: "auto" }}>
+        {lastGeneratedAt && (
+          <div
+            style={{
+              fontSize: 10,
+              color: "#718096",
+              fontStyle: "italic",
+              textAlign: "right",
+              marginBottom: 8,
+            }}
+          >
+            Blueprint generated:{" "}
+            {new Date(lastGeneratedAt).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+        )}
         <ExposureHeader summary={summary} recCount={recs.length} caseData={caseData} />
         {(summary?.hiddenMoney || 0) > 0 && (
           <div
@@ -228,12 +344,17 @@ export default function RecommendationsScreen({
         ))}
 
         {data?.phaseTwo?.length > 0 && <PhaseTwoSection items={data.phaseTwo} />}
-        {showJoinTeam && (
-          <JoinTheTeamCard
-            clientName={firstName}
-            advisorName="Hari"
-            clientAge={primaryClientAge}
-          />
+        {showJoinTeam && showTeamCardPref && (
+          <div>
+            <div style={{ marginBottom: 8, fontSize: 10, color: "#718096", fontStyle: "italic" }}>
+              Disclosure: Your advisor may receive compensation if you become a licensed insurance agent under their supervision.
+            </div>
+            <JoinTheTeamCard
+              clientName={firstName}
+              advisorName="Hari"
+              clientAge={primaryClientAge}
+            />
+          </div>
         )}
       </div>
 

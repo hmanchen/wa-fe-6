@@ -19,25 +19,20 @@ const STATUS_CONFIG: Record<
     variant: "outline",
     className: "border-amber-500/50 text-amber-600 dark:text-amber-400",
   },
-  recommendation: {
-    label: "Recommendation",
+  review: {
+    label: "Review",
     variant: "outline",
     className: "border-purple-500/50 text-purple-600 dark:text-purple-400",
   },
-  report: {
-    label: "Report",
+  presented: {
+    label: "Presented",
     variant: "outline",
     className: "border-cyan-500/50 text-cyan-600 dark:text-cyan-400",
   },
-  completed: {
-    label: "Completed",
+  closed: {
+    label: "Closed",
     variant: "outline",
     className: "border-emerald-500/50 text-emerald-600 dark:text-emerald-400",
-  },
-  archived: {
-    label: "Archived",
-    variant: "outline",
-    className: "border-muted-foreground/30 text-muted-foreground",
   },
 }
 

@@ -15,7 +15,7 @@ const STAGES = [
   { Icon: Shield, label: "Assessing your protection and coverage gaps..." },
   { Icon: TrendingUp, label: "Modeling your retirement accumulation timeline..." },
   { Icon: GraduationCap, label: "Projecting your education funding requirements..." },
-  { Icon: BarChart2, label: "Conducting your cash flow efficiency analysis..." },
+  { Icon: BarChart2, label: "Analyzing your monthly cash flow allocation..." },
   { Icon: Scale, label: "Prioritizing recommendations within your budget..." },
   { Icon: Sparkles, label: "Preparing your personalized financial strategy..." },
   { Icon: CheckCircle, label: "Finalizing your recommendation plan..." },

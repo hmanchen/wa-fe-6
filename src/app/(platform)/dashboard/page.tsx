@@ -2,6 +2,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatsCards } from "@/components/features/dashboard/stats-cards";
 import { RecentCases } from "@/components/features/dashboard/recent-cases";
 import { ActivityChart } from "@/components/features/dashboard/activity-chart";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function DashboardPage() {
   return (
@@ -9,7 +11,11 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Overview of your cases and activity"
-      />
+      >
+        <Button asChild variant="outline" size="sm">
+          <Link href="/cases?status=review">Review Pending Cases</Link>
+        </Button>
+      </PageHeader>
       <div className="space-y-6 sm:space-y-8">
         <StatsCards />
         <div className="grid gap-6 sm:gap-8 grid-cols-1 lg:grid-cols-2">

@@ -1,6 +1,5 @@
 "use client";
 
-import { API_BASE_URL } from "@/lib/config";
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/api/client";
 import {
@@ -3796,30 +3795,6 @@ export function FinancialBgLayout({
                     : "Save & Continue"}
                 <ChevronRight className="size-3.5" />
               </Button>
-            </div>
-
-            {/* ── Debug: API URL & JSON Payload ── */}
-            <div className="mt-6 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
-              <p className="mb-2 text-xs font-bold text-amber-700 dark:text-amber-400">🛠 Debug — API Info</p>
-              <div className="space-y-2">
-                <div>
-                  <Label className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">API URL</Label>
-                  <Input readOnly className="mt-0.5 h-8 font-mono text-xs bg-white dark:bg-black"
-                    value={`PUT ${API_BASE_URL}/api/v1/cases/${caseId}/discovery/`}
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">JSON Payload</Label>
-                  <textarea readOnly rows={10}
-                    className="mt-0.5 w-full rounded-md border bg-white p-2 font-mono text-[11px] leading-relaxed dark:bg-black"
-                    value={JSON.stringify({
-                      financial_profile: {
-                        [role === "primary" ? "primary_background" : "spouse_background"]: data,
-                      },
-                    }, null, 2)}
-                  />
-                </div>
-              </div>
             </div>
 
           </div>

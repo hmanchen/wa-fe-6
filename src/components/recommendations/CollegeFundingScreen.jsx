@@ -40,6 +40,11 @@ export default function CollegeFundingScreen({ caseId, caseData, recommendation,
 
   const clientChildren = extractChildren(caseData);
   const activeRec = rec || recommendation || {};
+  const recommendedEducationMonthly = Number(
+    activeRec?.monthly_cost ||
+    activeRec?.education_meta?.total_needed_monthly ||
+    0
+  );
   const getDefaultContribution = () => {
     const fromCard = parseFloat(activeRec?.monthly_cost || 0);
     if (fromCard > 0) return fromCard;
@@ -52,7 +57,9 @@ export default function CollegeFundingScreen({ caseId, caseData, recommendation,
     const surplus = parseFloat(caseData?.monthly_surplus || caseData?.monthlySurplus || 9375);
     return Math.round(Math.max(surplus * 0.25, numChildren * 300) / 50) * 50;
   };
-  const [monthlyContrib, setMonthlyContrib] = useState(getDefaultContribution);
+  const [monthlyContrib, setMonthlyContrib] = useState(
+    recommendedEducationMonthly || getDefaultContribution() || 1500
+  );
   const sliderMax = Math.max(
     Math.round((getDefaultContribution() * 1.5) / 100) * 100,
     2000

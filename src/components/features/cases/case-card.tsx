@@ -13,6 +13,13 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { formatRelativeDate } from "@/lib/formatters/date";
 import type { CaseListItem } from "@/types/case";
 import { ChevronRight, Archive } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const CASE_TYPE_LABELS: Record<string, string> = {
   life_insurance: "Life Insurance",
@@ -27,9 +34,19 @@ export interface CaseCardProps {
   case: CaseListItem & { description?: string };
   onArchive?: (caseItem: CaseListItem & { description?: string }) => void;
   isArchiving?: boolean;
+  pipelineStatus?: string;
+  onPipelineChange?: (value: string) => void;
+  isStatusUpdating?: boolean;
 }
 
-export function CaseCard({ case: caseItem, onArchive, isArchiving = false }: CaseCardProps) {
+export function CaseCard({
+  case: caseItem,
+  onArchive,
+  isArchiving = false,
+  pipelineStatus,
+  onPipelineChange,
+  isStatusUpdating = false,
+}: CaseCardProps) {
   const router = useRouter();
   const description = caseItem.description ?? "No description provided.";
 
@@ -53,12 +70,41 @@ export function CaseCard({ case: caseItem, onArchive, isArchiving = false }: Cas
           <p className="text-muted-foreground line-clamp-2 text-sm">
             {description}
           </p>
+          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {caseItem.clientPhone && <p>Phone: {caseItem.clientPhone}</p>}
+            {caseItem.meetingDate && (
+              <p>
+                Last Meeting: {new Date(caseItem.meetingDate).toLocaleDateString()}
+              </p>
+            )}
+          </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs font-normal">
               {CASE_TYPE_LABELS[caseItem.caseType] ?? caseItem.caseType}
             </Badge>
+            {onPipelineChange && (
+              <Select
+                value={pipelineStatus ?? "draft"}
+                onValueChange={onPipelineChange}
+                disabled={isStatusUpdating}
+              >
+                <SelectTrigger
+                  className="h-7 w-[140px] text-xs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="proposal_sent">Proposal Sent</SelectItem>
+                  <SelectItem value="follow_up">Follow-Up</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             {onArchive && (
               <Button
                 variant="ghost"

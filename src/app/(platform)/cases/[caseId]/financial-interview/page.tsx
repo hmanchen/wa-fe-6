@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCase } from "@/hooks/use-cases";
+import { useUpdateCase } from "@/hooks/use-cases";
 import {
   useFinancialInterview,
   useFinancialHealthScore,
@@ -50,6 +51,59 @@ import type { PersonFinancialBackground } from "@/types/financial-interview";
 import type { GoalsDiscoveryData } from "@/types/financial-interview";
 import { useFullAnalysisData, useXCurveData } from "@/hooks/use-presentation-flow";
 
+function computeRiskSnapshot(
+  riskProfile?: {
+    riskTolerance?: string;
+    timeHorizon?: string;
+    marketLossReaction?: string;
+    downturnActionTaken?: string;
+    marketExperience?: string[];
+  }
+): { score: number; profile: string } | null {
+  if (!riskProfile) return null;
+  const tolerance = {
+    conservative: 1,
+    moderate: 2,
+    growth: 3,
+    aggressive: 4,
+  }[String(riskProfile.riskTolerance || "").toLowerCase()] ?? 1;
+  const horizon = {
+    short_term: 1,
+    medium_term: 2,
+    long_term: 4,
+  }[String(riskProfile.timeHorizon || "").toLowerCase()] ?? 1;
+  const reaction = {
+    sell_everything: 1,
+    sell_some: 2,
+    hold_steady: 3,
+    buy_more: 4,
+  }[String(riskProfile.marketLossReaction || "").toLowerCase()] ?? 1;
+  const downturn = {
+    sell_everything: 1,
+    sell_some: 2,
+    hold_steady: 3,
+    buy_more: 4,
+  }[String(riskProfile.downturnActionTaken || "").toLowerCase()] ?? 1;
+  const experienceKey = String((riskProfile.marketExperience || [])[0] || "").toLowerCase();
+  const experience = {
+    no_major_downturn: 1,
+    "2022_tech_crypto_crash": 2,
+    "2020_covid_crash": 3,
+    "2008_financial_crisis": 4,
+  }[experienceKey] ?? 1;
+
+  const score = tolerance + horizon + reaction + downturn + experience;
+  const profile =
+    score <= 8
+      ? "Conservative"
+      : score <= 12
+        ? "Moderate"
+        : score <= 16
+          ? "Growth"
+          : "Aggressive";
+  return { score, profile };
+}
+
 // Lazy-load the annotation overlay since it's heavy (canvas-based)
 const AnnotationOverlay = dynamic(
   () =>
@@ -63,6 +117,7 @@ export default function FinancialInterviewPage() {
   const params = useParams();
   const caseId = params.caseId as string;
   const { data: caseData, isLoading: isCaseLoading } = useCase(caseId);
+  const updateCase = useUpdateCase();
   const { data: interviewData, isLoading: isInterviewLoading } = useFinancialInterview(caseId);
   const { data: healthScore, isLoading: isHealthScoreLoading } = useFinancialHealthScore(caseId);
   const saveBackground = useSaveFinancialBackground(caseId);
@@ -74,12 +129,18 @@ export default function FinancialInterviewPage() {
   // ── Section-level state ──────────────────────────────────
   const [currentSection, setCurrentSection] =
     useState<FinancialInterviewSection>("financial-background");
+  const [financialBgTab, setFinancialBgTab] = useState<"primary" | "spouse">("primary");
   const [completedSections, setCompletedSections] = useState<
     FinancialInterviewSection[]
   >([]);
   const [recommendationsCache, setRecommendationsCache] = useState<Record<string, unknown> | null>(null);
   const [iulRecommendation, setIulRecommendation] = useState<Record<string, unknown>>({ monthly_cost: 1200 });
   const [collegeRecommendation, setCollegeRecommendation] = useState<Record<string, unknown>>({ monthly_cost: 800 });
+  const [consentPurposeChecked, setConsentPurposeChecked] = useState(false);
+  const [consentPrivacyChecked, setConsentPrivacyChecked] = useState(false);
+  const [consentEducationChecked, setConsentEducationChecked] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const [spousePromptOpen, setSpousePromptOpen] = useState(false);
 
   const { data: marketSnapshot, isLoading: isMarketSnapshotLoading } = useMarketSnapshot(currentSection === "financial-background");
   const retirementTargetAge = Number(
@@ -167,8 +228,23 @@ export default function FinancialInterviewPage() {
     async (data: PersonFinancialBackground) => {
       await saveBackground.mutateAsync({ role: "primary", data });
       toast.success("Primary client financial background saved");
+      const hasSpouseName = Boolean(caseData?.clientPersonalInfo?.partnerFirstName);
+      const spouseBg = interviewData?.spouseBackground;
+      const spouseHasAnyData = Boolean(
+        spouseBg && Object.values(spouseBg).some((value) => {
+          if (value == null) return false;
+          if (typeof value === "string") return value.trim().length > 0;
+          if (typeof value === "number") return value > 0;
+          if (Array.isArray(value)) return value.length > 0;
+          if (typeof value === "object") return Object.keys(value as Record<string, unknown>).length > 0;
+          return false;
+        })
+      );
+      if (hasSpouseName && !spouseHasAnyData) {
+        setSpousePromptOpen(true);
+      }
     },
-    [saveBackground]
+    [saveBackground, caseData?.clientPersonalInfo?.partnerFirstName, interviewData?.spouseBackground]
   );
 
   const handleSpouseSave = useCallback(
@@ -200,11 +276,23 @@ export default function FinancialInterviewPage() {
     }
     return false;
   })();
+  const consentRequired = Boolean(caseData) && !Boolean(caseData?.consentGiven);
+  const caseIdForUpdate = caseData?.id;
 
   const handleGoalsDiscoverySave = useCallback(
     async (data: Partial<GoalsDiscoveryData>) => {
       try {
         await saveGoalsDiscovery.mutateAsync(data);
+        const snapshot = computeRiskSnapshot(data?.riskProfile);
+        if (snapshot && caseIdForUpdate) {
+          await updateCase.mutateAsync({
+            id: caseIdForUpdate,
+            data: {
+              riskScore: snapshot.score,
+              riskProfile: snapshot.profile,
+            },
+          });
+        }
         toast.success("Goals & Discovery saved", {
           id: "goals-discovery-save",
         });
@@ -215,7 +303,7 @@ export default function FinancialInterviewPage() {
         throw err;
       }
     },
-    [saveGoalsDiscovery]
+    [saveGoalsDiscovery, caseIdForUpdate, updateCase]
   );
 
   const handleGoalsDiscoveryNext = useCallback(async () => {
@@ -230,6 +318,28 @@ export default function FinancialInterviewPage() {
       throw err;
     }
   }, [completeStep]);
+  const handleConsentAccept = async () => {
+    if (!caseData?.id || !consentPurposeChecked || !consentPrivacyChecked || !consentEducationChecked) {
+      setConsentError("Please acknowledge all required consent disclosures to continue.");
+      return;
+    }
+    setConsentError(null);
+    try {
+      await updateCase.mutateAsync({
+        id: caseData.id,
+        data: {
+          consentGiven: true,
+          consentAcknowledgedAt: new Date().toISOString(),
+          consentGivenAt: new Date().toISOString(),
+          consentVersion: "v1.0",
+        },
+      });
+      toast.success("Consent recorded.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to record consent.";
+      setConsentError(message);
+    }
+  };
 
   return (
     <>
@@ -268,6 +378,9 @@ export default function FinancialInterviewPage() {
                 {annotationActive ? "Drawing..." : "Draw / Annotate"}
               </Button>
             </div>
+            <div className="rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-800">
+              Confidentiality Notice: Client information in this interview is private and intended only for advisory planning purposes.
+            </div>
 
             {/* Section navigation */}
             <InterviewSectionNav
@@ -305,10 +418,11 @@ export default function FinancialInterviewPage() {
           )}
         </div>
 
+        <div className={consentRequired ? "pointer-events-none opacity-40" : ""}>
         {/* ── PHASE 2: Financial Background ── */}
         {currentSection === "financial-background" && (
           <div className="relative">
-            <Tabs defaultValue="primary" className="w-full">
+            <Tabs value={financialBgTab} onValueChange={(v) => setFinancialBgTab(v as "primary" | "spouse")} className="w-full">
             <TabsList className="mb-2 justify-start">
               <TabsTrigger value="primary" className="gap-1.5">
                 <User className="size-3.5" />
@@ -450,11 +564,13 @@ export default function FinancialInterviewPage() {
                 healthScore={healthScore}
                 caseData={caseData}
                 interviewData={interviewData}
+                onNavigate={() => setCurrentSection("financial-x-curve")}
               />
             </div>
             <FinancialBgInsights
               caseId={caseId}
               healthScore={healthScore}
+              caseData={caseData}
               clientState={caseData?.clientPersonalInfo?.address?.province}
               fullAnalysisData={fullAnalysisData}
               disableAutoRefresh
@@ -564,6 +680,97 @@ export default function FinancialInterviewPage() {
             caseData={caseData}
             onBack={() => setCurrentSection("recommendations")}
           />
+        )}
+        </div>
+        {consentRequired && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="w-full max-w-2xl rounded-xl border bg-card p-6 shadow-xl">
+              <h2 className="text-lg font-semibold">Client Consent Required</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Confirm client consent before collecting financial interview data.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Version: v1.0. Consent capture stores advisor ID and timestamp for privacy disclosure audit.
+              </p>
+              <label className="mt-4 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={consentPurposeChecked}
+                  onChange={(e) => setConsentPurposeChecked(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  I acknowledge the purpose of data collection for financial planning analysis and report delivery.
+                </span>
+              </label>
+              <label className="mt-2 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={consentPrivacyChecked}
+                  onChange={(e) => setConsentPrivacyChecked(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  I acknowledge the client privacy policy and confidentiality notice.
+                </span>
+              </label>
+              <label className="mt-2 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={consentEducationChecked}
+                  onChange={(e) => setConsentEducationChecked(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  I acknowledge this platform is educational and planning support, not individualized investment advice.
+                </span>
+              </label>
+              {consentError && <p className="mt-2 text-sm text-destructive">{consentError}</p>}
+              <Button
+                className="mt-4"
+                onClick={handleConsentAccept}
+                disabled={
+                  !consentPurposeChecked ||
+                  !consentPrivacyChecked ||
+                  !consentEducationChecked ||
+                  updateCase.isPending
+                }
+              >
+                {updateCase.isPending ? "Saving..." : "Record Consent and Continue"}
+              </Button>
+            </div>
+          </div>
+        )}
+        {spousePromptOpen && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-xl rounded-xl border bg-card p-6 shadow-xl">
+              <h3 className="text-base font-semibold">Spouse profile is still missing</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                You haven&apos;t entered {caseData?.clientPersonalInfo?.partnerFirstName || "your spouse"}&apos;s financial details.
+                Complete both profiles for a comprehensive joint analysis.
+              </p>
+              <div className="mt-4 flex items-center gap-2">
+                <Button
+                  onClick={() => {
+                    setSpousePromptOpen(false);
+                    setCurrentSection("financial-background");
+                    setFinancialBgTab("spouse");
+                  }}
+                >
+                  Enter {caseData?.clientPersonalInfo?.partnerFirstName || "Spouse"}&apos;s Details
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSpousePromptOpen(false);
+                    setCurrentSection("goals-discovery");
+                  }}
+                >
+                  Skip — Use Primary Only
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </>

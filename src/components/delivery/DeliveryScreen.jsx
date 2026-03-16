@@ -8,26 +8,75 @@ import {
   Send,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { createClient } from "@/lib/supabase/client";
 
 export default function DeliveryScreen({ caseId, caseData, onBack }) {
+  const supabase = createClient();
   const [status, setStatus] = useState("idle");
   const [reportData, setReportData] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
   const [history, setHistory] = useState([]);
   const [sendEmail, setSendEmail] = useState("");
-  const [showEmailInput, setShowEmailInput] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [clientEmail, setClientEmail] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [error, setError] = useState(null);
+  const [advisorName, setAdvisorName] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [advisorLoading, setAdvisorLoading] = useState(true);
 
   const clientName =
     caseData?.client_name ||
     `${caseData?.first_name || ""} ${caseData?.last_name || ""}`.trim() ||
     caseData?.clientName ||
     "Client";
+  const defaultClientEmail =
+    caseData?.client_email ||
+    caseData?.clientPersonalInfo?.email ||
+    caseData?.email ||
+    "";
+  const advisorIsPlaceholder =
+    advisorLoading ||
+    advisorName === "Sarah Chen" ||
+    !advisorName ||
+    !licenseNumber;
 
   useEffect(() => {
     loadReportHistory();
     loadSnapshotSummary();
+    void loadAdvisorProfile();
+    if (defaultClientEmail) {
+      setSendEmail(defaultClientEmail);
+      setClientEmail(defaultClientEmail);
+    }
   }, [caseId]);
+
+  const loadAdvisorProfile = async () => {
+    setAdvisorLoading(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const metadata = user.user_metadata ?? {};
+      const { data } = await supabase
+        .from("advisor_profiles")
+        .select("full_name, license_number")
+        .eq("advisor_id", user.id)
+        .maybeSingle();
+      setAdvisorName(
+        data?.full_name || metadata.full_name || user.email || ""
+      );
+      setLicenseNumber(
+        data?.license_number || metadata.license_number || ""
+      );
+    } catch {
+      // no-op
+    } finally {
+      setAdvisorLoading(false);
+    }
+  };
 
   const loadSnapshotSummary = async () => {
     try {
@@ -93,7 +142,8 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
         key: "analysis_dashboard",
         label: "Analysis Dashboard",
         icon: "📊",
-        description: "Health score, gaps, hidden money",
+        description: "Health score, gaps, unallocated surplus",
+        
       },
       {
         key: "financial_home",
@@ -173,7 +223,7 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
           FINAL STEP
         </div>
         <div style={{ fontSize: 22, fontWeight: 800, color: "#1B2B4B" }}>
-          {clientName}'s Financial Blueprint Report
+          {clientName}&apos;s Financial Blueprint Report
         </div>
         <div style={{ fontSize: 13, color: "#718096", marginTop: 4 }}>
           Generate a professional PDF report summarizing this session.
@@ -200,9 +250,28 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
             Creates a professional, compliance-ready PDF with health summary, gap analysis,
             recommendations, and projections.
           </div>
+          {advisorIsPlaceholder && (
+            <div
+              style={{
+                background: "#FFF5F5",
+                border: "1px solid rgba(224,82,82,0.3)",
+                borderLeft: "4px solid #E05252",
+                borderRadius: 8,
+                padding: "10px 14px",
+                marginBottom: 16,
+                textAlign: "left",
+                fontSize: 12,
+                color: "#4A5568",
+              }}
+            >
+              <strong>Your advisor profile is incomplete.</strong> The report may display incorrect advisor
+              details. <a href="/settings" style={{ color: "#1B2B4B" }}>Update Settings →</a>
+            </div>
+          )}
 
           <button
             onClick={() => handleGenerate(false)}
+            disabled={advisorIsPlaceholder}
             style={{
               background: "#4A7C6F",
               color: "#FFFFFF",
@@ -216,6 +285,8 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
               alignItems: "center",
               gap: 10,
               marginBottom: 12,
+              opacity: advisorIsPlaceholder ? 0.4 : 1,
+              cursor: advisorIsPlaceholder ? "not-allowed" : "pointer",
             }}
           >
             <FileText size={20} />
@@ -224,7 +295,8 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
 
           <div style={{ marginTop: 8 }}>
             <button
-              onClick={() => setShowEmailInput(!showEmailInput)}
+              onClick={() => handleGenerate(true)}
+              disabled={advisorIsPlaceholder || !sendEmail.includes("@")}
               style={{
                 background: "none",
                 color: "#4A7C6F",
@@ -236,6 +308,7 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 8,
+                opacity: !advisorIsPlaceholder && sendEmail.includes("@") ? 1 : 0.4,
               }}
             >
               <Send size={14} />
@@ -243,48 +316,56 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
             </button>
           </div>
 
-          {showEmailInput && (
+          <div
+            style={{
+              marginTop: 16,
+              display: "flex",
+              gap: 10,
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <input
+              type="email"
+              value={sendEmail}
+              onChange={(e) => setSendEmail(e.target.value)}
+              placeholder={defaultClientEmail || "client@email.com"}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid #E8E4DC",
+                fontSize: 13,
+                width: 260,
+              }}
+            />
             <div
               style={{
-                marginTop: 16,
+                fontSize: 12,
+                color: "#718096",
                 display: "flex",
-                gap: 10,
-                justifyContent: "center",
-                flexWrap: "wrap",
+                alignItems: "center",
               }}
             >
-              <input
-                type="email"
-                value={sendEmail}
-                onChange={(e) => setSendEmail(e.target.value)}
-                placeholder="client@email.com"
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #E8E4DC",
-                  fontSize: 13,
-                  width: 260,
-                }}
-              />
-              <button
-                onClick={() => handleGenerate(true)}
-                disabled={!sendEmail.includes("@")}
-                style={{
-                  background: "#1B2B4B",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "10px 20px",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  opacity: sendEmail.includes("@") ? 1 : 0.5,
-                }}
-              >
-                Send Report
-              </button>
+              Client email for delivery
             </div>
-          )}
+            <button
+              onClick={() => handleGenerate(true)}
+              disabled={advisorIsPlaceholder || !sendEmail.includes("@")}
+              style={{
+                background: "#1B2B4B",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "10px 20px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                opacity: !advisorIsPlaceholder && sendEmail.includes("@") ? 1 : 0.5,
+              }}
+            >
+              Send
+            </button>
+          </div>
         </div>
       )}
 
@@ -388,8 +469,8 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
 
             <button
               onClick={() => {
-                setStatus("idle");
-                setShowEmailInput(true);
+                setShowEmailForm((prev) => !prev);
+                setEmailSent(false);
               }}
               style={{
                 background: "#FFFFFF",
@@ -428,6 +509,106 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
               Regenerate
             </button>
           </div>
+          {emailSent && (
+            <div style={{ fontSize: 12, color: "#4A7C6F", fontWeight: 600, marginBottom: 12 }}>
+              ✓ Report sent to {clientEmail}
+            </div>
+          )}
+
+          {showEmailForm && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: "16px 20px",
+                background: "#F8F7F4",
+                border: "1px solid #E8E4DC",
+                borderRadius: 12,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#1B2B4B",
+                  marginBottom: 10,
+                }}
+              >
+                Send Report to Client
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <input
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  placeholder="client@email.com"
+                  style={{
+                    flex: 1,
+                    minWidth: 220,
+                    padding: "10px 14px",
+                    border: "1px solid #E8E4DC",
+                    borderRadius: 8,
+                    fontSize: 13,
+                  }}
+                />
+                <button
+                  onClick={async () => {
+                    if (!clientEmail?.includes("@")) return;
+                    setEmailSending(true);
+                    setEmailSent(false);
+                    try {
+                      await apiClient.post("/reports/generate", {
+                        case_id: caseId,
+                        store_in_db: true,
+                        send_to_email: clientEmail,
+                      });
+                      setEmailSent(true);
+                      setShowEmailForm(false);
+                      await loadReportHistory();
+                    } catch (_e) {
+                      setError("Email send failed. Please try again.");
+                    } finally {
+                      setEmailSending(false);
+                    }
+                  }}
+                  disabled={emailSending || !clientEmail?.includes("@")}
+                  style={{
+                    padding: "10px 20px",
+                    background: emailSending ? "#E8E4DC" : "#1B2B4B",
+                    color: "#FFFFFF",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: emailSending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {emailSending ? "Sending..." : "Send Report →"}
+                </button>
+              </div>
+              {emailSent && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#4A7C6F",
+                    marginTop: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  ✓ Report sent to {clientEmail}
+                </div>
+              )}
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#718096",
+                  marginTop: 8,
+                  fontStyle: "italic",
+                }}
+              >
+                The client will receive a PDF download link. This will be logged in Report History.
+              </div>
+            </div>
+          )}
 
           {history.length > 0 && (
             <div

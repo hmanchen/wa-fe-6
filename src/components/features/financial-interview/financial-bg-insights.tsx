@@ -1,6 +1,5 @@
 "use client";
 
-import { API_BASE_URL } from "@/lib/config";
 import { useEffect, useState, useRef, useMemo } from "react";
 import {
   ArrowRight,
@@ -16,7 +15,6 @@ import {
   RefreshCw,
   Banknote,
   CreditCard,
-  Bug,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -48,18 +46,6 @@ function deepConvertKeys(obj: any, converter: (s: string) => string): any {
     return result;
   }
   return obj;
-}
-
-interface DebugLog {
-  label: string;
-  url: string;
-  method: string;
-  input?: any;
-  rawResponse?: any;
-  transformedResponse?: any;
-  error?: string;
-  timestamp: string;
-  durationMs?: number;
 }
 
 function fmtDollars(n: number): string {
@@ -135,6 +121,7 @@ type NormalizedGap = {
 export function FinancialBgInsights({
   caseId,
   healthScore: healthScoreProp,
+  caseData,
   clientState,
   fullAnalysisData,
   disableAutoRefresh,
@@ -143,6 +130,10 @@ export function FinancialBgInsights({
 }: {
   caseId: string;
   healthScore?: FinancialHealthScore | null;
+  caseData?: {
+    riskProfile?: string;
+    riskScore?: number;
+  } | null;
   clientState?: string;
   fullAnalysisData?: any;
   disableAutoRefresh?: boolean;
@@ -153,8 +144,6 @@ export function FinancialBgInsights({
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [freshHealthScore, setFreshHealthScore] = useState<FinancialHealthScore | null>(null);
-  const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
-  const [debugOpen, setDebugOpen] = useState(false);
   const [expandedCashFlowSections, setExpandedCashFlowSections] = useState<{
     netTakeHome: boolean;
     expensesAndSurplus: boolean;
@@ -171,48 +160,21 @@ export function FinancialBgInsights({
       setFullAnalysis(fullAnalysisData);
     }
   }, [fullAnalysisData]);
-
-
-  const addDebugLog = (log: DebugLog) => {
-    setDebugLogs((prev) => [...prev, log]);
-  };
   const toggleCashFlowSection = (section: "netTakeHome" | "expensesAndSurplus") =>
     setExpandedCashFlowSections((prev) => ({ ...prev, [section]: !prev[section] }));
   const toggleHiddenMoneyDerivation = () =>
     setHiddenMoneyDerivationExpanded((prev) => !prev);
 
   const fetchHealthScore = async () => {
-    const hsUrl = `${API_BASE_URL}/api/v1/cases/${caseId}/financial-health-score/`;
-    const start = Date.now();
-
     try {
       const { data } = await apiClient.get<any>(
         `/cases/${caseId}/financial-health-score/`
       );
-      const elapsed = Date.now() - start;
       const rawExtracted = data?.data ?? data;
       const transformed = deepConvertKeys(rawExtracted, toCamelCase) as FinancialHealthScore;
       setFreshHealthScore(transformed);
-
-      addDebugLog({
-        label: "Health Score (fresh fetch)",
-        url: hsUrl,
-        method: "GET",
-        rawResponse: rawExtracted,
-        transformedResponse: transformed,
-        timestamp: new Date().toISOString(),
-        durationMs: elapsed,
-      });
-    } catch (err: any) {
-      const elapsed = Date.now() - start;
-      addDebugLog({
-        label: "Health Score (fresh fetch)",
-        url: hsUrl,
-        method: "GET",
-        error: err.message || "Health score fetch failed",
-        timestamp: new Date().toISOString(),
-        durationMs: elapsed,
-      });
+    } catch {
+      // Non-blocking: UI can still render with existing score payload.
     }
   };
 
@@ -220,44 +182,20 @@ export function FinancialBgInsights({
     setAnalysisLoading(true);
     setAnalysisError(null);
 
-    const fullUrl = `${API_BASE_URL}/api/v1/compute/financial/full-analysis`;
     const resolvedState = clientState || "unknown";
     const inputPayload = { case_id: caseId, state: resolvedState };
-    const start = Date.now();
 
     try {
       const { data } = await apiClient.post<any>(
         "/compute/financial/full-analysis",
         inputPayload
       );
-      const elapsed = Date.now() - start;
       const rawExtracted = data?.data ?? data;
       const transformed = deepConvertKeys(rawExtracted, toCamelCase);
       setFullAnalysis(transformed);
-
-      addDebugLog({
-        label: "Full Analysis",
-        url: fullUrl,
-        method: "POST",
-        input: inputPayload,
-        rawResponse: rawExtracted,
-        transformedResponse: transformed,
-        timestamp: new Date().toISOString(),
-        durationMs: elapsed,
-      });
     } catch (err: any) {
-      const elapsed = Date.now() - start;
       const msg = err.message || "Full analysis failed";
       setAnalysisError(msg);
-      addDebugLog({
-        label: "Full Analysis",
-        url: fullUrl,
-        method: "POST",
-        input: inputPayload,
-        error: msg,
-        timestamp: new Date().toISOString(),
-        durationMs: elapsed,
-      });
     } finally {
       setAnalysisLoading(false);
     }
@@ -282,54 +220,6 @@ export function FinancialBgInsights({
         <div className="flex items-center justify-center p-12">
           <Loader2 className="mr-2 size-4 animate-spin" />
           <p className="text-sm text-muted-foreground">Loading insights — fetching health score &amp; running analysis...</p>
-        </div>
-
-        {/* Debug Panel still visible during loading */}
-        <div className="rounded-lg border border-dashed border-orange-300 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/10">
-          <button
-            onClick={() => setDebugOpen((p) => !p)}
-            className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400"
-          >
-            <Bug className="size-4" />
-            Debug: API Calls ({debugLogs.length})
-            {debugOpen ? <ChevronUp className="ml-auto size-4" /> : <ChevronDown className="ml-auto size-4" />}
-          </button>
-          {debugOpen && (
-            <div className="space-y-3 px-4 pb-4">
-              {debugLogs.length === 0 && (
-                <p className="text-xs text-muted-foreground">No API calls logged yet.</p>
-              )}
-              {debugLogs.map((log, idx) => (
-                <div key={idx} className="rounded-lg border bg-white p-3 dark:bg-slate-900">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className={cn(
-                      "rounded px-1.5 py-0.5 text-[10px] font-bold",
-                      log.method === "POST" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-                    )}>
-                      {log.method}
-                    </span>
-                    <span className="text-xs font-semibold">{log.label}</span>
-                    {log.error && <span className="text-[10px] font-bold text-red-500">ERROR</span>}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">URL</p>
-                    <pre className="mt-0.5 overflow-x-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">{log.url}</pre>
-                  </div>
-                  {log.error && (
-                    <pre className="mt-1 rounded bg-red-50 p-2 text-[11px] text-red-700 dark:bg-red-950/30">{log.error}</pre>
-                  )}
-                  {log.rawResponse && (
-                    <div className="mt-1">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Raw Response</p>
-                      <pre className="mt-0.5 max-h-40 overflow-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
-                        {JSON.stringify(log.rawResponse, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     );
@@ -595,6 +485,17 @@ export function FinancialBgInsights({
 
   const goalRankMap = new Map<string, number>();
   const rankedGoals = (goalSummary?.goalsRanking ?? goalSummary?.goals_ranking ?? []) as any[];
+  const riskProfileLabel =
+    goalSummary?.riskProfile ??
+    goalSummary?.risk_profile ??
+    goalSummary?.riskTolerance ??
+    goalSummary?.risk_tolerance ??
+    caseData?.riskProfile ??
+    "⚠ Not assessed";
+  const riskScoreValue =
+    goalSummary?.riskScore ??
+    goalSummary?.risk_score ??
+    caseData?.riskScore;
   for (const g of rankedGoals) {
     goalRankMap.set(String(g.goalId ?? g.goal_id ?? ""), Number(g.rank ?? 99));
   }
@@ -632,24 +533,6 @@ export function FinancialBgInsights({
     }
     return severityWeight(a.severity) - severityWeight(b.severity);
   });
-
-  const attentionSorted: NormalizedGap[] = gapBase
-    .map((g: any) => ({
-      title: String(g?.title ?? "Gap"),
-      detail: String(g?.detail ?? ""),
-      severity: String(g?.severity ?? "MEDIUM").toUpperCase(),
-      goalLinked: Boolean(g?.goalLinked ?? g?.goal_linked),
-      connectedGoal: g?.goalConnection ?? g?.goal_connection,
-      connectedGoalRank: goalRankMap.get(String(g?.goalId ?? g?.goal_id ?? "")),
-    }))
-    .sort((a, b) => {
-      if (a.goalLinked && !b.goalLinked) return -1;
-      if (!a.goalLinked && b.goalLinked) return 1;
-      if (a.goalLinked && b.goalLinked) {
-        return (a.connectedGoalRank ?? 99) - (b.connectedGoalRank ?? 99);
-      }
-      return severityWeight(a.severity) - severityWeight(b.severity);
-    });
 
   const strengthItems = (insights?.strengths ?? []) as any[];
   const advisorHints = (insights?.advisorHints ?? insights?.advisor_hints ?? []) as string[];
@@ -923,9 +806,11 @@ export function FinancialBgInsights({
                   </span>
                 ))}
               </div>
-              {(goalSummary?.riskProfile || goalSummary?.retirementTargetAge || goalSummary?.risk_profile || goalSummary?.retirement_target_age) && (
+              {(riskProfileLabel || goalSummary?.retirementTargetAge || goalSummary?.retirement_target_age) && (
                 <p className="mt-2 text-xs text-blue-700/80 dark:text-blue-300/80">
-                  Risk Profile: {goalSummary?.riskProfile ?? goalSummary?.risk_profile ?? "—"} | Retirement: Age {goalSummary?.retirementTargetAge ?? goalSummary?.retirement_target_age ?? "—"}
+                  Risk Profile: {riskProfileLabel}
+                  {riskScoreValue ? ` (${riskScoreValue}/20)` : ""}
+                  {" "} | Retirement: Age {goalSummary?.retirementTargetAge ?? goalSummary?.retirement_target_age ?? "—"}
                 </p>
               )}
             </div>
@@ -1044,7 +929,7 @@ export function FinancialBgInsights({
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
               <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">💰 Cash Flow Optimization Opportunities</p>
               <p className="mt-1 text-sm text-emerald-800/90 dark:text-emerald-200/90">
-                We found {fmtDollars(hiddenRedirect + unallocatedSurplus)}/month already in your finances that could work harder for you.
+                We found {fmtDollars(hiddenRedirect + unallocatedSurplus)}/month of unallocated surplus already available in your plan.
               </p>
               <div className="mt-3 space-y-2">
                 {hiddenSources.map((s: any, i: number) => (
@@ -1092,7 +977,7 @@ export function FinancialBgInsights({
                     <div>
                       <p className="text-sm font-semibold">Unclaimed employer match (opportunity)</p>
                       <p className="text-xs text-muted-foreground">
-                        This is potential employer match you may be missing. It is informational only and not counted in Total Available hidden money.
+                        This is potential employer match you may be missing. It is informational only and not counted in total available unallocated surplus.
                       </p>
                     </div>
                     <p className="text-sm font-bold">{fmtDollars(hiddenUnclaimedMatchMonthly)}/mo</p>
@@ -1105,7 +990,7 @@ export function FinancialBgInsights({
                   onClick={toggleHiddenMoneyDerivation}
                   className="flex w-full items-center justify-between gap-2 text-left"
                 >
-                  <p className="font-semibold text-foreground">How this hidden money is derived</p>
+                  <p className="font-semibold text-foreground">How this unallocated surplus is derived</p>
                   {hiddenMoneyDerivationExpanded ? (
                     <ChevronUp className="size-3.5 text-muted-foreground" />
                   ) : (
@@ -1406,7 +1291,7 @@ export function FinancialBgInsights({
 
           {redFlagsMerged.length > 0 && (
             <div className="rounded-xl border border-red-200 bg-red-50/30 p-4 dark:border-red-900/50 dark:bg-red-950/10">
-              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-red-500">Red Flags</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-red-500">What Needs Attention</p>
               <div className="space-y-2">
                 {redFlagsMerged.map((f, i) => (
                   <div key={i} className="rounded-lg bg-white/80 p-2.5 dark:bg-red-950/20">
@@ -1448,28 +1333,6 @@ export function FinancialBgInsights({
               </div>
             )}
 
-            {attentionSorted.length > 0 && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/50 dark:bg-amber-950/10">
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">
-                  <AlertTriangle className="size-4" /> Areas That Need Attention
-                </p>
-                <div className="space-y-2">
-                  {attentionSorted.map((g, i) => (
-                    <div key={i} className="rounded-lg bg-white/80 p-2.5 dark:bg-amber-950/20">
-                      <p className="text-xs font-semibold">
-                        {g.severity === "CRITICAL" ? "🔴" : g.severity === "HIGH" ? "🟠" : g.severity === "MEDIUM" ? "🟡" : "🔵"} {g.title}
-                      </p>
-                      <p className="text-[11px] leading-snug text-muted-foreground">{g.detail}</p>
-                      {g.goalLinked && g.connectedGoal && (
-                        <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                          🎯 {g.connectedGoal}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {isAgentView && advisorHints.length > 0 && (
@@ -1496,90 +1359,6 @@ export function FinancialBgInsights({
             </div>
           )}
         </div>
-      </div>
-
-      {/* ── Debug Panel ── */}
-      <div className="rounded-lg border border-dashed border-orange-300 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/10">
-        <button
-          onClick={() => setDebugOpen((p) => !p)}
-          className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400"
-        >
-          <Bug className="size-4" />
-          Debug: API Calls ({debugLogs.length})
-          {debugOpen ? <ChevronUp className="ml-auto size-4" /> : <ChevronDown className="ml-auto size-4" />}
-        </button>
-        {debugOpen && (
-          <div className="space-y-3 px-4 pb-4">
-            {debugLogs.length === 0 && (
-              <p className="text-xs text-muted-foreground">No API calls logged yet.</p>
-            )}
-            {debugLogs.map((log, idx) => (
-              <div key={idx} className="rounded-lg border bg-white p-3 dark:bg-slate-900">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className={cn(
-                    "rounded px-1.5 py-0.5 text-[10px] font-bold",
-                    log.method === "POST" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-                  )}>
-                    {log.method}
-                  </span>
-                  <span className="text-xs font-semibold text-foreground">{log.label}</span>
-                  {log.durationMs != null && (
-                    <span className="text-[10px] text-muted-foreground">({log.durationMs}ms)</span>
-                  )}
-                  {log.error && <span className="text-[10px] font-bold text-red-500">ERROR</span>}
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">URL</p>
-                    <pre className="mt-0.5 overflow-x-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
-                      {log.url}
-                    </pre>
-                  </div>
-
-                  {log.input && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Input Payload</p>
-                      <pre className="mt-0.5 max-h-40 overflow-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
-                        {JSON.stringify(log.input, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-
-                  {log.error && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-red-500">Error</p>
-                      <pre className="mt-0.5 overflow-x-auto rounded bg-red-50 p-2 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-300">
-                        {log.error}
-                      </pre>
-                    </div>
-                  )}
-
-                  {log.rawResponse && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Raw Response from Backend</p>
-                      <pre className="mt-0.5 max-h-60 overflow-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
-                        {JSON.stringify(log.rawResponse, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-
-                  {log.transformedResponse && log.rawResponse !== log.transformedResponse && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Transformed (camelCase) — Used by UI</p>
-                      <pre className="mt-0.5 max-h-60 overflow-auto rounded bg-slate-100 p-2 text-[11px] dark:bg-slate-800">
-                        {JSON.stringify(log.transformedResponse, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Continue button */}

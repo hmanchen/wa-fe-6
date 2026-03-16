@@ -30,32 +30,25 @@ export const caseStatusConfig: Record<CaseStatus, CaseStatusConfig> = {
     description: "Analyzing needs and running computations",
     nextSteps: ["Run needs analysis", "Review AI insights"],
   },
-  recommendation: {
-    label: "Recommendation",
+  review: {
+    label: "Review",
     color: "purple",
     variant: "default",
-    description: "Preparing recommendations",
+    description: "Preparing proposal and review materials",
     nextSteps: ["Validate funding", "Finalize recommendations"],
   },
-  report: {
-    label: "Report",
+  presented: {
+    label: "Presented",
     color: "indigo",
     variant: "default",
-    description: "Generating report",
-    nextSteps: ["Review report", "Share with client"],
+    description: "Proposal delivered to client",
+    nextSteps: ["Schedule follow-up", "Capture client feedback"],
   },
-  completed: {
-    label: "Completed",
+  closed: {
+    label: "Closed",
     color: "green",
     variant: "default",
     description: "Case is complete",
-    nextSteps: [],
-  },
-  archived: {
-    label: "Archived",
-    color: "gray",
-    variant: "outline",
-    description: "Case is archived",
     nextSteps: [],
   },
 };

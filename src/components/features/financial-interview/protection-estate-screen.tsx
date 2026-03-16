@@ -1,6 +1,5 @@
 "use client";
 
-import { API_BASE_URL } from "@/lib/config";
 import { useState, useCallback } from "react";
 import {
   Shield,
@@ -9,6 +8,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,8 +123,29 @@ function LifeInsuranceTab({
   update: (patch: Partial<PersonFinancialBackground>) => void;
 }) {
   const ins = data.lifeInsurance ?? {};
-  const setIns = (patch: Partial<PersonFinancialBackground["lifeInsurance"]>) =>
-    update({ lifeInsurance: { ...ins, ...patch } });
+  const computeTotalCoverage = (next: PersonFinancialBackground["lifeInsurance"] | undefined) => {
+    if (!next) return undefined;
+    const policyCoverageTotal = (next.policies ?? []).reduce(
+      (sum, policy) => sum + Number(policy?.coverageAmount ?? 0),
+      0
+    );
+    return (
+      Number(next.groupLifeAmount ?? 0) +
+      Number(next.termLifeAmount ?? 0) +
+      Number(next.permLifeAmount ?? 0) +
+      policyCoverageTotal
+    );
+  };
+  const setIns = (patch: Partial<PersonFinancialBackground["lifeInsurance"]>) => {
+    const merged = { ...ins, ...patch };
+    update({
+      lifeInsurance: {
+        ...merged,
+        totalCoverageAmount: computeTotalCoverage(merged),
+      },
+    });
+  };
+  const policies = Array.isArray(ins.policies) ? ins.policies : [];
   const annualIncomeForGroupLife = (() => {
     const income = data.income ?? {};
     const sources = Array.isArray(income.incomeSources) ? income.incomeSources : [];
@@ -341,14 +363,146 @@ function LifeInsuranceTab({
         </div>
       </YesNoField>
 
+      <div className="rounded-xl border bg-card px-5 py-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">Additional Life Policies</p>
+            <p className="text-xs text-muted-foreground">
+              Capture each policy separately for accurate totals and downstream analysis.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() =>
+              setIns({
+                policies: [
+                  ...policies,
+                  { policyType: "term", coverageAmount: 0, monthlyPremium: 0 },
+                ],
+              })
+            }
+          >
+            <Plus className="size-3.5" />
+            Add Policy
+          </Button>
+        </div>
+        <div className="space-y-3">
+          {policies.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No additional policies captured yet.
+            </p>
+          )}
+          {policies.map((policy, idx) => (
+            <div key={idx} className="rounded-lg border bg-muted/20 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold">Policy #{idx + 1}</p>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-xs text-red-600"
+                  onClick={() =>
+                    setIns({
+                      policies: policies.filter((_, i) => i !== idx),
+                    })
+                  }
+                >
+                  <Trash2 className="size-3.5" />
+                  Remove
+                </button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">Policy type</Label>
+                  <Select
+                    value={policy.policyType ?? "term"}
+                    onValueChange={(value) =>
+                      setIns({
+                        policies: policies.map((p, i) =>
+                          i === idx
+                            ? {
+                                ...p,
+                                policyType:
+                                  value as NonNullable<
+                                    PersonFinancialBackground["lifeInsurance"]
+                                  >["policies"][number]["policyType"],
+                              }
+                            : p
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="term">Term</SelectItem>
+                      <SelectItem value="whole-life">Whole Life</SelectItem>
+                      <SelectItem value="universal">Universal</SelectItem>
+                      <SelectItem value="iul">IUL</SelectItem>
+                      <SelectItem value="group">Group</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <CurrencyField
+                  label="Coverage"
+                  value={policy.coverageAmount}
+                  onChange={(value) =>
+                    setIns({
+                      policies: policies.map((p, i) =>
+                        i === idx ? { ...p, coverageAmount: value } : p
+                      ),
+                    })
+                  }
+                />
+                <CurrencyField
+                  label="Monthly premium"
+                  value={policy.monthlyPremium}
+                  onChange={(value) =>
+                    setIns({
+                      policies: policies.map((p, i) =>
+                        i === idx ? { ...p, monthlyPremium: value } : p
+                      ),
+                    })
+                  }
+                />
+                <div className="space-y-1">
+                  <Label className="text-xs">Provider</Label>
+                  <Input
+                    className="h-8 text-sm"
+                    value={policy.providerName ?? ""}
+                    onChange={(e) =>
+                      setIns({
+                        policies: policies.map((p, i) =>
+                          i === idx ? { ...p, providerName: e.target.value } : p
+                        ),
+                      })
+                    }
+                    placeholder="Carrier name"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="rounded-xl border border-l-4 border-l-blue-400 bg-card px-5 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold">Total Coverage Amount</p>
             <p className="text-xs text-muted-foreground">Sum of all life insurance coverage</p>
           </div>
-          <CurrencyField label="" value={ins.totalCoverageAmount}
-            onChange={(v) => setIns({ totalCoverageAmount: v })} />
+          <div className="text-right">
+            <p className="text-lg font-bold">
+              ${Number(ins.totalCoverageAmount ?? 0).toLocaleString()}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Auto-derived from captured policies
+            </p>
+          </div>
         </div>
       </div>
 
@@ -632,30 +786,6 @@ export function ProtectionEstateScreen({
                 <ChevronRight className="size-3.5" />
               </Button>
             )}
-          </div>
-
-          {/* ── Debug: API URL & JSON Payload ── */}
-          <div className="mt-6 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
-            <p className="mb-2 text-xs font-bold text-amber-700 dark:text-amber-400">🛠 Debug — API Info</p>
-            <div className="space-y-2">
-              <div>
-                <Label className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">API URL</Label>
-                <Input readOnly className="mt-0.5 h-8 font-mono text-xs bg-white dark:bg-black"
-                  value={`PUT ${API_BASE_URL}/api/v1/cases/${caseId}/discovery/`}
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">JSON Payload</Label>
-                <textarea readOnly rows={10}
-                  className="mt-0.5 w-full rounded-md border bg-white p-2 font-mono text-[11px] leading-relaxed dark:bg-black"
-                  value={JSON.stringify({
-                    financial_profile: {
-                      [role === "primary" ? "primary_background" : "spouse_background"]: data,
-                    },
-                  }, null, 2)}
-                />
-              </div>
-            </div>
           </div>
 
         </div>

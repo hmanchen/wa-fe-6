@@ -15,15 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { User, Settings, Building2, Upload } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-const MOCK_PROFILE = {
-  name: "Sarah Chen",
-  email: "sarah.chen@wealthadvisors.com",
-  phone: "+1 (555) 123-4567",
-  licenseNumber: "CA-1234567",
-};
+import { User, Settings, Building2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 const MOCK_PREFERENCES = {
   currency: "USD",
@@ -31,30 +24,129 @@ const MOCK_PREFERENCES = {
   theme: "system" as "light" | "dark" | "system",
 };
 
-const MOCK_COMPANY = {
-  name: "WealthAdvisors Inc.",
-  address: "123 Financial District, San Francisco, CA 94105",
+const DEFAULT_PROFILE = {
+  name: "",
+  email: "",
+  phone: "",
+  licenseNumber: "",
+  licenseState: "",
+  npn: "",
+  firmName: "",
+  signature: "",
+  showTeamCard: false,
 };
 
 export default function SettingsPage() {
+  const supabase = createClient();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [profile, setProfile] = useState(MOCK_PROFILE);
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [preferences, setPreferences] = useState(MOCK_PREFERENCES);
-  const [company, setCompany] = useState(MOCK_COMPANY);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
-  const [companySaving, setCompanySaving] = useState(false);
 
   // Prevent hydration mismatch — useTheme returns undefined on server
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    const loadAdvisorProfile = async () => {
+      setProfileLoading(true);
+      setProfileMessage(null);
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          setProfileLoading(false);
+          return;
+        }
+
+        const metadata = user.user_metadata ?? {};
+        const authPrefill = {
+          name: metadata.full_name ?? "",
+          email: user.email ?? "",
+          phone: metadata.phone ?? "",
+          licenseNumber: metadata.license_number ?? "",
+          licenseState: metadata.license_state ?? "",
+          npn: metadata.npn ?? "",
+          firmName: metadata.firm_name ?? "",
+          signature: metadata.signature ?? "",
+          showTeamCard: Boolean(metadata.show_team_card ?? false),
+        };
+
+        const { data, error } = await supabase
+          .from("advisor_profiles")
+          .select("*")
+          .eq("advisor_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          throw error;
+        }
+
+        if (data) {
+          setProfile({
+            name: data.full_name ?? authPrefill.name,
+            email: data.email ?? authPrefill.email,
+            phone: data.phone ?? authPrefill.phone,
+            licenseNumber: data.license_number ?? authPrefill.licenseNumber,
+            licenseState: data.license_state ?? authPrefill.licenseState,
+            npn: data.npn ?? authPrefill.npn,
+            firmName: data.firm_name ?? authPrefill.firmName,
+            signature: data.signature ?? authPrefill.signature,
+            showTeamCard: Boolean(data.show_team_card ?? authPrefill.showTeamCard),
+          });
+        } else {
+          setProfile((prev) => ({ ...prev, ...authPrefill }));
+        }
+      } catch {
+        setProfileMessage("Unable to load advisor profile from Supabase.");
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    void loadAdvisorProfile();
+  }, [supabase]);
+
   const handleSaveProfile = async () => {
     setProfileSaving(true);
+    setProfileMessage(null);
     try {
-      await new Promise((r) => setTimeout(r, 600));
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
+
+      const payload = {
+        advisor_id: user.id,
+        full_name: profile.name,
+        email: profile.email,
+        phone: profile.phone,
+        license_number: profile.licenseNumber,
+        license_state: profile.licenseState,
+        npn: profile.npn,
+        firm_name: profile.firmName,
+        signature: profile.signature,
+        show_team_card: Boolean(profile.showTeamCard),
+      };
+
+      const { error } = await supabase
+        .from("advisor_profiles")
+        .upsert(payload, { onConflict: "advisor_id" });
+
+      if (error) {
+        throw error;
+      }
+      setProfileMessage("Profile saved.");
+    } catch {
+      setProfileMessage("Unable to save profile. Please try again.");
     } finally {
       setProfileSaving(false);
     }
@@ -64,17 +156,9 @@ export default function SettingsPage() {
     setPreferencesSaving(true);
     try {
       await new Promise((r) => setTimeout(r, 600));
+      setProfileMessage("Preferences saved.");
     } finally {
       setPreferencesSaving(false);
-    }
-  };
-
-  const handleSaveCompany = async () => {
-    setCompanySaving(true);
-    try {
-      await new Promise((r) => setTimeout(r, 600));
-    } finally {
-      setCompanySaving(false);
     }
   };
 
@@ -111,10 +195,13 @@ export default function SettingsPage() {
             <CardHeader>
               <h3 className="font-semibold">Profile Information</h3>
               <p className="text-muted-foreground text-sm">
-                Your personal details and license information
+                Advisor details used in client-facing reports
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
+              {profileLoading && (
+                <p className="text-muted-foreground text-sm">Loading advisor profile...</p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Advisor Name</Label>
@@ -139,6 +226,26 @@ export default function SettingsPage() {
                     placeholder="email@example.com"
                   />
                 </div>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <div className="pr-3">
+                  <div className="text-sm font-medium text-foreground">
+                    Show Practice Growth Opportunity
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Displays an optional team growth message in Recommendations with disclosure.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={profile.showTeamCard}
+                  onChange={(e) =>
+                    setProfile((prev) => ({
+                      ...prev,
+                      showTeamCard: e.target.checked,
+                    }))
+                  }
+                />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -167,6 +274,57 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="licenseState">License State</Label>
+                  <Input
+                    id="licenseState"
+                    value={profile.licenseState}
+                    onChange={(e) =>
+                      setProfile((prev) => ({ ...prev, licenseState: e.target.value }))
+                    }
+                    placeholder="TN"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="npn">NPN</Label>
+                  <Input
+                    id="npn"
+                    value={profile.npn}
+                    onChange={(e) =>
+                      setProfile((prev) => ({ ...prev, npn: e.target.value }))
+                    }
+                    placeholder="National Producer Number"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="firmName">Firm Name</Label>
+                  <Input
+                    id="firmName"
+                    value={profile.firmName}
+                    onChange={(e) =>
+                      setProfile((prev) => ({ ...prev, firmName: e.target.value }))
+                    }
+                    placeholder="Your firm name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signature">Signature</Label>
+                  <Input
+                    id="signature"
+                    value={profile.signature}
+                    onChange={(e) =>
+                      setProfile((prev) => ({ ...prev, signature: e.target.value }))
+                    }
+                    placeholder="Typed signature"
+                  />
+                </div>
+              </div>
+              {profileMessage && (
+                <p className="text-muted-foreground text-sm">{profileMessage}</p>
+              )}
               <Button onClick={handleSaveProfile} disabled={profileSaving}>
                 {profileSaving ? "Saving..." : "Save Profile"}
               </Button>
@@ -271,51 +429,31 @@ export default function SettingsPage() {
                 Your firm&apos;s details for client-facing reports
               </p>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="companyName">Company Name</Label>
                 <Input
                   id="companyName"
-                  value={company.name}
+                  value={profile.firmName}
                   onChange={(e) =>
-                    setCompany((prev) => ({ ...prev, name: e.target.value }))
+                    setProfile((prev) => ({ ...prev, firmName: e.target.value }))
                   }
                   placeholder="Your company name"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Company Logo</Label>
-                <div
-                  className={cn(
-                    "flex min-h-[120px] flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/30 p-6 transition-colors",
-                    "hover:bg-muted/50"
-                  )}
-                >
-                  <Upload className="text-muted-foreground mb-2 size-8" />
-                  <p className="text-muted-foreground mb-1 text-sm font-medium">
-                    Upload logo
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    PNG, JPG up to 2MB
-                  </p>
-                  <Button variant="outline" size="sm" className="mt-3">
-                    Choose File
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
+                <Label htmlFor="signatureCompany">Default Signature</Label>
                 <Input
-                  id="address"
-                  value={company.address}
+                  id="signatureCompany"
+                  value={profile.signature}
                   onChange={(e) =>
-                    setCompany((prev) => ({ ...prev, address: e.target.value }))
+                    setProfile((prev) => ({ ...prev, signature: e.target.value }))
                   }
-                  placeholder="Company address"
+                  placeholder="Advisor signature"
                 />
               </div>
-              <Button onClick={handleSaveCompany} disabled={companySaving}>
-                {companySaving ? "Saving..." : "Save Company"}
+              <Button onClick={handleSaveProfile} disabled={profileSaving}>
+                {profileSaving ? "Saving..." : "Save Company Details"}
               </Button>
             </CardContent>
           </Card>

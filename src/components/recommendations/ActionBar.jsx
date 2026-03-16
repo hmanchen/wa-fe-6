@@ -11,6 +11,7 @@ export default function ActionBar({
   const pct =
     monthlyAvailable > 0 ? Math.min(Math.round((totalCommitment / monthlyAvailable) * 100), 100) : 0;
   const firstName = caseData?.firstName || caseData?.first_name || caseData?.client_name?.split(" ")[0] || "Your";
+  const planLead = firstName === "Your" ? "Your plan" : `${firstName}'s plan`;
   const totalExposure = summary?.totalExposureWithoutAction || 0;
 
   return (
@@ -31,7 +32,7 @@ export default function ActionBar({
     >
       <div style={{ flex: "0 0 auto", minWidth: 200 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#1B2B4B" }}>
-          {firstName}'s plan: {fmt(totalCommitment)}/mo secures {fmt(totalExposure)} in financial protection
+          {planLead} invests {fmt(totalCommitment)}/mo toward your goals
         </div>
         <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>{fmt(remaining)}/mo of your surplus stays available</div>
       </div>

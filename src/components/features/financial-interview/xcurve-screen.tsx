@@ -35,7 +35,9 @@ type XCurveInputs = {
     debtBreakdown: Array<{ label: string; amount: number }>;
     annualIncome: number;
     replacementYears: number;
+    incomeReplacementRationale: string;
     mortgageBalance: number;
+    hasMortgage: boolean;
     educationNeed: number;
     educationDerivation: string;
     educationChildren: Child[];
@@ -262,14 +264,29 @@ function deriveXCurveInputs(
   const xcurveMortgage = n(xcurveByKey.get("mortgage_payoff"));
   const xcurveEducation = n(xcurveByKey.get("education_fund"));
   const xcurveFinalExpenses = n(xcurveByKey.get("final_expenses"));
+  const xcurveIncomeYears = n(
+    xcurve["income_replacement_years"] ?? xcurve["incomeReplacementYears"]
+  );
+  const xcurveIncomeRationale = String(
+    xcurve["income_replacement_rationale"] ?? xcurve["incomeReplacementRationale"] ?? ""
+  ).trim();
   const educationDerivation =
     xcurveFormulaByKey.get("education_fund") ||
     "Derived from children profiles and education funding assumptions.";
 
   let replacementYears = n(goalIncome["replacementYears"] ?? goalIncome["replacement_years"]) || 10;
+  if (xcurveIncomeYears > 0) {
+    replacementYears = xcurveIncomeYears;
+  }
   if (xcurveIncomeReplacement > 0 && annualIncome > 0) {
     replacementYears = Math.max(1, Math.round(xcurveIncomeReplacement / annualIncome));
   }
+  const derivedIncomeRationale =
+    xcurveIncomeRationale ||
+    (educationChildren.length > 0
+      ? `Until youngest child (age ${Math.min(...educationChildren.map((c) => Math.max(0, c.age)))}) becomes independent`
+      : `Until planned retirement at age ${retirementAge}`);
+  const resolvedMortgage = xcurveMortgage || mortgageFromCase;
 
   const existingLifeCoverage =
     n(xcurve["existingCoverage"] ?? xcurve["existing_coverage"]) ||
@@ -292,7 +309,9 @@ function deriveXCurveInputs(
       debtBreakdown,
       annualIncome,
       replacementYears,
-      mortgageBalance: xcurveMortgage || mortgageFromCase,
+      incomeReplacementRationale: derivedIncomeRationale,
+      mortgageBalance: resolvedMortgage,
+      hasMortgage: resolvedMortgage > 0,
       educationNeed: n(
         xcurveEducation ||
           n(goalEducation["projectedTotalEducationNeed"] ?? goalEducation["projected_total_education_need"])
@@ -368,9 +387,7 @@ function buildCurve(
     editable.debt +
     incomeReplacementNeed +
     editable.mortgage +
-    editable.education +
-    editable.finalExpenses +
-    inputs.risk.estateCosts;
+    editable.education;
   const netRisk = Math.max(0, grossRisk - inputs.accumulation.totalCurrentAssets);
   const coverageGap = Math.max(0, netRisk - inputs.accumulation.existingLifeInsurance);
 
@@ -662,6 +679,15 @@ export function XCurveScreen({
   ]);
 
   const curve = useMemo(() => buildCurve(inputs, editable), [inputs, editable]);
+  const authoritativeCoverageGap = useMemo(() => {
+    const fa = (fullAnalysis as Dict | null) ?? {};
+    const cov =
+      (fa["goalCoverageAdequacy"] as Dict | undefined) ??
+      (fa["goal_coverage_adequacy"] as Dict | undefined) ??
+      {};
+    const fromGoal = n(cov["coverageGap"] ?? cov["coverage_gap"]);
+    return fromGoal > 0 ? fromGoal : curve.coverageGap;
+  }, [fullAnalysis, curve.coverageGap]);
   const milestones = useMemo(
     () => calculateMilestones(inputs, editable.mortgage),
     [inputs, editable.mortgage]
@@ -736,7 +762,12 @@ export function XCurveScreen({
     return defaults;
   }, [editable.replacementYears]);
 
-  const retirementDeficit = Math.max(0, retirementCorpus.recommended - inputs.accumulation.projectedNetWorthAtRetirement);
+  const retirementAnnualGap = Math.max(
+    0,
+    retirementExpenses.totalAnnual - retirementIncomeTotal
+  );
+  const retirementMonthlyGap = Math.max(0, retirementAnnualGap / 12);
+  const retirementDeficit = retirementAnnualGap;
   const projectedAtRetirementDerivation = useMemo(() => {
     const years = Math.max(0, inputs.retirement.targetAge - inputs.client.primaryAge);
     const annualSavings = Math.max(0, inputs.accumulation.monthlySurplus) * 12;
@@ -845,7 +876,11 @@ export function XCurveScreen({
 
             {[
               "Food expenses covered",
-              `Mortgage off by ${milestones.mortgagePayoff ?? "-"}`,
+              !inputs.risk.hasMortgage
+                ? "No mortgage"
+                : milestones.mortgagePayoff
+                  ? `Mortgage off by age ${milestones.mortgagePayoff}`
+                  : "Mortgage data not captured",
               "Education funded",
               "Healthcare covered",
               `Debt-free by ${milestones.debtFreeAge ?? "-"}`,
@@ -923,7 +958,7 @@ export function XCurveScreen({
             <p className="text-base font-bold text-[#1B365D]">a. DIE TOO SOON</p>
             <p className="text-sm font-semibold text-[#1B365D]">PROTECT YOUR FAMILY</p>
             <p className="text-xs text-muted-foreground">(Life Insurance / Income Replacement)</p>
-            <p className="mt-1 font-mono text-lg font-bold text-[#E74C3C]">Coverage Gap: {formatCurrency(curve.coverageGap)}</p>
+            <p className="mt-1 font-mono text-lg font-bold text-[#E74C3C]">Coverage Gap: {formatCurrency(authoritativeCoverageGap)}</p>
           </div>
           <div className="rounded-lg border border-[#8B0000]/35 bg-white p-3">
             <p className="text-base font-bold text-[#8B0000]">b. LIVE TOO LONG</p>
@@ -1006,6 +1041,11 @@ export function XCurveScreen({
                   ))}
                 </select>
               </div>
+              {inputs.risk.incomeReplacementRationale && (
+                <div className="mt-1 text-[10px] italic text-muted-foreground">
+                  * {inputs.risk.incomeReplacementRationale}
+                </div>
+              )}
             </div>
             <DimeRow
               letter="M"
@@ -1049,7 +1089,7 @@ export function XCurveScreen({
             </div>
             <div className="flex justify-between border-t pt-1 text-base font-bold text-[#E67E22]">
               <span>COVERAGE GAP</span>
-              <span>{formatCurrency(curve.coverageGap)}</span>
+              <span>{formatCurrency(authoritativeCoverageGap)}</span>
             </div>
           </div>
         </div>
@@ -1102,11 +1142,11 @@ export function XCurveScreen({
               <div className="flex justify-between"><span>Need</span><span>{formatCurrency(retirementExpenses.totalAnnual)}/yr</span></div>
               <div className="flex justify-between font-semibold text-[#E67E22]">
                 <span>Annual Gap</span>
-                <span>{formatCurrency(Math.max(0, retirementExpenses.totalAnnual - retirementIncomeTotal))}/yr</span>
+                <span>{formatCurrency(retirementAnnualGap)}/yr</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Monthly Gap</span>
-                <span>{formatCurrency(Math.max(0, (retirementExpenses.totalAnnual - retirementIncomeTotal) / 12))}/mo</span>
+                <span>{formatCurrency(retirementMonthlyGap)}/mo</span>
               </div>
               <div className="mt-1 flex justify-between border-t pt-1 font-semibold text-[#E74C3C]">
                 <span>Retirement Deficit</span>
@@ -1116,10 +1156,16 @@ export function XCurveScreen({
           </div>
 
           <div className="mt-3 rounded-lg border border-[#00838F]/30 bg-[#00838F]/5 p-3 text-sm">
-            <p>
-              The coverage gap of <strong>{formatCompactCurrency(curve.coverageGap)}</strong> protects your family today.
-              The retirement deficit of <strong>{formatCompactCurrency(retirementDeficit)}</strong> protects your future.
-            </p>
+            {retirementDeficit > 0 ? (
+              <p>
+                ⚠ Your plan must generate <strong>{formatCompactCurrency(retirementMonthlyGap)}/mo</strong> above
+                Social Security to meet your retirement goal. The Roth IRA and IUL recommendations address this gap.
+              </p>
+            ) : (
+              <p>
+                ✓ Current trajectory projects sufficient retirement income. Maintaining savings discipline is key.
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -1132,7 +1178,7 @@ export function XCurveScreen({
           </summary>
           <div className="mt-3 space-y-2 text-sm text-muted-foreground">
             <p>
-              1. The red curve shows what the family would need today ({formatCurrency(curve.grossRisk)}). The green curve shows what has been built ({formatCurrency(inputs.accumulation.totalCurrentAssets)}). The gap is {formatCurrency(curve.coverageGap)}.
+              1. The red curve shows what the family would need today ({formatCurrency(curve.grossRisk)}). The green curve shows what has been built ({formatCurrency(inputs.accumulation.totalCurrentAssets)}). The gap is {formatCurrency(authoritativeCoverageGap)}.
             </p>
             <p>
               2. The curves cross at {curve.crossingAge === null ? "beyond age 90" : `age ${curve.crossingAge}`}. Retirement goal is age {inputs.retirement.targetAge}, which is {curve.crossingAge !== null && inputs.retirement.targetAge < curve.crossingAge ? "before crossing point." : "after crossing point."}

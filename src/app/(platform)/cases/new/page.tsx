@@ -129,7 +129,7 @@ export default function NewCasePage() {
     try {
       const caseData = await createCase.mutateAsync(values);
       toast.success("Case created successfully");
-      router.push(`/cases/${caseData.id}`);
+      router.push(`/cases/${caseData.id}/financial-interview`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       toast.error(`Failed to create case: ${message}`);

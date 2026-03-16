@@ -55,6 +55,13 @@ export interface UpdateCaseData {
   caseType?: string;
   description?: string;
   status?: string;
+  consentGiven?: boolean;
+  consentAcknowledgedAt?: string;
+  consentGivenAt?: string;
+  consentVersion?: string;
+  consentGivenBy?: string;
+  riskScore?: number;
+  riskProfile?: string;
 }
 
 export interface ZipLookupResult {
@@ -113,6 +120,13 @@ function fromBackendCase(raw: any): Case {
     clientPhone: raw.client_phone ?? raw.clientPhone,
     meetingDate: raw.meeting_date ?? raw.meetingDate,
     caseType: raw.case_type ?? raw.caseType ?? "other",
+    consentGiven: raw.consent_given ?? raw.consentGiven ?? false,
+    consentAcknowledgedAt: raw.consent_acknowledged_at ?? raw.consentAcknowledgedAt,
+    consentGivenAt: raw.consent_given_at ?? raw.consentGivenAt,
+    consentVersion: raw.consent_version ?? raw.consentVersion,
+    consentGivenBy: raw.consent_given_by ?? raw.consentGivenBy,
+    riskScore: raw.risk_score ?? raw.riskScore,
+    riskProfile: raw.risk_profile ?? raw.riskProfile,
     clientPersonalInfo: personalInfo,
     createdAt: raw.created_at ?? raw.createdAt ?? "",
     updatedAt: raw.updated_at ?? raw.updatedAt ?? "",
@@ -194,6 +208,13 @@ function toBackendUpdatePayload(formData: UpdateCaseData) {
   if (formData.caseType !== undefined) payload.case_type = formData.caseType;
   if (formData.description !== undefined) payload.description = formData.description;
   if (formData.status !== undefined) payload.status = formData.status;
+  if (formData.consentGiven !== undefined) payload.consent_given = formData.consentGiven;
+  if (formData.consentAcknowledgedAt !== undefined) payload.consent_acknowledged_at = formData.consentAcknowledgedAt;
+  if (formData.consentGivenAt !== undefined) payload.consent_given_at = formData.consentGivenAt;
+  if (formData.consentVersion !== undefined) payload.consent_version = formData.consentVersion;
+  if (formData.consentGivenBy !== undefined) payload.consent_given_by = formData.consentGivenBy;
+  if (formData.riskScore !== undefined) payload.risk_score = formData.riskScore;
+  if (formData.riskProfile !== undefined) payload.risk_profile = formData.riskProfile;
   return payload;
 }
 

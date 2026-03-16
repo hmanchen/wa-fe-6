@@ -557,6 +557,14 @@ export interface DebtsLiabilities {
 }
 
 export interface LifeInsuranceCoverage {
+  policies?: Array<{
+    policyType?: "term" | "whole-life" | "universal" | "iul" | "group" | "other";
+    providerName?: string;
+    coverageAmount?: number;
+    monthlyPremium?: number;
+    termLengthYears?: number;
+    hasLivingBenefits?: boolean;
+  }>;
   /** Employer-provided group life */
   hasGroupLife?: boolean;
   /** Whether group life coverage is selected as salary multiple */
@@ -648,7 +656,7 @@ export interface RetirementVision {
 }
 
 export interface RiskProfile {
-  riskTolerance?: "conservative" | "moderate" | "aggressive";
+  riskTolerance?: "conservative" | "moderate" | "growth" | "aggressive";
   timeHorizon?: "short_term" | "medium_term" | "long_term";
   marketLossReaction?:
     | "sell_everything"

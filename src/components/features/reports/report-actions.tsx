@@ -76,7 +76,7 @@ export function ReportActions({
                 <Share2 className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Coming Soon</TooltipContent>
+            <TooltipContent>Sharing from this screen is disabled</TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -85,7 +85,7 @@ export function ReportActions({
                 <Mail className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Email to Client — Coming Soon</TooltipContent>
+            <TooltipContent>Email delivery is available in the Delivery step</TooltipContent>
           </Tooltip>
         </div>
 

@@ -36,7 +36,7 @@ export default function AnalysisResultsScreen({ data, onRerun }) {
       <Section title="Housing Analysis"><HousingAnalysisSection data={data} /></Section>
       <Section title="Credit Card Analysis"><CreditCardSection data={data} /></Section>
       <Section title="401(k) Analysis"><K401Section data={data} /></Section>
-      <Section title="Hidden Money Report"><HiddenMoneySection data={data} /></Section>
+      <Section title="Unallocated Surplus Report"><HiddenMoneySection data={data} /></Section>
       <Section title="College Funding Plan"><CollegeFundingSection data={data} /></Section>
       <Section title="Protection Analysis"><ProtectionSection data={data} /></Section>
       <Section title="Action Plan"><ActionPlanSection data={data} /></Section>

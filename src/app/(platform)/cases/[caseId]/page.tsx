@@ -78,16 +78,15 @@ function getWorkflowProgress(status: string): {
     draft: "overview",
     discovery: "financial-interview",
     analysis: "analysis",
-    recommendation: "recommendations",
-    report: "report",
-    completed: "report",
-    archived: "report",
+    review: "recommendations",
+    presented: "report",
+    closed: "report",
   };
   const currentStep = statusToStep[status] ?? "overview";
   const currentIndex = steps.indexOf(currentStep);
   const completedSteps = steps.slice(0, currentIndex);
   const progressPercent =
-    status === "completed" || status === "archived"
+    status === "closed"
       ? 100
       : Math.round(((currentIndex + 0.5) / steps.length) * 100);
 
@@ -400,7 +399,7 @@ export default function CaseDetailPage() {
                   </Link>
                 </Button>
               )}
-              {(caseData.status === "recommendation" ||
+              {(caseData.status === "review" ||
                 caseData.status === "analysis") && (
                 <Button className="w-full justify-start" variant="outline" asChild>
                   <Link href={`/cases/${caseId}/recommendations`}>
@@ -409,8 +408,8 @@ export default function CaseDetailPage() {
                   </Link>
                 </Button>
               )}
-              {(caseData.status === "report" ||
-                caseData.status === "recommendation") && (
+              {(caseData.status === "presented" ||
+                caseData.status === "review") && (
                 <Button className="w-full justify-start" variant="outline" asChild>
                   <Link href={`/cases/${caseId}/report`}>
                     <FileText className="mr-2 size-4" />
@@ -418,7 +417,7 @@ export default function CaseDetailPage() {
                   </Link>
                 </Button>
               )}
-              {caseData.status === "completed" && (
+              {caseData.status === "closed" && (
                 <Button className="w-full justify-start" variant="outline" asChild>
                   <Link href={`/cases/${caseId}/report`}>
                     <FileText className="mr-2 size-4" />
