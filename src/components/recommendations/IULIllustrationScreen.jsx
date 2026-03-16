@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Shield,
   TrendingUp,
   GraduationCap,
 } from "lucide-react";
@@ -25,6 +24,12 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+    const main = document.querySelector("main");
+    if (main) main.scrollTop = 0;
+  }, []);
 
   const blendedMonthly = recommendation?.monthly_cost || 1200;
   const iulMonthly =
@@ -62,17 +67,22 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
   const projectionRows = data?.projection || [];
   const milestones = data?.milestones || {};
 
-  const chartData = useMemo(
-    () =>
-      projectionRows.map((d) => ({
+  const chartData = useMemo(() => {
+    const iulMonthlyForChart = data?.premium_breakdown?.iul_monthly || 282;
+    return projectionRows.map((d) => {
+      const r = 0.07 / 12;
+      const n = Number(d.year || 0) * 12;
+      const marketFV = n > 0 ? Math.round(iulMonthlyForChart * ((Math.pow(1 + r, n) - 1) / r)) : 0;
+      return {
         year: d.year,
         age: d.age,
         cash_value: d.cash_value,
         loan_available: d.loan_available,
         cumulative_premium: d.cumulative_premium,
-      })),
-    [projectionRows]
-  );
+        market_value: marketFV,
+      };
+    });
+  }, [projectionRows, data?.premium_breakdown?.iul_monthly]);
 
   const tableRows = useMemo(() => {
     if (!projectionRows.length) return [];
@@ -91,6 +101,12 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
     caseData?.life_insurance_gap ||
     caseData?.lifeInsuranceGap ||
     0;
+  const totalCoverage = (
+    Number(data?.premium_breakdown?.term_face || 0)
+    + Number(data?.premium_breakdown?.iul_face || 0)
+  ) || Number(caseData?.life_insurance_gap || caseData?.lifeInsuranceGap || 0) || 0;
+  const termCoverage = Number(termScenario?.coverage || termScenario?.death_benefit || totalCoverage || 0);
+  const iulCoverage = Number(iulScenario?.coverage || iulScenario?.death_benefit || totalCoverage || 0);
 
   const chips = [
     milestones?.break_even_year
@@ -106,8 +122,8 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
   const wealthYAxisMax = Math.max(...projectionRows.map((r) => Number(r?.cash_value || 0)), 1000) * 1.2;
   const breakEvenYear = milestones?.break_even_year;
   const netAtRetirement = milestones?.net_wealth_created ?? iulScenario?.net_wealth_created ?? 0;
-  const inferredChildren = caseData?.children || caseData?.dependents || [];
-  const firstChildAge = Number(inferredChildren?.[0]?.age || inferredChildren?.[0]?.current_age || 9);
+  const clientChildren = caseData?.children || caseData?.dependents || [];
+  const firstChildAge = Number(clientChildren?.[0]?.age || clientChildren?.[0]?.current_age || 9);
   const collegeYear = Math.max(18 - firstChildAge, 1);
   const collegeRow = projectionRows.find((p) => Number(p.year) >= collegeYear);
   const collegeAmount = Number(collegeRow?.loan_available || 0);
@@ -218,6 +234,7 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
                 <Area type="monotone" dataKey="cash_value" stroke="#4A7C6F" fill="#4A7C6F" fillOpacity={0.3} strokeWidth={2} name="Cash Value" />
                 <Area type="monotone" dataKey="loan_available" stroke="none" fill="#4A7C6F" fillOpacity={0.12} name="Available to Borrow" />
                 <Line type="monotone" dataKey="cumulative_premium" stroke="#D4A520" strokeDasharray="5 5" strokeWidth={2} dot={false} name="Premiums Paid" />
+                <Line type="monotone" dataKey="market_value" name="7% Market Account" stroke="#9B8EC4" strokeDasharray="6 3" strokeWidth={1.5} dot={false} />
                 {milestones.break_even_year && (
                   <ReferenceLine x={milestones.break_even_year} stroke="#1B2B4B" strokeDasharray="4 4" label="Break-even" />
                 )}
@@ -230,6 +247,56 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          {(() => {
+            const mktVal = chartData[chartData.length - 1]?.market_value || 0;
+            const iulVal = milestones?.retirement_cash_value || 0;
+            const mktHigher = mktVal > iulVal;
+            const diff = Math.abs(mktVal - iulVal);
+            return mktVal > 0 ? (
+              <div
+                style={{
+                  background: "#F8F7F4",
+                  border: "1px solid #E8E4DC",
+                  borderRadius: 10,
+                  padding: "14px 20px",
+                  marginTop: 8,
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ display: "flex", gap: 32, flexWrap: "wrap", marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, color: "#4A5568" }}>
+                    <span style={{ color: "#9B8EC4", fontWeight: 700 }}>7% Market at retirement:</span>{" "}
+                    {fmt(mktVal)} <span style={{ color: "#718096" }}>— fully taxable, zero protection</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#4A5568" }}>
+                    <span style={{ color: "#4A7C6F", fontWeight: 700 }}>IUL at retirement:</span>{" "}
+                    {fmt(iulVal)} <span style={{ color: "#718096" }}>— tax-free, living benefits, 0% floor</span>
+                  </div>
+                </div>
+                {mktHigher && (
+                  <div
+                    style={{
+                      background: "rgba(27,43,75,0.04)",
+                      borderLeft: "3px solid #1B2B4B",
+                      borderRadius: "0 6px 6px 0",
+                      padding: "8px 12px",
+                      fontSize: 12,
+                      color: "#1B2B4B",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    <strong>Why a Fidelity CFP still recommends IUL:</strong>{" "}
+                    The market account returns {fmt(diff)} more at retirement, but that entire amount is taxable — at a
+                    32% rate, you net {fmt(Math.round(diff * 0.68))} after tax. Meanwhile, the IUL&apos;s {fmt(iulVal)} is
+                    accessed tax-free via policy loans. Additionally: the market account provides zero protection if{" "}
+                    {firstName} becomes disabled or critically ill today. The IUL provides up to{" "}
+                    {fmt(Math.round((data?.premium_breakdown?.iul_face || 0) * 0.9))} in living benefits from Day 1. No
+                    market account can do that.
+                  </div>
+                )}
+              </div>
+            ) : null;
+          })()}
 
           <div
             style={{
@@ -265,12 +332,33 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
                       <td style={{ padding: "8px 12px" }}>{fmt(r.cash_value)}</td>
                       <td style={{ padding: "8px 12px" }}>{fmt(r.death_benefit)}</td>
                       <td style={{ padding: "8px 12px" }}>{fmt(r.loan_available)}</td>
-                      <td style={{ padding: "8px 12px" }}>{fmt(r.net_growth)}</td>
+                      {(() => {
+                        const netGain = parseFloat(
+                          r.net_gain ?? (Number(r.cash_value || 0) - Number(r.cumulative_premium || 0))
+                        );
+                        const isNeg = netGain < 0;
+                        const isZero = netGain === 0;
+                        return (
+                          <td
+                            style={{
+                              padding: "8px 12px",
+                              color: isNeg ? "#E05252" : isZero ? "#718096" : "#4A7C6F",
+                              fontWeight: isNeg ? 400 : 600,
+                            }}
+                          >
+                            {isNeg ? `-${fmt(Math.abs(netGain))}` : isZero ? "—" : `+${fmt(netGain)}`}
+                          </td>
+                        );
+                      })()}
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            <div style={{ fontSize: 11, color: "#718096", fontStyle: "italic", padding: "6px 16px 10px" }}>
+              * Early years show negative net gain as policy expenses are applied. Cash value crosses break-even at Year{" "}
+              {milestones?.break_even_year || 7}, after which your wealth exceeds every premium you've paid.
+            </div>
           </div>
 
           <div
@@ -320,7 +408,7 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
               bg="#FFF9F0"
               border="#E8D5A0"
               monthly={termScenario.monthly_cost}
-              coverage={fullProtection || termScenario.death_benefit}
+              coverage={termCoverage || fullProtection}
               cash={termScenario.cash_value_at_65}
               income={0}
               paid={termScenario.total_premiums_paid}
@@ -332,7 +420,7 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
               bg="#F0F7F4"
               border="#4A7C6F"
               monthly={iulScenario.monthly_cost}
-              coverage={fullProtection || iulScenario.death_benefit}
+              coverage={iulCoverage || fullProtection}
               cash={iulScenario.cash_value_at_65}
               income={milestones.retirement_monthly_income}
               paid={iulScenario.total_premiums_paid}
@@ -343,8 +431,108 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
             />
           </div>
 
+          {(() => {
+            const retCV = milestones?.retirement_cash_value || 0;
+            const retIncome = milestones?.retirement_monthly_income || 0;
+            const bey = milestones?.break_even_year || 7;
+            if (retCV <= 0) return null;
+            return (
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #F0F7F4, #E8F5F0)",
+                  border: "1px solid rgba(74,124,111,0.25)",
+                  borderLeft: "4px solid #4A7C6F",
+                  borderRadius: 12,
+                  padding: "16px 24px",
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#4A7C6F",
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                    marginBottom: 8,
+                  }}
+                >
+                  What This Means for {firstName}'s Family
+                </div>
+                <div style={{ fontSize: 14, color: "#2D5F52", lineHeight: 1.7 }}>
+                  Starting at <strong>${data?.premium_breakdown?.iul_monthly || 282}/mo</strong>, by Year {bey} this policy has
+                  already repaid itself. At retirement you have <strong>{fmt(retCV)}</strong> you can draw as{" "}
+                  <strong>{fmt(retIncome)}/mo tax-free income</strong>.
+                  {collegeAmount > 0 ? (
+                    <>
+                      {" "}
+                      Along the way, <strong>{fmt(collegeAmount)} is available at Year {collegeYear}</strong> for your
+                      children's education through a policy loan — no financial aid impact, no penalties, no taxes.
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })()}
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            <Insight icon={<Shield size={14} color="#D4A520" />} title="Living Benefits" text="If disability occurs, policy value can provide income support without a separate claim path." />
+            <div style={{ background: "#FDFCFA", border: "1px solid #E8E4DC", borderRadius: 10, padding: 12 }}>
+              {(() => {
+                const iulFace = data?.premium_breakdown?.iul_face || 375000;
+                const triggers = [
+                  {
+                    label: "Critical Illness",
+                    example: "Heart attack, cancer, stroke",
+                    access: `Up to ${fmt(Math.round(iulFace * 0.9))} accessed immediately`,
+                    color: "#D4A520",
+                  },
+                  {
+                    label: "Chronic Illness",
+                    example: "Unable to perform 2 of 6 daily living activities",
+                    access: "Monthly income replacement — no separate policy needed",
+                    color: "#3B6CB7",
+                  },
+                  {
+                    label: "Terminal Illness",
+                    example: "12–24 month prognosis",
+                    access: `Full ${fmt(iulFace)} death benefit — accessed while living`,
+                    color: "#4A7C6F",
+                  },
+                ];
+                return (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1B2B4B", marginBottom: 10 }}>
+                      🛡️ Living Benefits — Built-In Disability Protection
+                    </div>
+                    {triggers.map((t, i) => (
+                      <div
+                        key={t.label}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          padding: "7px 0",
+                          borderBottom: i < 2 ? "1px solid #F0EDE8" : "none",
+                          gap: 10,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: t.color }}>{t.label}</div>
+                          <div style={{ fontSize: 11, color: "#718096" }}>{t.example}</div>
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "#1B2B4B", textAlign: "right", maxWidth: 180 }}>
+                          {t.access}
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 8, fontSize: 11, color: "#4A7C6F", fontStyle: "italic" }}>
+                      A standalone disability policy costs $150–250/mo extra. Your IUL includes all three triggers at no added premium.
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
             <Insight
               icon={<GraduationCap size={14} color="#D4A520" />}
               title="College Funding"

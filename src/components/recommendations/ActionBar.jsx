@@ -26,7 +26,7 @@ export default function ActionBar({
         justifyContent: "space-between",
         alignItems: "center",
         gap: 20,
-        zIndex: 10,
+        zIndex: 5,
       }}
     >
       <div style={{ flex: "0 0 auto", minWidth: 200 }}>

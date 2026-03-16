@@ -12,6 +12,22 @@ import {
 const fmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "0");
 const fmtUSD = (n) => "$" + fmt(n);
 
+const normalizeTimeline = (raw) => {
+  if (!raw) return null;
+  const s = String(raw).toLowerCase().trim();
+  if (s === "immediate" || s.startsWith("can be active within immediate")) {
+    return "Coverage can be in force within 7 days";
+  }
+  if (s === "schedule within 30 days" || s === "schedule within 30 days.") {
+    return "Schedule appointment — active within 30 days";
+  }
+  if (s.startsWith("can be active within ")) {
+    const rest = String(raw).replace(/^can be active within\s*/i, "").trim();
+    if (rest.length > 3) return rest;
+  }
+  return String(raw);
+};
+
 const CAT_ICONS = {
   protection: Shield,
   retirement: TrendingUp,
@@ -59,32 +75,101 @@ export default function RecommendationCard({
   onOpenCollege,
   onOpenDebt,
   onOpenRetirement,
+  onNavigate,
+  setCurrentScreen,
 }) {
   const [advisorOpen, setAdvisorOpen] = useState(false);
-  const color = PRIORITY_COLORS[rec.priorityRank] || PRIORITY_COLORS[5];
+  const rank = rec.priorityRank || rec.priority || index + 1;
+  const color = PRIORITY_COLORS[rank] || PRIORITY_COLORS[5];
   const Icon = CAT_ICONS[rec.category] || Shield;
-  const timeText = rec.timeToProtect || rec.time_to_protect || "Schedule within 30 days";
+  const timeRaw = rec.time_to_active || rec.timeToActive || rec.timeToProtect || rec.time_to_protect || "Schedule within 30 days";
+  const timeText = normalizeTimeline(timeRaw);
   const whatItDoes = rec.beforeAfterAfter || WHAT_IT_DOES[rec.category]?.(rec) || "";
+  const monthlyCost = parseFloat(rec.monthly_cost || 0);
 
-  const col1Value =
-    rec.gapSolved > 0
-      ? fmtUSD(rec.gapSolved)
-      : {
-          protection: "Income Guaranteed",
-          retirement: "Free Match",
-          estate: "Legal Control",
-          debt: "Debt-Free",
-        }[rec.category] || "Value Created";
+  const formatWhatsProtected = (card) => {
+    if (card.category === "debt") {
+      const debtAmt = parseFloat(
+        String(
+          card.whatsProtected
+          || card.what_protected
+          || card.gapSolved
+          || card.gap_solved
+          || card.coverage_amount
+          || 0
+        ).replace(/[$,]/g, "")
+      );
+      if (!Number.isNaN(debtAmt) && debtAmt > 0) return `$${debtAmt.toLocaleString("en-US")}`;
+      return "Debt Eliminated";
+    }
+    // Category-specific overrides first
+    if (card.category === "emergency_fund") return "3-Month Safety Net";
+    if (card.category === "education") return "Education Fund";
+    if (card.category === "retirement" && card.title?.toLowerCase().includes("roth")) return "Tax-Free Growth";
 
-  const col3Value = rec.costOfWaiting12Months > 0 ? fmtUSD(rec.costOfWaiting12Months) : "Start compounding";
+    const raw = card.whatsProtected
+      || card.what_protected
+      || card.gapSolved
+      || card.gap_solved
+      || card.coverage_amount
+      || card.what_is_protected
+      || null;
+    if (raw === null || raw === undefined) return "Value Created";
+
+    const num = typeof raw === "number" ? raw : parseFloat(String(raw).replace(/[$,]/g, ""));
+    if (!Number.isNaN(num) && num > 0) return `$${num.toLocaleString("en-US")}`;
+    if (typeof raw === "string" && raw.trim().length > 0) return raw;
+    return "Value Created";
+  };
+
+  const whatsProtectedLabel = (() => {
+    if (rec.category === "retirement" && rec.title?.toLowerCase().includes("roth")) {
+      return "Tax-Free Growth";
+    }
+    if (rec.category === "emergency_fund") {
+      return "3-Month Safety Net";
+    }
+    if (rec.category === "education") {
+      return "Education Fund";
+    }
+    return formatWhatsProtected(rec);
+  })();
+
+  const col3Value = rec.value_of_acting_now || rec.valueOfActingNow || (rec.costOfWaiting12Months > 0 ? fmtUSD(rec.costOfWaiting12Months) : "Start compounding");
   const solvesLabel = rec.gapSolvedLabel || GAP_SOLVE_FALLBACK[rec.category] || "Profile gap coverage";
-  const isPriority1IUL = rec.category === "protection" && rec.priorityRank === 1;
-  const isPriority2College = rec.category === "education" && rec.priorityRank === 2;
-  const isDebt = rec.category === "debt";
+  const showIULLink = rec.category === "protection";
+  const showCollegeLink = rec.category === "education";
+  const isDebt = rec.category === "debt" || rec.hasDebtLink;
   const isRetirement = rec.category === "retirement";
   const fundingSourceText = rec.funding_source || rec.fundingSource || "";
   const iulBasePremiumOnly = rec.iul_base_premium_only ?? rec.iulBasePremiumOnly;
   const termMonthlyCost = rec.term_monthly_cost ?? rec.termMonthlyCost;
+  const handleIULClick = () => {
+    if (typeof onNavigate === "function") {
+      onNavigate("iul-illustration", rec);
+      return;
+    }
+    if (typeof onOpenIUL === "function") {
+      onOpenIUL(rec);
+      return;
+    }
+    if (typeof setCurrentScreen === "function") {
+      setCurrentScreen("iul-illustration");
+    }
+  };
+  const handleEducationClick = () => {
+    if (typeof onNavigate === "function") {
+      onNavigate("college-funding", rec);
+      return;
+    }
+    if (typeof onOpenCollege === "function") {
+      onOpenCollege(rec);
+      return;
+    }
+    if (typeof setCurrentScreen === "function") {
+      setCurrentScreen("college-funding");
+    }
+  };
 
   return (
     <div
@@ -99,6 +184,8 @@ export default function RecommendationCard({
         animation: "recSlideUpFade 400ms ease forwards",
         animationDelay: `${index * 120}ms`,
         opacity: 0,
+        position: "relative",
+        zIndex: 10,
       }}
     >
       <div
@@ -123,16 +210,16 @@ export default function RecommendationCard({
               letterSpacing: 1,
             }}
           >
-            Priority {rec.priorityRank}
+            Priority {rank}
           </span>
           <Icon size={18} color={color} />
           <span style={{ color: "#1B2B4B", fontSize: 16, fontWeight: 700 }}>{rec.title}</span>
         </div>
         <span style={{ color: "#4A7C6F", fontSize: 12, fontWeight: 500 }}>
-          {"\u2713"} Can be active within {timeText}
+          {"\u2713"} {timeText}
         </span>
       </div>
-      {isPriority1IUL && (
+      {showIULLink && (
         <div style={{ padding: "8px 20px 10px 20px", color: "#718096", fontSize: 12, borderBottom: "1px solid #F4F1EC" }}>
           Term Life {"\u2192"} Pure protection  |  IUL {"\u2192"} Protection + Growth
         </div>
@@ -179,7 +266,7 @@ export default function RecommendationCard({
               marginBottom: 6,
             }}
           >
-            {col1Value}
+            {whatsProtectedLabel}
           </div>
           <div style={{ fontSize: 11, color: "#A0AEC0" }}>Value protected or created</div>
         </div>
@@ -204,10 +291,18 @@ export default function RecommendationCard({
           >
             Your Monthly Investment
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#4A7C6F", lineHeight: 1, marginBottom: 4 }}>
-            {fmtUSD(rec.monthly_cost)}
-            <span style={{ fontSize: 14 }}>/mo</span>
-          </div>
+          {monthlyCost > 0 ? (
+            <div style={{ fontSize: 28, fontWeight: 800, color: "#4A7C6F", lineHeight: 1, marginBottom: 4 }}>
+              {fmtUSD(monthlyCost)}
+              <span style={{ fontSize: 14 }}>/mo</span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#D4A520", fontStyle: "italic", marginBottom: 4 }}>
+              Amount determined after
+              <br />
+              <span style={{ fontSize: 11 }}>prior priorities are funded</span>
+            </div>
+          )}
           {fundingSourceText && (
             <div style={{ fontSize: 11, color: "#4A7C6F", fontStyle: "italic", opacity: 0.85, marginBottom: 4 }}>
               {fundingSourceText}
@@ -259,9 +354,9 @@ export default function RecommendationCard({
         </div>
       </div>
 
-      {isPriority1IUL && (
+      {showIULLink && (
         <button
-          onClick={onOpenIUL}
+          onClick={handleIULClick}
           style={{
             width: "100%",
             background: "rgba(74,124,111,0.06)",
@@ -280,13 +375,13 @@ export default function RecommendationCard({
           }}
         >
           <TrendingUp size={16} />
-          {rec.iulLinkText || "See How Your IUL Builds Wealth Over Time \u2192"}
+          {rec.iulLinkText || rec.iul_link_text || "Learn how IUL living benefits protect your income →"}
         </button>
       )}
 
-      {isPriority2College && (
+      {showCollegeLink && (
         <button
-          onClick={onOpenCollege}
+          onClick={handleEducationClick}
           style={{
             width: "100%",
             background: "rgba(59,108,183,0.06)",
@@ -305,7 +400,7 @@ export default function RecommendationCard({
           }}
         >
           <GraduationCap size={16} />
-          {rec.iulLinkText || "See Your Children's Education Projection \u2192"}
+          {"See Your Children's Education Projection →"}
         </button>
       )}
 
@@ -330,7 +425,7 @@ export default function RecommendationCard({
           }}
         >
           <CreditCard size={16} />
-          See Your 3 Paths to Debt Freedom {"\u2192"}
+          {rec.debtLinkText || "See Your 3 Paths to Debt Freedom →"}
         </button>
       )}
 
@@ -372,6 +467,27 @@ export default function RecommendationCard({
         >
           <Lightbulb size={14} color="#D4A520" style={{ flexShrink: 0 }} />
           <span style={{ color: "#718096", fontSize: 13, fontStyle: "italic", lineHeight: 1.5 }}>{rec.keyStatistic}</span>
+        </div>
+      )}
+
+      {rec.why_this_order && (
+        <div
+          style={{
+            padding: "8px 20px",
+            background: "#F8F7F4",
+            borderTop: "1px solid #F0EDE8",
+            fontSize: 12,
+            color: "#4A5568",
+            fontStyle: "italic",
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+          }}
+        >
+          <span style={{ color: "#4A7C6F", fontWeight: 700, flexShrink: 0 }}>
+            Why #{rank} first:
+          </span>
+          <span>{rec.why_this_order}</span>
         </div>
       )}
 

@@ -536,6 +536,7 @@ export default function FinancialInterviewPage() {
             caseId={caseId}
             caseData={caseData}
             recommendation={collegeRecommendation}
+            rec={collegeRecommendation}
             onBack={() => setCurrentSection("recommendations")}
           />
         )}

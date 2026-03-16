@@ -22,6 +22,12 @@ export default function RetirementDiversificationScreen({ caseId, caseData, onBa
   const [error, setError] = useState("");
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+    const main = document.querySelector("main");
+    if (main) main.scrollTop = 0;
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
     const run = async () => {
       setLoading(true);
@@ -53,6 +59,35 @@ export default function RetirementDiversificationScreen({ caseId, caseData, onBa
     caseData?.primary_client?.first_name ||
     caseData?.clientPersonalInfo?.firstName ||
     "Your";
+  const annualIncome = Number(
+    caseData?.annual_income
+    || caseData?.annualIncome
+    || caseData?.household_income
+    || caseData?.householdIncome
+    || 0
+  );
+  const ssBenefit = Math.round((annualIncome * 0.35) / 12);
+  const ss62 = Math.round(ssBenefit * 0.70);
+  const ss67 = ssBenefit;
+  const ssSpouse = Math.round(ssBenefit * 0.50);
+  const ssCombined67 = ss67 + ssSpouse;
+  const lifestyleNeed = Math.round((annualIncome * 0.75) / 12);
+  const investGap = Math.max(0, lifestyleNeed - ssCombined67);
+  const matchCap = Number(match?.match_cap_monthly || 0);
+  const noMatchDataEntered = matchCap === 0;
+  const clientAge =
+    Number(
+      caseData?.client_age
+      || caseData?.primary_client_age
+      || caseData?.age
+      || caseData?.primary_age
+      || 45
+    ) || 45;
+  const yearsTo595 = Math.max(59.5 - clientAge, 10);
+  const rothStarterMonthly = 1166;
+  const rothStarterFV = Math.round(
+    rothStarterMonthly * 12 * ((Math.pow(1.07, yearsTo595) - 1) / 0.07)
+  );
 
   const bucketData = useMemo(() => {
     const s59 = scenarios.find((x) => Number(x.age) === 59.5) || {};
@@ -108,6 +143,53 @@ export default function RetirementDiversificationScreen({ caseId, caseData, onBa
         </div>
       </div>
 
+      {annualIncome > 0 && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, #1B2B4B08, #1B2B4B04)",
+            border: "1px solid #E8E4DC",
+            borderRadius: 10,
+            padding: "14px 20px",
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#1B2B4B", marginBottom: 8 }}>
+            🏛️ Your Social Security Foundation (Estimated)
+          </div>
+          <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#718096", textTransform: "uppercase", letterSpacing: 1 }}>
+                At Age 62 (reduced)
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#1B2B4B" }}>{fmtUSD(ss62)}/mo</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#718096", textTransform: "uppercase", letterSpacing: 1 }}>
+                At Age 67 (full benefit)
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#4A7C6F" }}>{fmtUSD(ss67)}/mo</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#718096", textTransform: "uppercase", letterSpacing: 1 }}>
+                Combined (both spouses, age 67)
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#3B6CB7" }}>{fmtUSD(ssCombined67)}/mo</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: "#718096", fontStyle: "italic", marginTop: 8 }}>
+            Estimated using SSA formula. Verify at ssa.gov/myaccount. Your investment plan fills the gap above this baseline.
+          </div>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E8E4DC", fontSize: 12, color: "#4A5568" }}>
+            <strong>Your income gap at retirement:</strong> Monthly expenses estimated at {fmtUSD(lifestyleNeed)}/mo
+            (75% income replacement). Social Security covers {fmtUSD(ssCombined67)}/mo.{" "}
+            <span style={{ color: "#D4A520", fontWeight: 700 }}>
+              Investment portfolio must generate {fmtUSD(investGap)}/mo
+            </span>{" "}
+            to maintain your lifestyle.
+          </div>
+        </div>
+      )}
+
       {loading && <Banner text="Building retirement diversification analysis..." />}
       {error && <Banner text={error} tone="error" />}
       {data?.is_illustrative && (
@@ -158,11 +240,38 @@ export default function RetirementDiversificationScreen({ caseId, caseData, onBa
             {(data?.current_accounts_projected || []).map((acc, i) => (
               <div key={acc.type + i} style={{ background: "#fff", border: "1px solid #E8E4DC", borderRadius: 12, padding: 12 }}>
                 <div style={{ color: "#1B2B4B", fontWeight: 700, marginBottom: 8 }}>{String(acc.type || "").toUpperCase()} Projection</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
-                  <SmallMetric title="Balance at 59.5" value={fmtUSD(acc.projected_balance_59_5)} color="#1B2B4B" />
-                  <SmallMetric title="Monthly Income (4%)" value={fmtUSD(acc.monthly_income_4pct)} color="#4A5568" />
-                  <SmallMetric title="Tax Bite / Month" value={fmtUSD(acc.tax_bite_monthly)} color="#D4A520" />
-                </div>
+                {(() => {
+                  const isNotYetFunded = Number(acc.current_balance || 0) === 0 && Number(acc.monthly_contribution || 0) === 0;
+                  const accType = String(acc.type || "").toLowerCase();
+                  if (isNotYetFunded) {
+                    return (
+                      <div
+                        style={{
+                          padding: "12px 16px",
+                          background: "#F8F7F4",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          color: "#4A5568",
+                          fontStyle: "italic",
+                          marginBottom: 10,
+                        }}
+                      >
+                        {accType === "roth_ira"
+                          ? `🎯 Not yet opened. Starting $1,166/mo following this plan will build ${fmtUSD(rothStarterFV)} in tax-free wealth by age 59.5.`
+                          : accType === "traditional_ira"
+                            ? "Not currently funded. Focus on Roth IRA first — tax-free growth is more valuable at your income level."
+                            : "Not yet funded."}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+                      <SmallMetric title="Balance at 59.5" value={fmtUSD(acc.projected_balance_59_5)} color="#1B2B4B" />
+                      <SmallMetric title="Monthly Income (4%)" value={fmtUSD(acc.monthly_income_4pct)} color="#4A5568" />
+                      <SmallMetric title="Tax Bite / Month" value={fmtUSD(acc.tax_bite_monthly)} color="#D4A520" />
+                    </div>
+                  );
+                })()}
                 <div style={{ height: 80 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={acc.sparkline || []}>
@@ -173,6 +282,27 @@ export default function RetirementDiversificationScreen({ caseId, caseData, onBa
               </div>
             ))}
           </div>
+
+          {noMatchDataEntered && (
+            <div
+              style={{
+                background: "rgba(212,165,32,0.10)",
+                border: "1px solid rgba(212,165,32,0.35)",
+                borderLeft: "3px solid #D4A520",
+                borderRadius: 8,
+                padding: "10px 14px",
+                marginBottom: 12,
+                fontSize: 12,
+                color: "#4A5568",
+                lineHeight: 1.6,
+              }}
+            >
+              <strong style={{ color: "#B8860B" }}>⚠️ Action needed:</strong> No employer match information is on file.
+              Before redirecting any 401(k) contributions to IUL, confirm your employer&apos;s exact match percentage with
+              HR. If your employer matches even 3-4%, that match must be captured first — it&apos;s a guaranteed 100% return
+              that no IUL or investment can beat.
+            </div>
+          )}
 
           {Number(match.over_contributing_monthly || 0) > 0 && (
             <div style={{ background: "#F0F7F4", border: "1px solid #4A7C6F30", borderRadius: 12, padding: 14, marginBottom: 14 }}>
@@ -190,6 +320,31 @@ export default function RetirementDiversificationScreen({ caseId, caseData, onBa
               </div>
             </div>
           )}
+
+          <div
+            style={{
+              background: "#F0F7F4",
+              border: "1px solid rgba(74,124,111,0.25)",
+              borderRadius: 8,
+              padding: "12px 16px",
+              marginTop: 12,
+              marginBottom: 14,
+              fontSize: 12,
+            }}
+          >
+            <div style={{ fontWeight: 700, color: "#4A7C6F", marginBottom: 6 }}>📋 Confirm with HR before restructuring:</div>
+            {[
+              "What is your exact 401(k) employer match percentage?",
+              "What is the maximum salary percentage they will match?",
+              "Is there a vesting schedule on the employer match?",
+              "Do you offer a Roth 401(k) option alongside traditional?",
+            ].map((q, i) => (
+              <div key={q} style={{ color: "#4A5568", marginBottom: i < 3 ? 4 : 0, display: "flex", gap: 8 }}>
+                <span style={{ color: "#4A7C6F", flexShrink: 0 }}>→</span>
+                <span>{q}</span>
+              </div>
+            ))}
+          </div>
 
           <div style={{ background: "#fff", border: "1px solid #E8E4DC", borderRadius: 12, overflow: "hidden", marginBottom: 14 }}>
             <div style={{ background: "#1B2B4B", color: "#fff", padding: "10px 12px", fontWeight: 700 }}>

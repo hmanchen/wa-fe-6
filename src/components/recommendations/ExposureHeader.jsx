@@ -16,16 +16,41 @@ const describeArc = (cx, cy, r, start, end) => {
 export default function ExposureHeader({ summary, recCount, caseData }) {
   const fmt = (n) => "$" + (n || 0).toLocaleString("en-US");
 
-  const available = summary?.monthlyAvailable || 0;
-  const commitment = summary?.totalMonthlyCommitment || 0;
+  const available = summary?.monthlyAvailable || summary?.monthly_available_surplus || 0;
+  const commitment = summary?.totalMonthlyCommitment || summary?.total_monthly_committed || 0;
   const remaining = Math.max(available - commitment, 0);
   const utilPct = available > 0 ? Math.min(Math.round((commitment / available) * 100), 100) : 0;
+  const surplusRemaining = summary?.surplus_remaining || summary?.surplusRemaining || remaining || 0;
+  const hasUnmetNeeds =
+    (Number(caseData?.emergency_fund_gap || 0) > 0)
+    || (Number(caseData?.life_insurance_gap || 0) > 0)
+    || (Number(caseData?.net_worth || caseData?.netWorth || 0) < 10_000);
+  const remainingChipStyle = hasUnmetNeeds && surplusRemaining > 500
+    ? {
+        color: "#B8860B",
+        bg: "rgba(212,165,32,0.12)",
+        border: "1px solid rgba(212,165,32,0.35)",
+        text: `⚠️ ${fmt(surplusRemaining)}/mo Still Unallocated`,
+      }
+    : {
+        color: "#4A7C6F",
+        bg: "rgba(74,124,111,0.10)",
+        border: "1px solid rgba(74,124,111,0.30)",
+        text: `✓ ${fmt(surplusRemaining)}/mo Remaining Flexibility`,
+      };
+  const deployedPct = summary?.surplus_deployed_pct || summary?.surplusDeployedPct || utilPct || 0;
+  const gaugeColor = deployedPct < 50 ? "#D4A520" : deployedPct < 85 ? "#3B6CB7" : "#4A7C6F";
+  const gaugeLabel = deployedPct < 50
+    ? "Plan incomplete — more gaps to address"
+    : deployedPct < 85
+      ? "Strong foundation building"
+      : "Fully deployed toward your goals";
 
   const firstName = caseData?.firstName || caseData?.first_name || caseData?.client_name?.split(" ")[0] || "";
 
-  const protPct = Math.min(utilPct * 1.2, 100);
-  const retPct = Math.min(utilPct * 0.8, 100);
-  const cfPct = Math.min(utilPct, 100);
+  const protPct = Math.min(deployedPct * 1.2, 100);
+  const retPct = Math.min(deployedPct * 0.8, 100);
+  const cfPct = Math.min(deployedPct, 100);
 
   const cx = 80;
   const cy = 80;
@@ -33,7 +58,7 @@ export default function ExposureHeader({ summary, recCount, caseData }) {
   const chips = [
     { label: `\u2713  ${recCount} Opportunities Identified`, color: "#4A7C6F" },
     { label: `${fmt(commitment)}/mo  Total Investment`, color: "#3B6CB7" },
-    { label: `${fmt(remaining)}/mo  Remaining Capacity`, color: "#D4A520" },
+    { label: remainingChipStyle.text, color: remainingChipStyle.color, bg: remainingChipStyle.bg, border: remainingChipStyle.border },
   ];
 
   return (
@@ -96,8 +121,8 @@ export default function ExposureHeader({ summary, recCount, caseData }) {
             <span
               key={i}
               style={{
-                background: `${chip.color}1A`,
-                border: `1px solid ${chip.color}40`,
+                background: chip.bg || `${chip.color}1A`,
+                border: chip.border || `1px solid ${chip.color}40`,
                 color: chip.color,
                 borderRadius: 20,
                 padding: "5px 14px",
@@ -127,11 +152,11 @@ export default function ExposureHeader({ summary, recCount, caseData }) {
           ].map(([r, c], i) => (
             <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={c} strokeWidth="10" />
           ))}
-          <path d={describeArc(cx, cy, 60, 0, protPct * 3.6)} fill="none" stroke="#1B2B4B" strokeWidth="10" strokeLinecap="round" />
-          <path d={describeArc(cx, cy, 44, 0, retPct * 3.6)} fill="none" stroke="#3B6CB7" strokeWidth="10" strokeLinecap="round" />
-          <path d={describeArc(cx, cy, 28, 0, cfPct * 3.6)} fill="none" stroke="#4A7C6F" strokeWidth="10" strokeLinecap="round" />
+          <path d={describeArc(cx, cy, 60, 0, protPct * 3.6)} fill="none" stroke={gaugeColor} strokeWidth="10" strokeLinecap="round" />
+          <path d={describeArc(cx, cy, 44, 0, retPct * 3.6)} fill="none" stroke={gaugeColor} strokeOpacity="0.8" strokeWidth="10" strokeLinecap="round" />
+          <path d={describeArc(cx, cy, 28, 0, cfPct * 3.6)} fill="none" stroke={gaugeColor} strokeOpacity="0.65" strokeWidth="10" strokeLinecap="round" />
           <text x={cx} y={cy - 6} textAnchor="middle" fontSize="18" fontWeight="700" fill="#1B2B4B">
-            {utilPct}%
+            {deployedPct}%
           </text>
           <text x={cx} y={cy + 12} textAnchor="middle" fontSize="9" fill="#718096" letterSpacing="1">
             DEPLOYED
@@ -139,19 +164,13 @@ export default function ExposureHeader({ summary, recCount, caseData }) {
         </svg>
 
         <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-          {[
-            { color: "#1B2B4B", label: "Protection" },
-            { color: "#3B6CB7", label: "Retirement" },
-            { color: "#4A7C6F", label: "Cash Flow" },
-          ].map((item, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#718096" }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: item.color }} />
-              {item.label}
-            </div>
-          ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#718096" }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: gaugeColor }} />
+            Deployment Gauge
+          </div>
         </div>
         <div style={{ marginTop: 10, color: "#718096", fontSize: 12, textAlign: "center" }}>
-          {utilPct}% of your monthly capacity deployed toward your goals
+          {gaugeLabel}
         </div>
       </div>
     </div>

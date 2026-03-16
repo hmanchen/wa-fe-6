@@ -161,7 +161,7 @@ export default function RecommendationsScreen({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100%", background: "#F8F7F4", padding: "24px" }}>
-      <div style={{ flex: 1, padding: "24px 0", overflowY: "auto" }}>
+      <div style={{ flex: 1, padding: "24px 0", paddingBottom: 120, overflowY: "auto" }}>
         <ExposureHeader summary={summary} recCount={recs.length} caseData={caseData} />
         {(summary?.hiddenMoney || 0) > 0 && (
           <div
@@ -220,8 +220,8 @@ export default function RecommendationsScreen({
             key={rec.id || i}
             rec={rec}
             index={i}
-            onOpenIUL={() => onOpenIULIllustration?.(primaryRec)}
-            onOpenCollege={() => onOpenCollegeFunding?.(collegeRec)}
+            onOpenIUL={(clickedRec) => onOpenIULIllustration?.(clickedRec || primaryRec || rec)}
+            onOpenCollege={(clickedRec) => onOpenCollegeFunding?.(clickedRec || collegeRec || rec)}
             onOpenDebt={() => onOpenDebtFreedom?.(rec)}
             onOpenRetirement={() => onOpenRetirementDiversification?.(rec)}
           />
@@ -358,38 +358,11 @@ function ProgressRings({ values }) {
 function normalizeRecommendations(result, caseData) {
   if (!result || typeof result !== "object") return result;
   const recs = Array.isArray(result.recommendations) ? [...result.recommendations] : [];
-  const hasEducation = recs.some((r) => r?.category === "education");
-  const maybeChildren =
-    caseData?.clientPersonalInfo?.dependents ||
-    caseData?.dependents ||
-    0;
 
   const withoutStandaloneDisability = recs.filter((r) => {
     const title = String(r?.title || "").toLowerCase();
     return !(title.includes("disability") && r?.priorityRank === 2);
   });
-
-  if (!hasEducation && maybeChildren > 0) {
-    withoutStandaloneDisability.push({
-      id: "REC-IUL-EDU",
-      priorityRank: 2,
-      category: "education",
-      urgencyLevel: "high",
-      title: "Fund Your Children's Education Through Your IUL",
-      headline:
-        "The same dollars that protect your family today pay for college tomorrow and retirement after that.",
-      beforeAfterAfter:
-        "Your children have a funded education path starting today with full flexibility.",
-      gapSolvedLabel: `Education Funding Gap - $0 saved for ${maybeChildren} children`,
-      gapSolved: 0,
-      monthly_cost: 0,
-      fundedFromRecoveredCashFlow: true,
-      keyStatistic:
-        "A 529 locks funds to education only. IUL adds protection, flexibility, and long-term income options.",
-      iulLinkText: "See Your Children's Education Projection ->",
-      hasIULLink: true,
-    });
-  }
 
   const hiddenMoney =
     toNum(result?.summary?.hidden_money_monthly) ||
@@ -400,7 +373,7 @@ function normalizeRecommendations(result, caseData) {
     0;
 
   const prioritized = withoutStandaloneDisability;
-  prioritized.sort((a, b) => (a?.priorityRank || 99) - (b?.priorityRank || 99));
+  prioritized.sort((a, b) => (a?.priorityRank || a?.priority || 99) - (b?.priorityRank || b?.priority || 99));
   return {
     ...result,
     summary: {
