@@ -493,7 +493,31 @@ function normalizeRecommendations(result, caseData) {
     toNum(caseData?.hiddenMoneyTotal) ||
     0;
 
-  const prioritized = withoutStandaloneDisability;
+  const dependentsDetail =
+    caseData?.clientPersonalInfo?.dependents_detail ||
+    caseData?.clientPersonalInfo?.dependentsDetail ||
+    caseData?.client_personal_info?.dependents_detail ||
+    caseData?.client_personal_info?.dependentsDetail ||
+    [];
+  const allDependentsAreAdults =
+    Array.isArray(dependentsDetail) &&
+    dependentsDetail.length > 0 &&
+    dependentsDetail.every((d) => {
+      const age = toNum(d?.age);
+      return age !== null && age >= 18;
+    });
+  const adultOnlyFiltered = allDependentsAreAdults
+    ? withoutStandaloneDisability.filter((r) => {
+        const title = String(r?.title || "").toLowerCase();
+        const category = String(r?.category || "").toLowerCase();
+        const protectedLabel = String(r?.what_protected || r?.whatsProtected || "").toLowerCase();
+        const isEducation = category === "education" || title.includes("college") || title.includes("education");
+        const isIulEducation = title.includes("iul") && (title.includes("college") || title.includes("education"));
+        return !(isEducation || isIulEducation || protectedLabel.includes("education fund"));
+      })
+    : withoutStandaloneDisability;
+
+  const prioritized = adultOnlyFiltered;
   prioritized.sort((a, b) => (a?.priorityRank || a?.priority || 99) - (b?.priorityRank || b?.priority || 99));
   return {
     ...result,
