@@ -1112,7 +1112,15 @@ export function FinancialBgInsights({
               <>
                 <AlertTriangle className="size-4 text-amber-500" />
                 <span className="flex-1 text-xs text-amber-600">{analysisError}</span>
-                <Button size="sm" variant="ghost" onClick={runFullAnalysis} className="h-6 gap-1 px-2 text-xs">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    activeRunToken.current += 1;
+                    runFullAnalysis(activeRunToken.current);
+                  }}
+                  className="h-6 gap-1 px-2 text-xs"
+                >
                   <RefreshCw className="size-3" /> Retry
                 </Button>
               </>
@@ -1120,7 +1128,15 @@ export function FinancialBgInsights({
               <>
                 <CheckCircle2 className="size-4 text-emerald-500" />
                 <span className="text-xs text-emerald-600">Full analysis complete</span>
-                <Button size="sm" variant="ghost" onClick={runFullAnalysis} className="ml-auto h-6 gap-1 px-2 text-xs">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    activeRunToken.current += 1;
+                    runFullAnalysis(activeRunToken.current);
+                  }}
+                  className="ml-auto h-6 gap-1 px-2 text-xs"
+                >
                   <RefreshCw className="size-3" /> Re-run
                 </Button>
               </>

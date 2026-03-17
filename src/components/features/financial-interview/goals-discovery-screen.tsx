@@ -418,10 +418,11 @@ export function GoalsDiscoveryScreen({
       return;
     }
     try {
+      const desiredMonthlyIncome = data.retirementVision.desiredMonthlyIncome ?? 0;
       const fallbackRetirementIncomeGoal =
-        data.retirementVision.desiredMonthlyIncome || monthlyExpenses || 0;
+        desiredMonthlyIncome || monthlyExpenses || 0;
       const shouldApplyFallback =
-        !(data.retirementVision.desiredMonthlyIncome > 0) &&
+        !(desiredMonthlyIncome > 0) &&
         fallbackRetirementIncomeGoal > 0;
 
       if (shouldApplyFallback) {
@@ -453,8 +454,9 @@ export function GoalsDiscoveryScreen({
   ]);
 
   const confidence = data.retirementVision.retirementConfidence ?? 5;
+  const desiredMonthlyIncome = data.retirementVision.desiredMonthlyIncome ?? 0;
   const usingCurrentExpensesAsRetirementGoal =
-    !(data.retirementVision.desiredMonthlyIncome > 0) && monthlyExpenses > 0;
+    !(desiredMonthlyIncome > 0) && monthlyExpenses > 0;
   const riskScore = computeRiskScore(data.riskProfile);
   const riskProfileMeta = getRiskProfileMeta(riskScore);
   const confidenceClass =

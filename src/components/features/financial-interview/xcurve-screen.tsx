@@ -498,7 +498,8 @@ function calculateMilestones(inputs: XCurveInputs, currentMortgageBalance: numbe
     currentAge,
     retirementAge: inputs.retirement.targetAge,
     childrenCollege,
-    mortgagePayoff: mortgagePayoff <= 90 ? mortgagePayoff : null,
+    mortgagePayoff:
+      mortgagePayoff !== null && mortgagePayoff <= 90 ? mortgagePayoff : null,
     debtFreeAge: debtFreeAge <= 90 ? debtFreeAge : null,
   };
 }

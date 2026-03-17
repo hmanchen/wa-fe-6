@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,9 @@ export default function CasesPage() {
           </Button>
         </Link>
       </PageHeader>
-      <CaseList />
+      <Suspense fallback={<div className="text-sm text-muted-foreground">Loading cases...</div>}>
+        <CaseList />
+      </Suspense>
     </div>
   );
 }

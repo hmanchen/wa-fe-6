@@ -424,9 +424,13 @@ function LifeInsuranceTab({
                             ? {
                                 ...p,
                                 policyType:
-                                  value as NonNullable<
-                                    PersonFinancialBackground["lifeInsurance"]
-                                  >["policies"][number]["policyType"],
+                                  value as
+                                    | "term"
+                                    | "whole-life"
+                                    | "universal"
+                                    | "iul"
+                                    | "group"
+                                    | "other",
                               }
                             : p
                         ),

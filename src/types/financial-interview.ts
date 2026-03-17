@@ -885,6 +885,11 @@ export interface HealthScoreInsightCard {
 export interface FinancialHealthScore {
   totalScore: number;
   maxPossibleScore: number;
+  goalSummary?: {
+    retirementTargetAge?: number;
+    retirement_target_age?: number;
+    [key: string]: unknown;
+  };
   categories: {
     retirement: HealthScoreCategory;
     education: HealthScoreCategory;
