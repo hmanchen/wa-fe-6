@@ -273,20 +273,47 @@ function deriveXCurveInputs(
   const xcurveDebtDetail =
     (((xcurve["dimeDebtDetail"] as Dict | undefined) ??
       (xcurve["dime_debt_detail"] as Dict | undefined)) as Dict | undefined) ?? {};
-  const debtBreakdownFromXCurve = [
-    {
-      label: "Primary mortgage",
-      amount: n(xcurveDebtDetail["primaryMortgage"] ?? xcurveDebtDetail["primary_mortgage"]),
-    },
-    {
-      label: "Rental mortgages",
-      amount: n(xcurveDebtDetail["rentalMortgages"] ?? xcurveDebtDetail["rental_mortgages"]),
-    },
-    {
-      label: "Consumer debts",
-      amount: n(xcurveDebtDetail["consumerDebts"] ?? xcurveDebtDetail["consumer_debts"]),
-    },
-  ].filter((row) => row.amount > 0);
+  const rentalDetailRaw = (
+    (xcurveDebtDetail["rentalMortgageDetail"] as unknown[] | undefined) ??
+    (xcurveDebtDetail["rental_mortgage_detail"] as unknown[] | undefined) ??
+    []
+  );
+  const consumerDetailRaw = (
+    (xcurveDebtDetail["consumerDebtDetail"] as unknown[] | undefined) ??
+    (xcurveDebtDetail["consumer_debt_detail"] as unknown[] | undefined) ??
+    []
+  );
+  const rentalDetailRows = rentalDetailRaw
+    .map((raw) => {
+      const row = (raw as Dict | null) ?? {};
+      return {
+        label: String(row["label"] ?? "Rental mortgage"),
+        amount: n(row["amount"]),
+      };
+    })
+    .filter((row) => row.amount > 0);
+  const consumerDetailRows = consumerDetailRaw
+    .map((raw) => {
+      const row = (raw as Dict | null) ?? {};
+      return {
+        label: String(row["label"] ?? "Consumer debt"),
+        amount: n(row["amount"]),
+      };
+    })
+    .filter((row) => row.amount > 0);
+  const debtBreakdownFromXCurve =
+    rentalDetailRows.length > 0 || consumerDetailRows.length > 0
+      ? [...rentalDetailRows, ...consumerDetailRows]
+      : [
+          {
+            label: "Rental mortgages",
+            amount: n(xcurveDebtDetail["rentalMortgages"] ?? xcurveDebtDetail["rental_mortgages"]),
+          },
+          {
+            label: "Consumer debts",
+            amount: n(xcurveDebtDetail["consumerDebts"] ?? xcurveDebtDetail["consumer_debts"]),
+          },
+        ].filter((row) => row.amount > 0);
   const debtBreakdown =
     debtBreakdownFromXCurve.length > 0 ? debtBreakdownFromXCurve : debtBreakdownFromDebts;
   const debtDataCaptured =
