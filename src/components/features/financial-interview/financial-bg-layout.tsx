@@ -3013,8 +3013,11 @@ function MonthlyExpensesSection({
   const primaryPitiAmount = Number(primaryResidence?.monthlyPaymentPiti ?? 0) || 0;
   const rentalMortgagePitiAmount = rentalProperties.reduce((sum, property) => {
     const mortgageBalance = Number(property?.mortgageBalance ?? 0) || 0;
+    const legacyRentalMonthlyPayment = Number(
+      (property as Record<string, unknown>)?.monthlyPayment ?? 0
+    ) || 0;
     const monthlyPayment =
-      Number(property?.monthlyMortgagePayment ?? property?.monthlyPayment ?? 0) || 0;
+      Number(property?.monthlyMortgagePayment ?? legacyRentalMonthlyPayment ?? 0) || 0;
     if (mortgageBalance > 0 && monthlyPayment > 0) {
       return sum + monthlyPayment;
     }
