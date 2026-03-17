@@ -29,12 +29,16 @@ export function PrefillSuccessBanner({
   prefillData,
   ownsHome,
   pitiAmount,
+  primaryPitiAmount,
+  rentalPitiAmount,
   onDismiss,
   onRefresh,
 }: {
   prefillData: Record<string, unknown>;
   ownsHome: boolean;
   pitiAmount?: number;
+  primaryPitiAmount?: number;
+  rentalPitiAmount?: number;
   onDismiss: () => void;
   onRefresh: () => void;
 }) {
@@ -57,7 +61,7 @@ export function PrefillSuccessBanner({
         </span>
         <span className="prefill-banner__sub">
           {ownsHome && pitiAmount
-            ? `Housing uses the actual PITI ($${pitiAmount.toLocaleString()}). Other fields are estimated.`
+            ? `Housing uses all mortgage payments: Primary home $${Number(primaryPitiAmount ?? 0).toLocaleString()} + Rental properties $${Number(rentalPitiAmount ?? 0).toLocaleString()} = $${pitiAmount.toLocaleString()}/mo total. Other fields are estimated.`
             : `All fields below reflect estimated averages for ${locationLabel}.`}
         </span>
         <span className="prefill-banner__confidence">

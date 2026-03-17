@@ -3002,6 +3002,7 @@ function MonthlyExpensesSection({
   const lastAttemptedPrefillTick = useRef(0);
 
   const primaryResidence = data.realEstate?.primaryResidence;
+  const rentalProperties = data.realEstate?.rentalProperties ?? [];
   const hasPrimaryResidence = Boolean(
     data.realEstate?.hasPrimaryResidence ??
       primaryResidence?.estimatedMarketValue ??
@@ -3009,7 +3010,19 @@ function MonthlyExpensesSection({
       primaryResidence?.mortgageBalance ??
       primaryResidence?.monthlyPaymentPiti
   );
-  const pitiAmount = primaryResidence?.monthlyPaymentPiti;
+  const primaryPitiAmount = Number(primaryResidence?.monthlyPaymentPiti ?? 0) || 0;
+  const rentalMortgagePitiAmount = rentalProperties.reduce((sum, property) => {
+    const mortgageBalance = Number(property?.mortgageBalance ?? 0) || 0;
+    const monthlyPayment =
+      Number(property?.monthlyMortgagePayment ?? property?.monthlyPayment ?? 0) || 0;
+    if (mortgageBalance > 0 && monthlyPayment > 0) {
+      return sum + monthlyPayment;
+    }
+    return sum;
+  }, 0);
+  const totalMortgagePitiAmount = primaryPitiAmount + rentalMortgagePitiAmount;
+  const hasAnyMortgagePiti = totalMortgagePitiAmount > 0;
+  const prefillOwnsHome = hasPrimaryResidence || hasAnyMortgagePiti;
   const personalInfo = (caseData?.clientPersonalInfo ?? {}) as Record<string, unknown>;
   const address = ((personalInfo.address as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
   const prefillZip = String(address.postal_code ?? address.postalCode ?? "").trim();
@@ -3126,7 +3139,7 @@ function MonthlyExpensesSection({
           return;
         }
 
-        requestKey = `${caseId}:${zip}:${hasPrimaryResidence ? "own" : "rent"}:${String(pitiAmount ?? "")}:${refreshTick}`;
+        requestKey = `${caseId}:${zip}:${prefillOwnsHome ? "own" : "rent"}:${String(totalMortgagePitiAmount)}:${refreshTick}`;
         if (prefillSuccessfulRequestKeys.has(requestKey) || prefillInFlightRequestKeys.has(requestKey)) {
           return;
         }
@@ -3150,8 +3163,8 @@ function MonthlyExpensesSection({
           zip_code: zip,
           adults,
           children_ages: childrenAges,
-          owns_home: hasPrimaryResidence,
-          piti_amount: hasPrimaryResidence ? pitiAmount : undefined,
+          owns_home: prefillOwnsHome,
+          piti_amount: hasAnyMortgagePiti ? totalMortgagePitiAmount : undefined,
         });
         const timeoutReq = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Prefill request timeout")), 20000)
@@ -3171,7 +3184,7 @@ function MonthlyExpensesSection({
 
         setPrefillData(payload);
         setPrefillStatus("success");
-        applyPrefill(payload, hasPrimaryResidence, pitiAmount);
+        applyPrefill(payload, prefillOwnsHome, totalMortgagePitiAmount);
         prefillSuccessfulRequestKeys.add(requestKey);
         prefillInFlightRequestKeys.delete(requestKey);
       } catch (err) {
@@ -3187,7 +3200,7 @@ function MonthlyExpensesSection({
     return () => {
       active = false;
     };
-  }, [applyPrefill, caseId, hasPrimaryResidence, personalInfo, pitiAmount, prefillZip, refreshTick]);
+  }, [applyPrefill, caseId, personalInfo, prefillOwnsHome, prefillZip, totalMortgagePitiAmount, hasAnyMortgagePiti, refreshTick]);
 
   const handleFieldChange = (fieldName: keyof NonNullable<PersonFinancialBackground["monthlyExpenses"]>, value: number | undefined) => {
     setUserEdited((prev) => new Set([...prev, String(fieldName)]));
@@ -3218,8 +3231,10 @@ function MonthlyExpensesSection({
       {prefillStatus === "success" && prefillData && (
         <PrefillSuccessBanner
           prefillData={prefillData}
-          ownsHome={hasPrimaryResidence}
-          pitiAmount={pitiAmount}
+          ownsHome={prefillOwnsHome}
+          pitiAmount={totalMortgagePitiAmount}
+          primaryPitiAmount={primaryPitiAmount}
+          rentalPitiAmount={rentalMortgagePitiAmount}
           onDismiss={() => setPrefillStatus("dismissed")}
           onRefresh={() => {
             hasFetched.current = false;
@@ -3275,12 +3290,15 @@ function MonthlyExpensesSection({
         </div>
         {expandedMonthlyExpenses && (
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            {hasPrimaryResidence && (pitiAmount ?? 0) > 0 && !userEdited.has("housing") && (
+            {prefillOwnsHome && totalMortgagePitiAmount > 0 && !userEdited.has("housing") && (
               <div className="sm:col-span-3 piti-notice">
                 <span>📋</span>
                 <span>
-                  Monthly housing is pre-filled from Real Estate PITI (
-                  <strong>${Number(pitiAmount ?? 0).toLocaleString()}/mo</strong>).
+                  Monthly housing is pre-filled from all mortgages: Primary home{" "}
+                  <strong>${primaryPitiAmount.toLocaleString()}/mo</strong>
+                  {" + "}Rental properties{" "}
+                  <strong>${rentalMortgagePitiAmount.toLocaleString()}/mo</strong>
+                  {" = "} <strong>${totalMortgagePitiAmount.toLocaleString()}/mo total</strong>.
                 </span>
               </div>
             )}
