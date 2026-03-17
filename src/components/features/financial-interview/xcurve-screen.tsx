@@ -110,6 +110,10 @@ function calculateAgeFromDob(dob?: string | null): number | null {
 function calculateEducationNeedAtAge(children: Child[], age: number, currentParentAge: number): number {
   let total = 0;
   for (const child of children) {
+    const currentChildAge = n(child.age);
+    if (currentChildAge >= 18) {
+      continue;
+    }
     const childAgeAtPoint = n(child.age) + (age - currentParentAge);
     const projectedNeed = n(child.projectedTotalNeed) || 150_000;
     if (childAgeAtPoint < 18) {
@@ -222,6 +226,7 @@ function deriveXCurveInputs(
           };
         })
       : fallbackChildren;
+  const eligibleEducationChildren = educationChildren.filter((child) => child.age < 18);
 
   const debtEntries = (debt["debts"] as unknown[] | undefined) ?? [];
   const debtBreakdownFromDebts = debtEntries.map((d) => {
@@ -294,9 +299,12 @@ function deriveXCurveInputs(
   const xcurveIncomeRationale = String(
     xcurve["income_replacement_rationale"] ?? xcurve["incomeReplacementRationale"] ?? ""
   ).trim();
-  const educationDerivation =
-    xcurveFormulaByKey.get("education_fund") ||
-    "Derived from children profiles and education funding assumptions.";
+  const hasEducationFundFromXCurve = xcurveByKey.has("education_fund");
+  const educationDerivation = hasEducationFundFromXCurve
+    ? (xcurveFormulaByKey.get("education_fund") || "Derived from college funding service projected_total_education_need.")
+    : (eligibleEducationChildren.length === 0
+        ? "No college-age children (all dependents are 18+)"
+        : "Derived from children profiles and education funding assumptions.");
 
   let replacementYears = n(goalIncome["replacementYears"] ?? goalIncome["replacement_years"]) || 10;
   if (xcurveIncomeYears > 0) {
@@ -337,10 +345,11 @@ function deriveXCurveInputs(
       incomeReplacementRationale: derivedIncomeRationale,
       mortgageBalance: resolvedMortgage,
       hasMortgage: resolvedMortgage > 0,
-      educationNeed: n(
-        xcurveEducation ||
-          n(goalEducation["projectedTotalEducationNeed"] ?? goalEducation["projected_total_education_need"])
-      ),
+      educationNeed: hasEducationFundFromXCurve
+        ? n(xcurveEducation)
+        : (eligibleEducationChildren.length > 0
+            ? n(goalEducation["projectedTotalEducationNeed"] ?? goalEducation["projected_total_education_need"])
+            : 0),
       educationDerivation,
       educationChildren,
       finalExpenses: xcurveFinalExpenses || 25_000,
@@ -545,6 +554,7 @@ function formatAmountCompact(amount: number): string {
 
 function getResponsibilities(inputs: XCurveInputs, editable: DimeEditable) {
   const monthlyBase = Math.max(0, inputs.retirement.monthlyExpenses);
+  const eligibleChildrenCount = (inputs.client.children ?? []).filter((child) => n(child.age) < 18).length;
   const debtStatus =
     editable.debt > 0 ? `${formatAmountCompact(editable.debt)} total` : "Debt-free";
   const mortgageStatus =
@@ -552,7 +562,7 @@ function getResponsibilities(inputs: XCurveInputs, editable: DimeEditable) {
   return [
     { label: "Housing", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.3)}/mo` : "Not captured" },
     { label: "Food/Groceries", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.16)}/mo` : "Not captured" },
-    { label: "Childcare/Edu", value: inputs.client.children.length > 0 ? `${formatAmount(monthlyBase * 0.12)}/mo` : "N/A" },
+    { label: "Childcare/Edu", value: eligibleChildrenCount > 0 ? `${formatAmount(monthlyBase * 0.12)}/mo` : "N/A" },
     { label: "Transportation", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.08)}/mo` : "Not captured" },
     { label: "Healthcare", value: "Not captured" },
     { label: "Debts", value: debtStatus },
