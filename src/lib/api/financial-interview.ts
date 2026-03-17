@@ -34,6 +34,39 @@ interface WrappedResponse<T> {
   meta?: unknown;
 }
 
+function sanitizeIncomeSources(raw: unknown): unknown {
+  if (!Array.isArray(raw)) return raw;
+  return raw.map((entry) => {
+    if (!entry || typeof entry !== "object") return entry;
+    const src = entry as Record<string, unknown>;
+    const type = String(src.type ?? "").trim().toLowerCase();
+    const annualIncome = Number(src.annualIncome ?? src.annual_income ?? 0) || 0;
+    const annualBonus = Number(src.annualBonus ?? src.annual_bonus ?? 0) || 0;
+    if (type === "employer" && annualIncome > 0 && Math.abs(annualBonus - annualIncome) < 1) {
+      return { ...src, annualBonus: 0, annual_bonus: 0 };
+    }
+    return src;
+  });
+}
+
+function sanitizeInterviewPayload(payload: FinancialInterviewPayload): FinancialInterviewPayload {
+  const sanitizeRole = (bg: PersonFinancialBackground | undefined): PersonFinancialBackground | undefined => {
+    if (!bg) return bg;
+    return {
+      ...bg,
+      income: {
+        ...(bg.income ?? {}),
+        incomeSources: sanitizeIncomeSources(bg.income?.incomeSources) as PersonFinancialBackground["income"]["incomeSources"],
+      },
+    };
+  };
+  return {
+    ...payload,
+    primaryBackground: sanitizeRole(payload.primaryBackground),
+    spouseBackground: sanitizeRole(payload.spouseBackground),
+  };
+}
+
 export async function getFinancialInterviewData(
   caseId: string
 ): Promise<FinancialInterviewPayload> {
@@ -56,7 +89,7 @@ export async function getFinancialInterviewData(
       : undefined,
   };
 
-  return result;
+  return sanitizeInterviewPayload(result);
 }
 
 export async function saveFinancialBackground(
@@ -104,7 +137,7 @@ export async function saveFinancialBackground(
       : undefined,
   };
 
-  return result;
+  return sanitizeInterviewPayload(result);
 }
 
 export async function saveGoalsDiscovery(

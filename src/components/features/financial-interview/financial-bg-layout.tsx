@@ -476,7 +476,8 @@ function EmploymentSection({
   );
 
   const totalIncome = useMemo(() => {
-    const activeSourceIncome = sources.reduce((sum, s) => {
+    const normalizedSources = dedupeIncomeSources(sources);
+    const activeSourceIncome = normalizedSources.reduce((sum, s) => {
       // For employer rows, only include income when the source is currently active.
       if (s.type === "employer" && !s.isCurrent) return sum;
       return sum + (s.annualIncome ?? 0) + (s.annualBonus ?? 0);
@@ -3434,6 +3435,52 @@ function makeEmptyData(role: "primary" | "spouse"): PersonFinancialBackground {
   };
 }
 
+function dedupeIncomeSources(sources: IncomeSource[] | undefined): IncomeSource[] {
+  if (!Array.isArray(sources) || sources.length <= 1) return sources ?? [];
+  const seen = new Set<string>();
+  const out: IncomeSource[] = [];
+  for (const src of sources) {
+    if (!src) continue;
+    const annualIncome = Number(src.annualIncome ?? 0);
+    const normalizedBonus =
+      String(src.type ?? "").trim().toLowerCase() === "employer" &&
+      annualIncome > 0 &&
+      Math.abs(Number(src.annualBonus ?? 0) - annualIncome) < 1
+        ? 0
+        : Number(src.annualBonus ?? 0);
+    const normalizedSrc: IncomeSource = {
+      ...src,
+      annualBonus: normalizedBonus,
+    };
+    const signature = [
+      String(normalizedSrc.type ?? "").trim().toLowerCase(),
+      Number(normalizedSrc.annualIncome ?? 0),
+      Number(normalizedSrc.annualBonus ?? 0),
+      normalizedSrc.isCurrent === false ? "0" : "1",
+      String(normalizedSrc.frequency ?? ""),
+      Number(normalizedSrc.yearsAtJob ?? 0),
+    ].join("|");
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    out.push(normalizedSrc);
+  }
+  return out;
+}
+
+function normalizeBackgroundIncome(
+  background: PersonFinancialBackground | undefined,
+  role: "primary" | "spouse"
+): PersonFinancialBackground {
+  const base = background ?? makeEmptyData(role);
+  return {
+    ...base,
+    income: {
+      ...(base.income ?? {}),
+      incomeSources: dedupeIncomeSources(base.income?.incomeSources),
+    },
+  };
+}
+
 function annualIncomeFromBackground(background: unknown): number {
   if (!background || typeof background !== "object") return 0;
   const bg = background as Record<string, unknown>;
@@ -3442,11 +3489,26 @@ function annualIncomeFromBackground(background: unknown): number {
     ?? (income["incomeSources"] as Array<Record<string, unknown>> | undefined)
     ?? [];
 
+  const seenSourceSignatures = new Set<string>();
   const sourcesTotal = Array.isArray(sources)
     ? sources.reduce((sum, src) => {
         if (!src || typeof src !== "object") return sum;
         const annualIncome = Number(src["annual_income"] ?? src["annualIncome"] ?? 0) || 0;
-        const annualBonus = Number(src["annual_bonus"] ?? src["annualBonus"] ?? 0) || 0;
+        const rawAnnualBonus = Number(src["annual_bonus"] ?? src["annualBonus"] ?? 0) || 0;
+        const annualBonus =
+          String(src["type"] ?? "").trim().toLowerCase() === "employer" &&
+          annualIncome > 0 &&
+          Math.abs(rawAnnualBonus - annualIncome) < 1
+            ? 0
+            : rawAnnualBonus;
+        const signature = [
+          String(src["type"] ?? "").trim().toLowerCase(),
+          annualIncome,
+          annualBonus,
+          src["is_current"] === false || src["isCurrent"] === false ? "0" : "1",
+        ].join("|");
+        if (seenSourceSignatures.has(signature)) return sum;
+        seenSourceSignatures.add(signature);
         return sum + annualIncome + annualBonus;
       }, 0)
     : 0;
@@ -3493,7 +3555,7 @@ export function FinancialBgLayout({
   onComplete,
 }: FinancialBgLayoutProps) {
   const [data, setData] = useState<PersonFinancialBackground>(() => {
-    const initial = defaultValues ?? makeEmptyData(role);
+    const initial = normalizeBackgroundIncome(defaultValues, role);
     console.log("[FinancialBgLayout] MOUNT — useState init", {
       role,
       hasDefaultValues: !!defaultValues,
@@ -3515,12 +3577,12 @@ export function FinancialBgLayout({
     if (caseChanged) {
       lastHydratedCaseId.current = caseId;
       initializedFromProps.current = !!defaultValues;
-      setData(defaultValues ?? makeEmptyData(role));
+      setData(normalizeBackgroundIncome(defaultValues, role));
       return;
     }
     if (defaultValues && !initializedFromProps.current) {
       initializedFromProps.current = true;
-      setData(defaultValues);
+      setData(normalizeBackgroundIncome(defaultValues, role));
     }
   }, [caseId, defaultValues, role]);
 
