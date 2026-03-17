@@ -116,7 +116,10 @@ class ApiClient {
 
   // ── PDF ──────────────────────────────────────────────────────────
   generatePDF(data: Record<string, unknown>) {
-    return this.request('POST', '/api/v1/pdf/generate/', data)
+    return this.request('POST', '/api/v1/pdf/generate/', {
+      pdf_type: 'client',
+      ...data,
+    })
   }
 
   // ── Health (no auth) ─────────────────────────────────────────────

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCase } from "@/hooks/use-cases";
 import { useUpdateCase } from "@/hooks/use-cases";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useFinancialInterview,
   useFinancialHealthScore,
@@ -44,12 +45,13 @@ import IULIllustrationScreen from "@/components/recommendations/IULIllustrationS
 import CollegeFundingScreen from "@/components/recommendations/CollegeFundingScreen";
 import DebtFreedomScreen from "@/components/recommendations/DebtFreedomScreen";
 import RetirementDiversificationScreen from "@/components/recommendations/RetirementDiversificationScreen";
-import DeliveryScreen from "@/components/delivery/DeliveryScreen";
+import { DeliveryScreen } from "@/components/features/financial-interview/delivery-screen";
 import { ScreenLoadingOverlay } from "@/components/shared/screen-loading-overlay";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
 import type { GoalsDiscoveryData } from "@/types/financial-interview";
 import { useFullAnalysisData, useXCurveData } from "@/hooks/use-presentation-flow";
+import { recordCaseConsent } from "@/lib/api/cases";
 
 function computeRiskSnapshot(
   riskProfile?: {
@@ -117,6 +119,7 @@ export default function FinancialInterviewPage() {
   const params = useParams();
   const caseId = params.caseId as string;
   const { data: caseData, isLoading: isCaseLoading } = useCase(caseId);
+  const queryClient = useQueryClient();
   const updateCase = useUpdateCase();
   const { data: interviewData, isLoading: isInterviewLoading } = useFinancialInterview(caseId);
   const { data: healthScore, isLoading: isHealthScoreLoading } = useFinancialHealthScore(caseId);
@@ -140,7 +143,10 @@ export default function FinancialInterviewPage() {
   const [consentPrivacyChecked, setConsentPrivacyChecked] = useState(false);
   const [consentEducationChecked, setConsentEducationChecked] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
+  const [consentSubmitting, setConsentSubmitting] = useState(false);
+  const [consentSessionGiven, setConsentSessionGiven] = useState(false);
   const [spousePromptOpen, setSpousePromptOpen] = useState(false);
+  const pipelinePromotedCase = useRef<string | null>(null);
 
   const { data: marketSnapshot, isLoading: isMarketSnapshotLoading } = useMarketSnapshot(currentSection === "financial-background");
   const retirementTargetAge = Number(
@@ -224,33 +230,49 @@ export default function FinancialInterviewPage() {
     []
   );
 
+  const spouseBackgroundComplete = Boolean(
+    interviewData?.spouseBackground &&
+      Object.values(interviewData.spouseBackground).some((value) => {
+        if (value == null) return false;
+        if (typeof value === "string") return value.trim().length > 0;
+        if (typeof value === "number") return value > 0;
+        if (Array.isArray(value)) return value.length > 0;
+        if (typeof value === "object")
+          return Object.keys(value as Record<string, unknown>).length > 0;
+        return false;
+      })
+  );
+
   const handlePrimarySave = useCallback(
     async (data: PersonFinancialBackground) => {
       await saveBackground.mutateAsync({ role: "primary", data });
+      if (caseData?.id && caseData?.status === "draft") {
+        await updateCase.mutateAsync({
+          id: caseData.id,
+          data: { status: "discovery" },
+        });
+      }
       toast.success("Primary client financial background saved");
       const hasSpouseName = Boolean(caseData?.clientPersonalInfo?.partnerFirstName);
-      const spouseBg = interviewData?.spouseBackground;
-      const spouseHasAnyData = Boolean(
-        spouseBg && Object.values(spouseBg).some((value) => {
-          if (value == null) return false;
-          if (typeof value === "string") return value.trim().length > 0;
-          if (typeof value === "number") return value > 0;
-          if (Array.isArray(value)) return value.length > 0;
-          if (typeof value === "object") return Object.keys(value as Record<string, unknown>).length > 0;
-          return false;
-        })
-      );
-      if (hasSpouseName && !spouseHasAnyData) {
+      if (hasSpouseName && !spouseBackgroundComplete) {
         setSpousePromptOpen(true);
       }
     },
-    [saveBackground, caseData?.clientPersonalInfo?.partnerFirstName, interviewData?.spouseBackground]
+    [
+      saveBackground,
+      caseData?.id,
+      caseData?.status,
+      caseData?.clientPersonalInfo?.partnerFirstName,
+      spouseBackgroundComplete,
+      updateCase,
+    ]
   );
 
   const handleSpouseSave = useCallback(
     async (data: PersonFinancialBackground) => {
       await saveBackground.mutateAsync({ role: "spouse", data });
       toast.success("Spouse financial background saved");
+      setSpousePromptOpen(false);
     },
     [saveBackground]
   );
@@ -276,7 +298,46 @@ export default function FinancialInterviewPage() {
     }
     return false;
   })();
-  const consentRequired = Boolean(caseData) && !Boolean(caseData?.consentGiven);
+  const consentRequired = Boolean(caseData) && !Boolean(caseData?.consentAcknowledgedAt || consentSessionGiven);
+  useEffect(() => {
+    setCurrentSection("financial-background");
+    setFinancialBgTab("primary");
+    setCompletedSections([]);
+    setRecommendationsCache(null);
+    setIulRecommendation({ monthly_cost: 1200 });
+    setCollegeRecommendation({ monthly_cost: 800 });
+    setConsentPurposeChecked(false);
+    setConsentPrivacyChecked(false);
+    setConsentEducationChecked(false);
+    setConsentError(null);
+    setConsentSubmitting(false);
+    setConsentSessionGiven(false);
+    setSpousePromptOpen(false);
+    pipelinePromotedCase.current = null;
+
+    queryClient.removeQueries({ queryKey: ["full-analysis"] });
+    queryClient.removeQueries({ queryKey: ["xcurve-data"] });
+    queryClient.removeQueries({ queryKey: ["financial-health-score"] });
+    queryClient.removeQueries({ queryKey: ["financial-interview"] });
+    queryClient.removeQueries({ queryKey: ["goals-discovery"] });
+    queryClient.removeQueries({ queryKey: ["ai-financial-home"] });
+  }, [caseId, queryClient]);
+  useEffect(() => {
+    if (!caseData?.id || caseData.status !== "draft") return;
+    if (pipelinePromotedCase.current === caseData.id) return;
+    pipelinePromotedCase.current = caseData.id;
+    updateCase
+      .mutateAsync({
+        id: caseData.id,
+        data: { status: "discovery" },
+      })
+      .catch(() => {
+        // Non-blocking UX: interview should remain usable even if status update fails.
+      });
+  }, [caseData?.id, caseData?.status, updateCase]);
+  useEffect(() => {
+    setConsentSessionGiven(Boolean(caseData?.consentAcknowledgedAt));
+  }, [caseData?.consentAcknowledgedAt]);
   const caseIdForUpdate = caseData?.id;
 
   const handleGoalsDiscoverySave = useCallback(
@@ -324,20 +385,24 @@ export default function FinancialInterviewPage() {
       return;
     }
     setConsentError(null);
+    setConsentSubmitting(true);
     try {
-      await updateCase.mutateAsync({
-        id: caseData.id,
-        data: {
-          consentGiven: true,
-          consentAcknowledgedAt: new Date().toISOString(),
-          consentGivenAt: new Date().toISOString(),
-          consentVersion: "v1.0",
-        },
+      await recordCaseConsent(caseData.id, {
+        version: "1.0",
+        acknowledgments: [
+          "purpose_acknowledged",
+          "privacy_acknowledged",
+          "educational_acknowledged",
+        ],
       });
+      setConsentSessionGiven(true);
+      await queryClient.invalidateQueries({ queryKey: ["cases", caseData.id] });
       toast.success("Consent recorded.");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to record consent.";
       setConsentError(message);
+    } finally {
+      setConsentSubmitting(false);
     }
   };
 
@@ -381,6 +446,21 @@ export default function FinancialInterviewPage() {
             <div className="rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-800">
               Confidentiality Notice: Client information in this interview is private and intended only for advisory planning purposes.
             </div>
+            {spousePromptOpen && spouseName && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <strong>Complete {spouseName}&apos;s profile</strong> for a comprehensive joint analysis.
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentSection("financial-background");
+                    setFinancialBgTab("spouse");
+                  }}
+                  className="ml-1 underline decoration-amber-700 underline-offset-2"
+                >
+                  Add {caseData?.clientPersonalInfo?.partnerFirstName || "Spouse"}&apos;s Details →
+                </button>
+              </div>
+            )}
 
             {/* Section navigation */}
             <InterviewSectionNav
@@ -418,7 +498,7 @@ export default function FinancialInterviewPage() {
           )}
         </div>
 
-        <div className={consentRequired ? "pointer-events-none opacity-40" : ""}>
+        <div key={caseId} className={consentRequired ? "pointer-events-none opacity-40" : ""}>
         {/* ── PHASE 2: Financial Background ── */}
         {currentSection === "financial-background" && (
           <div className="relative">
@@ -675,11 +755,12 @@ export default function FinancialInterviewPage() {
 
         {/* ── PHASE 9: Delivery ── */}
         {currentSection === "delivery" && (
-          <DeliveryScreen
-            caseId={caseId}
-            caseData={caseData}
-            onBack={() => setCurrentSection("recommendations")}
-          />
+          <div className="space-y-3">
+            <Button variant="outline" size="sm" onClick={() => setCurrentSection("recommendations")}>
+              Back to Recommendations
+            </Button>
+            <DeliveryScreen caseId={caseId} clientNames={clientNames} />
+          </div>
         )}
         </div>
         {consentRequired && (
@@ -733,42 +814,11 @@ export default function FinancialInterviewPage() {
                   !consentPurposeChecked ||
                   !consentPrivacyChecked ||
                   !consentEducationChecked ||
-                  updateCase.isPending
+                  consentSubmitting
                 }
               >
-                {updateCase.isPending ? "Saving..." : "Record Consent and Continue"}
+                {consentSubmitting ? "Saving..." : "Record Consent and Continue"}
               </Button>
-            </div>
-          </div>
-        )}
-        {spousePromptOpen && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-xl rounded-xl border bg-card p-6 shadow-xl">
-              <h3 className="text-base font-semibold">Spouse profile is still missing</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                You haven&apos;t entered {caseData?.clientPersonalInfo?.partnerFirstName || "your spouse"}&apos;s financial details.
-                Complete both profiles for a comprehensive joint analysis.
-              </p>
-              <div className="mt-4 flex items-center gap-2">
-                <Button
-                  onClick={() => {
-                    setSpousePromptOpen(false);
-                    setCurrentSection("financial-background");
-                    setFinancialBgTab("spouse");
-                  }}
-                >
-                  Enter {caseData?.clientPersonalInfo?.partnerFirstName || "Spouse"}&apos;s Details
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSpousePromptOpen(false);
-                    setCurrentSection("goals-discovery");
-                  }}
-                >
-                  Skip — Use Primary Only
-                </Button>
-              </div>
             </div>
           </div>
         )}

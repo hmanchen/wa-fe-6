@@ -292,6 +292,22 @@ function makeSourceId() {
   return `src_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function normalizeEmployerName(input: string): string {
+  const raw = input.trim();
+  if (!raw.includes("@")) return raw;
+  const [left, right] = raw.split("@", 2).map((part) => part.trim());
+  if (!left || !right) return raw;
+  // If users enter "Title @ Company", persist only the company segment.
+  return right;
+}
+
+function looksLikeRoleAtCompany(value: string): boolean {
+  const raw = value.trim();
+  if (!raw.includes("@")) return false;
+  const roleWords = /(engineer|developer|manager|director|analyst|consultant|specialist|officer|lead|architect)/i;
+  return roleWords.test(raw.split("@", 1)[0] ?? "");
+}
+
 function IncomeSourceCard({
   source,
   index,
@@ -304,6 +320,7 @@ function IncomeSourceCard({
   onRemove: () => void;
 }) {
   const meta = SOURCE_TYPE_META[source.type];
+  const employerNameHasRolePattern = source.type === "employer" && looksLikeRoleAtCompany(source.name ?? "");
   return (
     <div className={cn("rounded-lg border bg-card shadow-sm", meta.accent, "border-l-4")}>
       <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5">
@@ -333,7 +350,19 @@ function IncomeSourceCard({
           <Input className="h-8 text-sm" placeholder={source.type === "employer" ? "e.g. Google" : source.type === "business" ? "e.g. ABC Consulting" : "e.g. Uber"}
             value={source.name ?? ""}
             onChange={(e) => onUpdate({ name: e.target.value })}
+            onBlur={(e) => {
+              if (source.type !== "employer") return;
+              const normalized = normalizeEmployerName(e.target.value);
+              if (normalized !== (source.name ?? "")) {
+                onUpdate({ name: normalized });
+              }
+            }}
           />
+          {employerNameHasRolePattern && (
+            <p className="text-[11px] text-amber-700">
+              Enter company name only. We auto-correct entries like "Software Engineer @ Company" to "Company".
+            </p>
+          )}
         </div>
         <CurrencyField
           label={source.type === "employer" ? "Annual Salary" : "Annual Income"}
@@ -369,8 +398,8 @@ function IncomeSourceCard({
         )}
         <div className="space-y-1">
           <Label className="text-xs">Years at this job</Label>
-          <Input className="h-8 text-sm" type="number" min={0} placeholder="0"
-            value={source.yearsAtJob ?? ""}
+          <Input className="h-8 text-sm" type="number" min={0} placeholder="e.g. 5"
+            value={source.yearsAtJob && source.yearsAtJob > 0 ? source.yearsAtJob : ""}
             onChange={(e) =>
               onUpdate({
                 yearsAtJob: e.target.value
@@ -3458,20 +3487,21 @@ export function FinancialBgLayout({
   const [dependentSeed, setDependentSeed] = useState<Array<{ name: string; age: number }>>([]);
   const [householdAnnualIncome, setHouseholdAnnualIncome] = useState<number>(0);
   const initializedFromProps = useRef(!!defaultValues);
+  const lastHydratedCaseId = useRef<string | null>(null);
 
   useEffect(() => {
-    console.log("[FinancialBgLayout] useEffect — defaultValues changed", {
-      role,
-      hasDefaultValues: !!defaultValues,
-      initializedFromProps: initializedFromProps.current,
-      retirementBalance: defaultValues?.retirement401k?.currentBalance,
-    });
+    const caseChanged = lastHydratedCaseId.current !== caseId;
+    if (caseChanged) {
+      lastHydratedCaseId.current = caseId;
+      initializedFromProps.current = !!defaultValues;
+      setData(defaultValues ?? makeEmptyData(role));
+      return;
+    }
     if (defaultValues && !initializedFromProps.current) {
       initializedFromProps.current = true;
-      console.log("[FinancialBgLayout] ✅ Syncing defaultValues → state");
       setData(defaultValues);
     }
-  }, [defaultValues, role]);
+  }, [caseId, defaultValues, role]);
 
   useEffect(() => {
     return () => {

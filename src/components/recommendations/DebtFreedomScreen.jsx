@@ -56,8 +56,14 @@ export default function DebtFreedomScreen({ caseId, caseData, onBack }) {
   const strategies = data?.strategies || [];
   const minimumOnly = data?.minimum_only_scenario || {};
   const summary = data?.summary || {};
+  const debts = useMemo(() => extractDebtsFromCase(caseData), [caseData]);
   const active = strategies.find((s) => s.name === activeName) || strategies.find((s) => s.name === "Hybrid Power Method") || strategies[0] || null;
   const firstName = caseData?.firstName || caseData?.first_name || "Client";
+  const summaryMonthlyInterest = Number(summary?.monthly_interest_cost ?? summary?.monthlyInterestCost ?? 0);
+  const resolvedMonthlyInterest =
+    Number.isFinite(summaryMonthlyInterest) && summaryMonthlyInterest > 0
+      ? summaryMonthlyInterest
+      : weightedMonthlyInterest(debts);
 
   const chartData = useMemo(() => {
     const mapByMonth = new Map();
@@ -87,7 +93,6 @@ export default function DebtFreedomScreen({ caseId, caseData, onBack }) {
       }));
   }, [strategies, minimumOnly]);
 
-  const debts = useMemo(() => extractDebtsFromCase(caseData), [caseData]);
   const liveResults = useMemo(() => {
     const av = computeSimplePayoff(debts, sliderExtra, "avalanche");
     const sn = computeSimplePayoff(debts, sliderExtra, "snowball");
@@ -238,7 +243,7 @@ export default function DebtFreedomScreen({ caseId, caseData, onBack }) {
             <Insight title="The Hidden Income" text={`When your last debt is paid off, ${fmtUSD(summary.total_min_payments)}/mo becomes permanent additional income with no lifestyle change.`} />
             <Insight
               title="The True Cost"
-              text={`At your weighted APR, this debt costs about ${fmtUSD(Number(summary?.monthly_interest_cost || weightedMonthlyInterest(debts)))}/mo in interest charges alone.`}
+              text={`At your weighted APR, this debt costs about ${fmtUSD(resolvedMonthlyInterest)}/mo in interest charges alone.`}
             />
           </div>
         </>
@@ -258,7 +263,7 @@ function extractDebtsFromCase(caseData) {
       name: d?.name || d?.description || d?.type || `Debt ${i + 1}`,
       balance: Number(d?.balance || d?.current_balance || 0),
       apr: Number(d?.apr || d?.interest_rate || 0),
-      min_payment: Number(d?.min_payment || d?.monthly_payment || 0),
+      min_payment: Number(d?.min_payment || d?.minPayment || d?.monthly_payment || d?.monthlyPayment || 0),
       debt_type: d?.debt_type || d?.type || "other",
     }))
     .filter((d) => d.balance > 0);
@@ -292,7 +297,7 @@ function computeSimplePayoff(debts, extraPayment, strategy) {
 
 function weightedMonthlyInterest(debts) {
   return debts.reduce((s, d) => {
-    const apr = Number(d.apr || 0);
+    const apr = Number(d.apr || d.interestRate || d.interest_rate || 0);
     const rate = apr > 1 ? apr / 100 : apr;
     return s + (Number(d.balance || 0) * rate) / 12;
   }, 0);

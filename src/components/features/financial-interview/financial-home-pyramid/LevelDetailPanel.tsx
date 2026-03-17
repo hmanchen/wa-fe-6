@@ -47,6 +47,9 @@ export function LevelDetailPanel({
           <p>Umbrella: {data.protection.umbrellaPolicy.exists ? "In place" : "To discuss"}</p>
           <p>LTC Planning: {data.protection.ltcPlanning.exists ? "In place" : "To discuss"}</p>
           <p>Coverage Gap: {usd(data.protection.lifeInsurance.coverageGap || 0)}</p>
+          <p className="text-xs text-muted-foreground">
+            Coverage gap is the remaining need after accounting for available assets and existing life insurance.
+          </p>
         </DataCard>
       </div>
     );
@@ -111,6 +114,9 @@ export function LevelDetailPanel({
           <p>Coverage Gap: {usd(data.deathBenefit.coverageGap)}</p>
           <p>Estate Need: {usd(data.deathBenefit.estateNeed)}</p>
           <p>Legacy Goal: {usd(data.deathBenefit.legacyGoal)}</p>
+          <p className="text-xs text-muted-foreground">
+            This is the net gap after current assets and active coverage are applied to total risk.
+          </p>
         </DataCard>
       </div>
     );

@@ -67,6 +67,7 @@ export interface Case {
   consentAcknowledgedAt?: string;
   consentGivenAt?: string;
   consentVersion?: string;
+  consentAdvisorId?: string;
   consentGivenBy?: string;
   riskScore?: number;
   riskProfile?: string;

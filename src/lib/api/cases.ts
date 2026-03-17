@@ -59,6 +59,7 @@ export interface UpdateCaseData {
   consentAcknowledgedAt?: string;
   consentGivenAt?: string;
   consentVersion?: string;
+  consentAdvisorId?: string;
   consentGivenBy?: string;
   riskScore?: number;
   riskProfile?: string;
@@ -75,6 +76,19 @@ export interface ArchiveCaseResult {
   caseNumber: string;
   archived: boolean;
   message: string;
+}
+
+export interface RecordConsentPayload {
+  version?: string;
+  acknowledgments: string[];
+}
+
+export interface RecordConsentResult {
+  status: string;
+  caseId: string;
+  consentAcknowledgedAt: string;
+  consentVersion: string;
+  consentAdvisorId: string;
 }
 
 /** Transform backend snake_case response to frontend camelCase */
@@ -124,6 +138,7 @@ function fromBackendCase(raw: any): Case {
     consentAcknowledgedAt: raw.consent_acknowledged_at ?? raw.consentAcknowledgedAt,
     consentGivenAt: raw.consent_given_at ?? raw.consentGivenAt,
     consentVersion: raw.consent_version ?? raw.consentVersion,
+    consentAdvisorId: raw.consent_advisor_id ?? raw.consentAdvisorId,
     consentGivenBy: raw.consent_given_by ?? raw.consentGivenBy,
     riskScore: raw.risk_score ?? raw.riskScore,
     riskProfile: raw.risk_profile ?? raw.riskProfile,
@@ -212,6 +227,7 @@ function toBackendUpdatePayload(formData: UpdateCaseData) {
   if (formData.consentAcknowledgedAt !== undefined) payload.consent_acknowledged_at = formData.consentAcknowledgedAt;
   if (formData.consentGivenAt !== undefined) payload.consent_given_at = formData.consentGivenAt;
   if (formData.consentVersion !== undefined) payload.consent_version = formData.consentVersion;
+  if (formData.consentAdvisorId !== undefined) payload.consent_advisor_id = formData.consentAdvisorId;
   if (formData.consentGivenBy !== undefined) payload.consent_given_by = formData.consentGivenBy;
   if (formData.riskScore !== undefined) payload.risk_score = formData.riskScore;
   if (formData.riskProfile !== undefined) payload.risk_profile = formData.riskProfile;
@@ -277,4 +293,24 @@ export async function lookupZip(zip: string): Promise<ZipLookupResult> {
     params: { zip },
   });
   return data;
+}
+
+export async function recordCaseConsent(
+  id: string,
+  payload: RecordConsentPayload
+): Promise<RecordConsentResult> {
+  const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
+    `/cases/${id}/consent`,
+    payload
+  );
+  const raw = (data?.data ?? data) as Record<string, unknown>;
+  return {
+    status: String(raw.status ?? "recorded"),
+    caseId: String(raw.case_id ?? raw.caseId ?? id),
+    consentAcknowledgedAt: String(
+      raw.consent_acknowledged_at ?? raw.consentAcknowledgedAt ?? ""
+    ),
+    consentVersion: String(raw.consent_version ?? raw.consentVersion ?? "1.0"),
+    consentAdvisorId: String(raw.consent_advisor_id ?? raw.consentAdvisorId ?? ""),
+  };
 }

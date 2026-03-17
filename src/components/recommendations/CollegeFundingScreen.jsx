@@ -58,7 +58,7 @@ export default function CollegeFundingScreen({ caseId, caseData, recommendation,
     return Math.round(Math.max(surplus * 0.25, numChildren * 300) / 50) * 50;
   };
   const [monthlyContrib, setMonthlyContrib] = useState(
-    recommendedEducationMonthly || getDefaultContribution() || 1500
+    recommendedEducationMonthly || 1500
   );
   const sliderMax = Math.max(
     Math.round((getDefaultContribution() * 1.5) / 100) * 100,

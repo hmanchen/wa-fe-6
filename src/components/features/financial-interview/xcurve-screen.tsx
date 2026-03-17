@@ -959,6 +959,10 @@ export function XCurveScreen({
             <p className="text-sm font-semibold text-[#1B365D]">PROTECT YOUR FAMILY</p>
             <p className="text-xs text-muted-foreground">(Life Insurance / Income Replacement)</p>
             <p className="mt-1 font-mono text-lg font-bold text-[#E74C3C]">Coverage Gap: {formatCurrency(authoritativeCoverageGap)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Total DIME risk is {formatCurrency(curve.grossRisk)}; after current assets and existing life insurance, the remaining gap is{" "}
+              {formatCurrency(authoritativeCoverageGap)}.
+            </p>
           </div>
           <div className="rounded-lg border border-[#8B0000]/35 bg-white p-3">
             <p className="text-base font-bold text-[#8B0000]">b. LIVE TOO LONG</p>

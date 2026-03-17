@@ -16,6 +16,19 @@ import { formatRelativeDate } from "@/lib/formatters/date";
 import type { CaseListItem, Case } from "@/types/case";
 import { ChevronRight } from "lucide-react";
 
+function isLikelyTestCase(caseItem: Case | CaseListItem): boolean {
+  const name = String(caseItem.clientName ?? "").trim().toLowerCase();
+  const caseNumber = String(caseItem.caseNumber ?? "").trim().toLowerCase();
+  if (!name && !caseNumber) return false;
+  return (
+    name.startsWith("test") ||
+    name.startsWith("user") ||
+    name.includes(" dummy") ||
+    name.includes(" sample") ||
+    caseNumber.includes("test")
+  );
+}
+
 function CaseRow({
   case: caseItem,
 }: {
@@ -49,7 +62,7 @@ export function RecentCases() {
   });
 
   const cases = (data as { data?: Case[] } | undefined)?.data ?? data ?? [];
-  const caseList = Array.isArray(cases) ? cases : [];
+  const caseList = (Array.isArray(cases) ? cases : []).filter((caseItem) => !isLikelyTestCase(caseItem));
 
   return (
     <Card>

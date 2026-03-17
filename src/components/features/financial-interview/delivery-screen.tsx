@@ -34,8 +34,10 @@ export function DeliveryScreen({ caseId, clientNames }: DeliveryScreenProps) {
     setIsGenerating(true);
     setError(null);
     try {
-      const { data } = await apiClient.post<any>("/pdf/generate", { case_id: caseId }, { responseType: "blob" });
-      const blob = data instanceof Blob ? data : new Blob([JSON.stringify(data)], { type: "application/pdf" });
+      const { data } = await apiClient.get<Blob>(`/reports/download/${caseId}`, {
+        responseType: "blob",
+      });
+      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -44,6 +46,7 @@ export function DeliveryScreen({ caseId, clientNames }: DeliveryScreenProps) {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
+      await apiClient.put(`/cases/${caseId}/`, { status: "review" });
       setIsGenerated(true);
     } catch (err: any) {
       setError(err.message || "PDF generation failed. Please ensure all prior sections are complete.");

@@ -31,12 +31,18 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
     if (main) main.scrollTop = 0;
   }, []);
 
-  const blendedMonthly = recommendation?.monthly_cost || 1200;
-  const iulMonthly =
+  const blendedMonthly = Number(recommendation?.monthly_cost || 1200);
+  const recIulMonthly = Number(
     recommendation?.iul_base_premium_only ||
     recommendation?.iulBasePremiumOnly ||
-    blendedMonthly * 0.35 ||
-    500;
+    0
+  );
+  const recTermMonthly = Number(
+    recommendation?.term_monthly_cost ||
+    recommendation?.termMonthlyCost ||
+    0
+  );
+  const iulMonthly = recIulMonthly > 0 ? recIulMonthly : 900;
   const firstName =
     caseData?.clientPersonalInfo?.firstName ||
     caseData?.firstName ||
@@ -190,14 +196,24 @@ export default function IULIllustrationScreen({ caseId, caseData, recommendation
           </div>
           <div style={{ fontSize: 12, color: "#4A5568" }}>
             Term Life ({fmt(data.premium_breakdown.term_face)} coverage):
-            <strong style={{ color: "#1B2B4B" }}> {fmt(data.premium_breakdown.term_monthly)}/mo</strong>
+            <strong style={{ color: "#1B2B4B" }}>
+              {" "}
+              {fmt(recTermMonthly > 0 ? recTermMonthly : data.premium_breakdown.term_monthly)}/mo
+            </strong>
           </div>
           <div style={{ fontSize: 12, color: "#4A5568" }}>
             IUL Base ({fmt(data.premium_breakdown.iul_face)} face + wealth building):
-            <strong style={{ color: "#4A7C6F" }}> {fmt(data.premium_breakdown.iul_monthly)}/mo</strong>
+            <strong style={{ color: "#4A7C6F" }}>
+              {" "}
+              {fmt(recIulMonthly > 0 ? recIulMonthly : data.premium_breakdown.iul_monthly)}/mo
+            </strong>
           </div>
           <div style={{ fontSize: 12, color: "#718096", fontStyle: "italic" }}>
             This illustration shows only the IUL layer accumulation.
+          </div>
+          <div style={{ fontSize: 11, color: "#718096", fontStyle: "italic" }}>
+            * Premium amounts in this illustration are for educational purposes. Final premiums are determined at underwriting.
+            {" "}See your recommendation card for planning purposes ({fmt(blendedMonthly)}/mo total coverage).
           </div>
         </div>
       )}

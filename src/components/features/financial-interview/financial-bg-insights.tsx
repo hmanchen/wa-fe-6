@@ -152,24 +152,31 @@ export function FinancialBgInsights({
     expensesAndSurplus: false,
   });
   const [hiddenMoneyDerivationExpanded, setHiddenMoneyDerivationExpanded] = useState(false);
-  const hasRun = useRef(false);
+  const hasRun = useRef<string | null>(null);
+  const activeRunToken = useRef(0);
 
   const healthScore = freshHealthScore ?? healthScoreProp ?? null;
   useEffect(() => {
     if (fullAnalysisData) {
+      const payloadCaseId =
+        String(fullAnalysisData?.caseId ?? fullAnalysisData?.case_id ?? "");
+      if (payloadCaseId && payloadCaseId !== caseId) {
+        return;
+      }
       setFullAnalysis(fullAnalysisData);
     }
-  }, [fullAnalysisData]);
+  }, [caseId, fullAnalysisData]);
   const toggleCashFlowSection = (section: "netTakeHome" | "expensesAndSurplus") =>
     setExpandedCashFlowSections((prev) => ({ ...prev, [section]: !prev[section] }));
   const toggleHiddenMoneyDerivation = () =>
     setHiddenMoneyDerivationExpanded((prev) => !prev);
 
-  const fetchHealthScore = async () => {
+  const fetchHealthScore = async (runToken: number) => {
     try {
       const { data } = await apiClient.get<any>(
         `/cases/${caseId}/financial-health-score/`
       );
+      if (activeRunToken.current !== runToken) return;
       const rawExtracted = data?.data ?? data;
       const transformed = deepConvertKeys(rawExtracted, toCamelCase) as FinancialHealthScore;
       setFreshHealthScore(transformed);
@@ -178,7 +185,7 @@ export function FinancialBgInsights({
     }
   };
 
-  const runFullAnalysis = async () => {
+  const runFullAnalysis = async (runToken: number) => {
     setAnalysisLoading(true);
     setAnalysisError(null);
 
@@ -190,25 +197,34 @@ export function FinancialBgInsights({
         "/compute/financial/full-analysis",
         inputPayload
       );
+      if (activeRunToken.current !== runToken) return;
       const rawExtracted = data?.data ?? data;
       const transformed = deepConvertKeys(rawExtracted, toCamelCase);
       setFullAnalysis(transformed);
     } catch (err: any) {
+      if (activeRunToken.current !== runToken) return;
       const msg = err.message || "Full analysis failed";
       setAnalysisError(msg);
     } finally {
-      setAnalysisLoading(false);
+      if (activeRunToken.current === runToken) {
+        setAnalysisLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    if (caseId && !hasRun.current) {
-      hasRun.current = true;
+    if (caseId && hasRun.current !== caseId) {
+      hasRun.current = caseId;
+      activeRunToken.current += 1;
+      const runToken = activeRunToken.current;
+      setFullAnalysis(null);
+      setFreshHealthScore(null);
+      setAnalysisError(null);
       // Always pull a fresh health score once on mount so factor rule updates
       // (for example asset-backed debt trajectory relief) are reflected immediately.
-      fetchHealthScore();
+      fetchHealthScore(runToken);
       if (!disableAutoRefresh) {
-        runFullAnalysis();
+        runFullAnalysis(runToken);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
