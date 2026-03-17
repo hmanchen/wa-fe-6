@@ -33,6 +33,7 @@ type XCurveInputs = {
   risk: {
     totalDebt: number;
     debtBreakdown: Array<{ label: string; amount: number }>;
+    debtDataCaptured: boolean;
     annualIncome: number;
     replacementYears: number;
     incomeReplacementRationale: string;
@@ -223,7 +224,7 @@ function deriveXCurveInputs(
       : fallbackChildren;
 
   const debtEntries = (debt["debts"] as unknown[] | undefined) ?? [];
-  const debtBreakdown = debtEntries.map((d) => {
+  const debtBreakdownFromDebts = debtEntries.map((d) => {
     const x = (d as Dict | null) ?? {};
     return {
       label: String(x["label"] ?? "Debt"),
@@ -264,6 +265,29 @@ function deriveXCurveInputs(
   const xcurveMortgage = n(xcurveByKey.get("mortgage_payoff"));
   const xcurveEducation = n(xcurveByKey.get("education_fund"));
   const xcurveFinalExpenses = n(xcurveByKey.get("final_expenses"));
+  const xcurveDebtDetail =
+    (((xcurve["dimeDebtDetail"] as Dict | undefined) ??
+      (xcurve["dime_debt_detail"] as Dict | undefined)) as Dict | undefined) ?? {};
+  const debtBreakdownFromXCurve = [
+    {
+      label: "Primary mortgage",
+      amount: n(xcurveDebtDetail["primaryMortgage"] ?? xcurveDebtDetail["primary_mortgage"]),
+    },
+    {
+      label: "Rental mortgages",
+      amount: n(xcurveDebtDetail["rentalMortgages"] ?? xcurveDebtDetail["rental_mortgages"]),
+    },
+    {
+      label: "Consumer debts",
+      amount: n(xcurveDebtDetail["consumerDebts"] ?? xcurveDebtDetail["consumer_debts"]),
+    },
+  ].filter((row) => row.amount > 0);
+  const debtBreakdown =
+    debtBreakdownFromXCurve.length > 0 ? debtBreakdownFromXCurve : debtBreakdownFromDebts;
+  const debtDataCaptured =
+    Boolean(xcurve["debtDataCaptured"] ?? xcurve["debt_data_captured"]) ||
+    debtBreakdownFromDebts.length > 0 ||
+    debtBreakdownFromXCurve.length > 0;
   const xcurveIncomeYears = n(
     xcurve["income_replacement_years"] ?? xcurve["incomeReplacementYears"]
   );
@@ -307,6 +331,7 @@ function deriveXCurveInputs(
     risk: {
       totalDebt: xcurveDebtPayoff || n(debt["totalConsumerDebt"] ?? debt["total_consumer_debt"]),
       debtBreakdown,
+      debtDataCaptured,
       annualIncome,
       replacementYears,
       incomeReplacementRationale: derivedIncomeRationale,
@@ -574,6 +599,7 @@ function DimeRow({
   onChange,
   subtitle,
   breakdown,
+  zeroMessage,
 }: {
   letter: string;
   title: string;
@@ -582,6 +608,7 @@ function DimeRow({
   onChange: (next: number) => void;
   subtitle?: string;
   breakdown?: Array<{ label: string; amount: number }>;
+  zeroMessage?: string;
 }) {
   const [editing, setEditing] = useState(false);
   return (
@@ -625,7 +652,7 @@ function DimeRow({
       </div>
       {amount === 0 && (
         <div className="mt-2 rounded border border-dashed px-2 py-1.5 text-xs text-muted-foreground">
-          No data captured. Click the pencil icon to add this value.
+          {zeroMessage || "No data captured. Click the pencil icon to add this value."}
         </div>
       )}
       {breakdown && breakdown.length > 0 && (
@@ -1017,6 +1044,11 @@ export function XCurveScreen({
               amount={editable.debt}
               onChange={(next) => setEditable((prev) => ({ ...prev, debt: next }))}
               breakdown={inputs.risk.debtBreakdown}
+              zeroMessage={
+                inputs.risk.debtDataCaptured
+                  ? "Debt-free"
+                  : "No data captured. Click the pencil icon to add this value."
+              }
             />
             <div className="rounded-lg border bg-background p-3">
               <div className="flex items-center justify-between gap-2">
