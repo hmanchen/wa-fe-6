@@ -257,7 +257,10 @@ export function mapPyramidData(params: {
       {}) as Dict;
   const debt = (fa["debtService"] as Dict | undefined) ?? {};
   const cf = (fa["cashFlow"] as Dict | undefined) ?? {};
-  const goalCov = (fa["goalCoverageAdequacy"] as Dict | undefined) ?? {};
+  const goalCov =
+    ((fa["goalCoverageAdequacy"] as Dict | undefined) ??
+      (fa["goal_coverage_adequacy"] as Dict | undefined) ??
+      {}) as Dict;
   const goalEdu =
     ((fa["goalEducationFunding"] as Dict | undefined) ??
       (hsAny["educationFundingAnalysis"] as Dict | undefined) ??
@@ -286,13 +289,15 @@ export function mapPyramidData(params: {
     n(hsAny["existing_coverage"]) ||
     0;
   const xcurve = (fa["xcurve"] as Dict | undefined) ?? {};
+  const fromGoalCoverageGap = n(goalCov["coverageGap"] ?? goalCov["coverage_gap"]);
+  const fromHealthScoreCoverageGap = n(hsAny["coverageGap"] ?? hsAny["coverage_gap"]);
+  const fromXCurveCoverageGap = n(xcurve["coverageGap"] ?? xcurve["coverage_gap"]);
   const coverageGap =
-    n(goalCov["coverageGap"]) ||
-    n(goalCov["coverage_gap"]) ||
-    n(hsAny["coverageGap"]) ||
-    n(hsAny["coverage_gap"]) ||
-    n(xcurve["coverageGap"]) ||
-    n(xcurve["coverage_gap"]);
+    fromGoalCoverageGap > 0
+      ? fromGoalCoverageGap
+      : fromHealthScoreCoverageGap > 0
+        ? fromHealthScoreCoverageGap
+        : fromXCurveCoverageGap;
   const recommendedCoverage =
     n(goalCov["recommendedCoverage"]) ||
     n(goalCov["recommended_coverage"]) ||
