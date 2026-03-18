@@ -203,7 +203,7 @@ function deriveXCurveInputs(
   const primaryAge = calculateAgeFromDob(String(pi["dateOfBirth"] ?? "")) ?? 40;
   const retirementAge = n(hsGoalSummary["retirementTargetAge"]) || 65;
   const incomeSources = (cashFlow["incomeSources"] as unknown[] | undefined) ?? [];
-  const annualIncome = incomeSources.reduce<number>((sum, src) => {
+  let annualIncome = incomeSources.reduce<number>((sum, src) => {
     const s = (src as Dict | null) ?? {};
     return sum + n(s["annual"]);
   }, 0);
@@ -329,6 +329,11 @@ function deriveXCurveInputs(
   const xcurveIncomeYears = n(
     xcurve["income_replacement_years"] ?? xcurve["incomeReplacementYears"]
   );
+  if (xcurveIncomeReplacement > 0 && xcurveIncomeYears > 0) {
+    // Prefer the authoritative income basis from xcurve computation output
+    // so DIME I display matches backend DIME engine exactly.
+    annualIncome = Math.round(xcurveIncomeReplacement / xcurveIncomeYears);
+  }
   const xcurveIncomeRationale = String(
     xcurve["income_replacement_rationale"] ?? xcurve["incomeReplacementRationale"] ?? ""
   ).trim();
