@@ -153,6 +153,12 @@ function n(v: unknown): number {
   return Number.isFinite(x) ? x : 0;
 }
 
+function numOrUndefined(v: unknown): number | undefined {
+  if (v === null || v === undefined) return undefined;
+  const x = Number(v);
+  return Number.isFinite(x) ? x : undefined;
+}
+
 function toCount(v: unknown, fallback = 0): number {
   if (Array.isArray(v)) return v.length;
   const parsed = Number(v);
@@ -289,15 +295,24 @@ export function mapPyramidData(params: {
     n(hsAny["existing_coverage"]) ||
     0;
   const xcurve = (fa["xcurve"] as Dict | undefined) ?? {};
-  const fromGoalCoverageGap = n(goalCov["coverageGap"] ?? goalCov["coverage_gap"]);
-  const fromHealthScoreCoverageGap = n(hsAny["coverageGap"] ?? hsAny["coverage_gap"]);
-  const fromXCurveCoverageGap = n(xcurve["coverageGap"] ?? xcurve["coverage_gap"]);
+  const fromGoalCoverageGap =
+    numOrUndefined(goalCov["coverageGap"]) ??
+    numOrUndefined(goalCov["coverage_gap"]);
+  const fromRootCoverageGap =
+    numOrUndefined(fa["coverageGap"]) ??
+    numOrUndefined(fa["coverage_gap"]);
+  const fromHealthScoreCoverageGap =
+    numOrUndefined(hsAny["coverageGap"]) ??
+    numOrUndefined(hsAny["coverage_gap"]);
+  const fromXCurveCoverageGap =
+    numOrUndefined(xcurve["coverageGap"]) ??
+    numOrUndefined(xcurve["coverage_gap"]);
   const coverageGap =
-    fromGoalCoverageGap > 0
-      ? fromGoalCoverageGap
-      : fromHealthScoreCoverageGap > 0
-        ? fromHealthScoreCoverageGap
-        : fromXCurveCoverageGap;
+    fromGoalCoverageGap ??
+    fromRootCoverageGap ??
+    fromHealthScoreCoverageGap ??
+    fromXCurveCoverageGap ??
+    0;
   const recommendedCoverage =
     n(goalCov["recommendedCoverage"]) ||
     n(goalCov["recommended_coverage"]) ||

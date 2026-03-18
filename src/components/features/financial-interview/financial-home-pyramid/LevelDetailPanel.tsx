@@ -50,11 +50,13 @@ export function LevelDetailPanel({
             Coverage Gap:{" "}
             {data.protection.lifeInsurance.coverageGap > 0
               ? usd(data.protection.lifeInsurance.coverageGap)
-              : "Fully covered"}
+              : "Fully covered ✅"}
           </p>
-          <p className="text-xs text-muted-foreground">
-            Coverage gap is the remaining need after accounting for available assets and existing life insurance.
-          </p>
+          {data.protection.lifeInsurance.coverageGap > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Coverage gap is the remaining need after accounting for available assets and existing life insurance.
+            </p>
+          )}
         </DataCard>
       </div>
     );
