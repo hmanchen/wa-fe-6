@@ -45,6 +45,7 @@ type XCurveInputs = {
     educationChildren: Child[];
     finalExpenses: number;
     estateCosts: number;
+    estateCostsDerivation: string;
     debtPayoffMonths: number;
   };
   accumulation: {
@@ -273,6 +274,8 @@ function deriveXCurveInputs(
   const xcurveMortgage = n(xcurveByKey.get("mortgage_payoff"));
   const xcurveEducation = n(xcurveByKey.get("education_fund"));
   const xcurveFinalExpenses = n(xcurveByKey.get("final_expenses"));
+  const xcurveEstateProbate =
+    n(xcurveByKey.get("estate_probate")) || n(xcurveByKey.get("estate_probate_cost"));
   const xcurveDebtDetail =
     (((xcurve["dimeDebtDetail"] as Dict | undefined) ??
       (xcurve["dime_debt_detail"] as Dict | undefined)) as Dict | undefined) ?? {};
@@ -384,7 +387,17 @@ function deriveXCurveInputs(
       educationDerivation,
       educationChildren,
       finalExpenses: xcurveFinalExpenses || 25_000,
-      estateCosts: xcurveByKey.size > 0 ? 0 : n(goalEstate["baseEstateNeed"] ?? goalEstate["base_estate_need"]),
+      estateCosts:
+        xcurveByKey.size > 0
+          ? xcurveEstateProbate
+          : n(goalEstate["baseEstateNeed"] ?? goalEstate["base_estate_need"]),
+      estateCostsDerivation:
+        (xcurveFormulaByKey.get("estate_probate") ||
+          xcurveFormulaByKey.get("estate_probate_cost") ||
+          "").trim() ||
+        (xcurveEstateProbate > 0
+          ? "Estimated probate cost for estate settlement when no trust is in place."
+          : "Trust in place - probate avoided"),
       debtPayoffMonths:
         n(((debt["avalancheStrategy"] as Dict | undefined) ?? {})["payoffMonths"]) || 36,
     },
@@ -597,6 +610,19 @@ function formatAmountCompact(amount: number): string {
   const v = Math.round(Math.max(0, amount));
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000) return `$${Math.round(v / 1_000)}K`;
+  return `$${v}`;
+}
+
+function formatIncomeLabel(annualIncome: number): string {
+  const v = Math.max(0, Math.round(annualIncome));
+  if (v >= 1_000_000) {
+    const rounded = Math.round(v / 50_000) * 50_000;
+    const millions = rounded / 1_000_000;
+    return `$${millions.toFixed(2).replace(/\.?0+$/, "")}M`;
+  }
+  if (v >= 1_000) {
+    return `$${Math.round(v / 1_000)}K`;
+  }
   return `$${v}`;
 }
 
@@ -983,7 +1009,7 @@ export function XCurveScreen({
             <text x={svgWidth * 0.25} y={lowerTextStartY} fill="#1B365D" fontSize="16" fontWeight="700" textDecoration="underline" textAnchor="middle">Active Income</text>
             <text x={svgWidth * 0.25} y={lowerTextStartY + 20} fill="#1B365D" fontSize="13" textAnchor="middle">(Man At Work)</text>
             <text x={svgWidth * 0.25} y={lowerTextStartY + 42} fill="#1B365D" fontSize="12" textAnchor="middle">
-              {inputs.client.primaryName} earns {formatAmount(inputs.risk.annualIncome)}/yr
+              {inputs.client.primaryName} earns {formatIncomeLabel(inputs.risk.annualIncome)}/yr
             </text>
 
             <text x={svgWidth * 0.75} y={lowerTextStartY} fill="#8B0000" fontSize="16" fontWeight="700" textDecoration="underline" textAnchor="middle">Passive Income</text>
@@ -1163,6 +1189,9 @@ export function XCurveScreen({
               <div className="flex items-center justify-between text-sm">
                 <span>Estate / Probate Costs</span>
                 <span className="font-mono">{formatCurrency(inputs.risk.estateCosts)}</span>
+              </div>
+              <div className="mt-1 text-[10px] italic text-muted-foreground">
+                * {inputs.risk.estateCostsDerivation}
               </div>
             </div>
           </div>
