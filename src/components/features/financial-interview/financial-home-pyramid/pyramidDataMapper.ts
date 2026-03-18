@@ -42,6 +42,8 @@ interface Level1Data {
       coverageAmount: number;
       coverageGap: number;
       recommended: number;
+      coverageRatioPct: number;
+      insuranceAdequate: boolean;
     };
     disabilityInsurance: { exists: boolean };
     criticalIllness: { exists: boolean };
@@ -187,10 +189,27 @@ function levelStatus(healthy: number, total: number): Status {
   return "not_started";
 }
 
+function usd(amount: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(
+    Number.isFinite(amount) ? amount : 0
+  );
+}
+
 export function getLevelSummary(level: number, data: PyramidMappedData): string {
   if (level === 1) {
     if (data.level1.foundationStatus === "healthy") {
       return "Defensive planning is on track with emergency reserves and baseline protection in place.";
+    }
+    if (data.level1.protection.lifeInsurance.exists && !data.level1.protection.lifeInsurance.insuranceAdequate) {
+      return `Life insurance is in place but covers only ${data.level1.protection.lifeInsurance.coverageRatioPct.toFixed(1)}% of calculated need. A ${usd(
+        data.level1.protection.lifeInsurance.coverageGap
+      )} gap remains.`;
+    }
+    if (!data.level1.protection.lifeInsurance.exists) {
+      return "Defensive planning needs attention: no life insurance protection is currently in place.";
+    }
+    if (data.level2.emergencyFund.currentMonths < 1) {
+      return "Defensive planning needs attention: emergency reserves are below the minimum one-month threshold.";
     }
     return "Defensive planning needs attention: build emergency reserves and confirm life protection.";
   }
@@ -331,6 +350,8 @@ export function mapPyramidData(params: {
         coverageAmount,
         coverageGap,
         recommended: recommendedCoverage,
+        coverageRatioPct: 0,
+        insuranceAdequate: false,
       },
       disabilityInsurance: { exists: factorMet(healthScore, "disability_insurance") },
       criticalIllness: { exists: false },
@@ -477,9 +498,28 @@ export function mapPyramidData(params: {
     status: "not_started",
   };
 
-  const level1OnTrack =
-    level2.emergencyFund.currentMonths >= 3 &&
-    level1.protection.lifeInsurance.coverageAmount > 0;
+  const grossRisk =
+    n(goalCov["dimeTotal"]) ||
+    n(goalCov["dime_total"]) ||
+    n(xcurve["grossRisk"]) ||
+    n(xcurve["gross_risk"]) ||
+    (level1.protection.lifeInsurance.recommended > 0
+      ? level1.protection.lifeInsurance.recommended
+      : Math.max(
+          0,
+          level1.protection.lifeInsurance.coverageAmount + level1.protection.lifeInsurance.coverageGap
+        ));
+  const coverageRatio = grossRisk > 0
+    ? level1.protection.lifeInsurance.coverageAmount / grossRisk
+    : (level1.protection.lifeInsurance.coverageAmount > 0 ? 1 : 0);
+  const insuranceAdequate = grossRisk > 0
+    ? (coverageRatio >= 0.5 || level1.protection.lifeInsurance.coverageGap <= 0)
+    : level1.protection.lifeInsurance.coverageAmount > 0;
+  const efAdequate = level2.emergencyFund.currentMonths >= 1;
+  level1.protection.lifeInsurance.coverageRatioPct = Math.max(0, coverageRatio * 100);
+  level1.protection.lifeInsurance.insuranceAdequate = insuranceAdequate;
+
+  const level1OnTrack = efAdequate && insuranceAdequate;
   level1.foundationHealthyCount = level1OnTrack ? 1 : 0;
   level1.foundationStatus = level1OnTrack ? "healthy" : "attention";
   level2.status = levelStatus(
