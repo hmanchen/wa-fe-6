@@ -46,7 +46,12 @@ export function LevelDetailPanel({
           <p>Disability: {data.protection.disabilityInsurance.exists ? "In place" : "Needs attention"}</p>
           <p>Umbrella: {data.protection.umbrellaPolicy.exists ? "In place" : "To discuss"}</p>
           <p>LTC Planning: {data.protection.ltcPlanning.exists ? "In place" : "To discuss"}</p>
-          <p>Coverage Gap: {usd(data.protection.lifeInsurance.coverageGap || 0)}</p>
+          <p>
+            Coverage Gap:{" "}
+            {data.protection.lifeInsurance.coverageGap > 0
+              ? usd(data.protection.lifeInsurance.coverageGap)
+              : "None identified"}
+          </p>
           <p className="text-xs text-muted-foreground">
             Coverage gap is the remaining need after accounting for available assets and existing life insurance.
           </p>

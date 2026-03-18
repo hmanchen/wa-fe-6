@@ -251,6 +251,10 @@ export function mapPyramidData(params: {
   const hsAny = (healthScore as unknown as Dict | null) ?? {};
   const fa = (fullAnalysis as Dict | null) ?? {};
   const nw = (fa["netWorth"] as Dict | undefined) ?? {};
+  const hsNetWorth =
+    ((hsAny["netWorth"] as Dict | undefined) ??
+      (hsAny["net_worth"] as Dict | undefined) ??
+      {}) as Dict;
   const debt = (fa["debtService"] as Dict | undefined) ?? {};
   const cf = (fa["cashFlow"] as Dict | undefined) ?? {};
   const goalCov = (fa["goalCoverageAdequacy"] as Dict | undefined) ?? {};
@@ -276,14 +280,24 @@ export function mapPyramidData(params: {
   const dependentsNum =
     toCount(clientPersonalInfo["dependents"], children.length) || children.length;
   const coverageAmount =
-    n(goalCov["existingCoverage"]) || n(goalCov["existing_coverage"]) || 0;
+    n(goalCov["existingCoverage"]) ||
+    n(goalCov["existing_coverage"]) ||
+    n(hsAny["existingCoverage"]) ||
+    n(hsAny["existing_coverage"]) ||
+    0;
   const xcurve = (fa["xcurve"] as Dict | undefined) ?? {};
   const coverageGap =
     n(goalCov["coverageGap"]) ||
     n(goalCov["coverage_gap"]) ||
+    n(hsAny["coverageGap"]) ||
+    n(hsAny["coverage_gap"]) ||
     n(xcurve["coverageGap"]) ||
     n(xcurve["coverage_gap"]);
-  const recommendedCoverage = n(goalCov["recommendedCoverage"]);
+  const recommendedCoverage =
+    n(goalCov["recommendedCoverage"]) ||
+    n(goalCov["recommended_coverage"]) ||
+    n(hsAny["recommendedCoverage"]) ||
+    n(hsAny["recommended_coverage"]);
   const emergencyTargetMonths = 6;
 
   const emergencyMonths = (() => {
@@ -304,6 +318,14 @@ export function mapPyramidData(params: {
   })();
 
   const nwCategories = (nw["categories"] as Dict | undefined) ?? {};
+  const nwBreakdown =
+    ((nw["breakdown"] as Dict | undefined) ??
+      (nw["assetBreakdown"] as Dict | undefined) ??
+      {}) as Dict;
+  const hsBreakdown =
+    ((hsNetWorth["breakdown"] as Dict | undefined) ??
+      (hsNetWorth["asset_breakdown"] as Dict | undefined) ??
+      {}) as Dict;
   const retCat = (nwCategories["retirement"] as Dict | undefined) ?? {};
   const invCat = (nwCategories["investments"] as Dict | undefined) ?? {};
   const savCat = (nwCategories["savings"] as Dict | undefined) ?? {};
@@ -317,12 +339,35 @@ export function mapPyramidData(params: {
 
   const level1: Level1Data = {
     assets: {
-      retirement: n(retCat["total"]),
-      investments: n(invCat["total"]),
-      savings: n(savCat["total"]),
-      realEstate: n(reCat["total"]),
-      other: n(otherCat["total"]),
-      totalAssets: n(nw["totalAssets"]),
+      retirement:
+        n(retCat["total"]) ||
+        n(nwBreakdown["retirement"]) ||
+        n(hsBreakdown["retirement"]),
+      investments:
+        n(invCat["total"]) ||
+        n(nwBreakdown["investments"]) ||
+        n(hsBreakdown["investments"]),
+      savings:
+        n(savCat["total"]) ||
+        n(nwBreakdown["savings"]) ||
+        n(hsBreakdown["savings"]) ||
+        n(hsAny["savings"]),
+      realEstate:
+        n(reCat["total"]) ||
+        n(nwBreakdown["realEstate"]) ||
+        n(nwBreakdown["real_estate"]) ||
+        n(hsBreakdown["realEstate"]) ||
+        n(hsBreakdown["real_estate"]),
+      other:
+        n(otherCat["total"]) ||
+        n(nwBreakdown["other"]) ||
+        n(hsBreakdown["other"]),
+      totalAssets:
+        n(nw["totalAssets"]) ||
+        n(nw["total_assets"]) ||
+        n(hsNetWorth["totalAssets"]) ||
+        n(hsNetWorth["total_assets"]) ||
+        n(hsNetWorth["total"]),
     },
     liabilities: {
       debts: ((debt["debts"] as unknown[] | undefined) ?? []),
