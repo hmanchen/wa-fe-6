@@ -32,6 +32,7 @@ type XCurveInputs = {
   };
   risk: {
     totalDebt: number;
+    consumerDebtTotal: number;
     debtBreakdown: Array<{ label: string; amount: number }>;
     debtDataCaptured: boolean;
     annualIncome: number;
@@ -227,6 +228,8 @@ function deriveXCurveInputs(
         })
       : fallbackChildren;
   const eligibleEducationChildren = educationChildren.filter((child) => child.age < 18);
+  const hasAdultOnlyDependents =
+    educationChildren.length > 0 && eligibleEducationChildren.length === 0;
 
   const debtEntries = (debt["debts"] as unknown[] | undefined) ?? [];
   const debtBreakdownFromDebts = debtEntries.map((d) => {
@@ -365,6 +368,7 @@ function deriveXCurveInputs(
     },
     risk: {
       totalDebt: xcurveDebtPayoff || n(debt["totalConsumerDebt"] ?? debt["total_consumer_debt"]),
+      consumerDebtTotal: n(debt["totalConsumerDebt"] ?? debt["total_consumer_debt"]),
       debtBreakdown,
       debtDataCaptured,
       annualIncome,
@@ -406,8 +410,17 @@ function deriveXCurveInputs(
       desiredAnnualIncome:
         n(hsGoalSummary["desiredMonthlyIncome"] ?? hsGoalSummary["desired_monthly_income"]) * 12 || 0,
       yearsInRetirement: Math.max(20, 90 - retirementAge),
-      monthlyExpenses:
-        n(cashFlow["totalMonthlyExpenses"] ?? cashFlow["total_monthly_expenses"]) || 0,
+      monthlyExpenses: (() => {
+        const rawMonthlyExpenses =
+          n(cashFlow["totalMonthlyExpenses"] ?? cashFlow["total_monthly_expenses"]) || 0;
+        // Remove inferred childcare/education expense when all dependents are adults.
+        // This keeps retirement projections aligned with "Childcare/Edu N/A".
+        if (hasAdultOnlyDependents && rawMonthlyExpenses > 0) {
+          const inferredChildcareEdu = Math.round(rawMonthlyExpenses * 0.12);
+          return Math.max(0, rawMonthlyExpenses - inferredChildcareEdu);
+        }
+        return rawMonthlyExpenses;
+      })(),
       projected401kWithdrawal: n(
         goalRet["projectedAnnual401kWithdrawal"] ?? goalRet["projected_annual_401k_withdrawal"]
       ),
@@ -554,14 +567,22 @@ function calculateMilestones(inputs: XCurveInputs, currentMortgageBalance: numbe
     .filter((x) => x.parentAgeAtCollege > currentAge && x.parentAgeAtCollege < 90);
 
   const mortgagePayoff = currentMortgageBalance > 0 ? currentAge + 30 : null;
-  const debtFreeAge = currentAge + Math.ceil(inputs.risk.debtPayoffMonths / 12);
+  const consumerDebtTotal = Math.max(0, inputs.risk.consumerDebtTotal);
+  const nonConsumerDebt = Math.max(0, inputs.risk.totalDebt - consumerDebtTotal);
+  const hasMortgageDebt = currentMortgageBalance > 0 || nonConsumerDebt > 0;
+  const debtFreeAge =
+    consumerDebtTotal > 0 ? currentAge + Math.ceil(inputs.risk.debtPayoffMonths / 12) : null;
+  const debtMilestoneLabel =
+    debtFreeAge !== null && debtFreeAge <= 90
+      ? `Consumer debt-free by ${debtFreeAge}`
+      : (!hasMortgageDebt ? "Debt-free" : null);
   return {
     currentAge,
     retirementAge: inputs.retirement.targetAge,
     childrenCollege,
     mortgagePayoff:
       mortgagePayoff !== null && mortgagePayoff <= 90 ? mortgagePayoff : null,
-    debtFreeAge: debtFreeAge <= 90 ? debtFreeAge : null,
+    debtMilestoneLabel,
   };
 }
 
@@ -948,9 +969,11 @@ export function XCurveScreen({
                   : "Mortgage data not captured",
               "Education funded",
               "Healthcare covered",
-              `Debt-free by ${milestones.debtFreeAge ?? "-"}`,
+              milestones.debtMilestoneLabel,
               `${formatAmount(inputs.retirement.desiredMonthlyIncome || retirementIncomeTotal / 12)}/mo passive`,
-            ].map((item, idx) => (
+            ]
+              .filter((item): item is string => Boolean(item))
+              .map((item, idx) => (
               <g key={`target-${idx}`}>
                 <text x={freedomCheckX} y={rightDataStartY + idx * lineHeight} fill="#8B0000" fontSize="13" fontWeight="700">✓</text>
                 <text x={freedomTextX} y={rightDataStartY + idx * lineHeight} fill="#8B0000" fontSize="13">{truncateText(item, 24)}</text>
