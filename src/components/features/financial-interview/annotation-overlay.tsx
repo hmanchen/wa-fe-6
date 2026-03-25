@@ -4,6 +4,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Pen,
+  Hand,
   Highlighter,
   Eraser,
   Undo2,
@@ -224,34 +225,19 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
   const [activeColor, setActiveColor] = useState("#ef4444");
   const [showColors, setShowColors] = useState(false);
   const [pencilOnlyMode, setPencilOnlyMode] = useState<boolean>(() => isLikelyIPad());
+  const [panMode, setPanMode] = useState(false);
   const [, setRenderTick] = useState(0);
 
   // Store current tool/color in refs so window-level handlers see latest values
   const activeToolRef = useRef(activeTool);
   const activeColorRef = useRef(activeColor);
   const pencilOnlyModeRef = useRef(pencilOnlyMode);
+  const panModeRef = useRef(panMode);
   const activePointerIdRef = useRef<number | null>(null);
   useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
   useEffect(() => { activeColorRef.current = activeColor; }, [activeColor]);
   useEffect(() => { pencilOnlyModeRef.current = pencilOnlyMode; }, [pencilOnlyMode]);
-
-  useEffect(() => {
-    if (!isActive) return;
-    // Prevent viewport pan/zoom during strokes on iPad.
-    const html = document.documentElement;
-    const body = document.body;
-    const prevHtmlTouchAction = html.style.touchAction;
-    const prevBodyTouchAction = body.style.touchAction;
-    const prevBodyOverscrollBehavior = body.style.overscrollBehavior;
-    html.style.touchAction = "none";
-    body.style.touchAction = "none";
-    body.style.overscrollBehavior = "contain";
-    return () => {
-      html.style.touchAction = prevHtmlTouchAction;
-      body.style.touchAction = prevBodyTouchAction;
-      body.style.overscrollBehavior = prevBodyOverscrollBehavior;
-    };
-  }, [isActive]);
+  useEffect(() => { panModeRef.current = panMode; }, [panMode]);
 
   // ── Canvas sizing ────────────────────────────────────────
   const sizeCanvas = useCallback(() => {
@@ -293,6 +279,15 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
     rafRef.current = requestAnimationFrame(redrawAll);
   }, [redrawAll]);
 
+  useEffect(() => {
+    if (!panMode) return;
+    // Switching to pan mode should immediately stop an in-progress stroke.
+    isDrawing.current = false;
+    activePointerIdRef.current = null;
+    activeStroke.current = null;
+    requestRedraw();
+  }, [panMode, requestRedraw]);
+
   // ── Window-level pointer handlers ────────────────────────
   // These are attached to the window so the canvas can be pointer-events:none
   // and the user can still interact with form elements underneath.
@@ -325,6 +320,7 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      if (panModeRef.current) return;
       if (activePointerIdRef.current !== null) return;
       // If the target is an interactive element, let it handle the event
       if (isInteractiveElement(e.target)) return;
@@ -483,6 +479,15 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
           title="Pencil-only mode (recommended on iPad)"
         >
           Pencil only
+        </Button>
+        <Button
+          size="icon"
+          variant={panMode ? "default" : "ghost"}
+          className="size-8 rounded-full"
+          onClick={() => setPanMode((v) => !v)}
+          title={panMode ? "Draw mode" : "Pan mode (scroll with Pencil/finger)"}
+        >
+          <Hand className="size-4" />
         </Button>
 
         <Button
