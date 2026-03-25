@@ -34,6 +34,7 @@ const HIGHLIGHTER_ALPHA = 0.35;
 const HIGHLIGHTER_WIDTH_STYLUS_MIN = 14;
 const HIGHLIGHTER_WIDTH_STYLUS_MAX = 30;
 const ERASER_RADIUS = 14;
+const MAX_POINT_JUMP_PX = 180;
 
 /** Interactive elements the user can click through to */
 const INTERACTIVE_SELECTOR =
@@ -319,6 +320,16 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
       };
     };
 
+    const isReasonableNextPoint = (next: Point) => {
+      const stroke = activeStroke.current;
+      if (!stroke || stroke.points.length === 0) return true;
+      const prev = stroke.points[stroke.points.length - 1];
+      const dx = next.x - prev.x;
+      const dy = next.y - prev.y;
+      const distance = Math.hypot(dx, dy);
+      return Number.isFinite(distance) && distance <= MAX_POINT_JUMP_PX;
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (panModeRef.current) return;
       if (activePointerIdRef.current !== null) return;
@@ -347,7 +358,10 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
       e.preventDefault();
       const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const ev of events) {
-        activeStroke.current.points.push(getPagePoint(ev));
+        const next = getPagePoint(ev);
+        if (isReasonableNextPoint(next)) {
+          activeStroke.current.points.push(next);
+        }
       }
       requestRedraw();
     };
@@ -356,7 +370,24 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
       if (e.pointerId !== activePointerIdRef.current) return;
       if (!isDrawing.current || !activeStroke.current) return;
       e.preventDefault();
-      activeStroke.current.points.push(getPagePoint(e));
+      const finalPoint = getPagePoint(e);
+      if (isReasonableNextPoint(finalPoint)) {
+        activeStroke.current.points.push(finalPoint);
+      }
+      isDrawing.current = false;
+      activePointerIdRef.current = null;
+      completedStrokes.current.push(activeStroke.current);
+      activeStroke.current = null;
+      requestRedraw();
+      setRenderTick((t) => t + 1);
+    };
+
+    const onPointerCancel = (e: PointerEvent) => {
+      if (e.pointerId !== activePointerIdRef.current) return;
+      if (!isDrawing.current || !activeStroke.current) return;
+      e.preventDefault();
+      // On iPad, cancel events can report unstable coordinates (e.g. 0,0).
+      // Finalize without appending a new point to avoid long diagonal artifacts.
       isDrawing.current = false;
       activePointerIdRef.current = null;
       completedStrokes.current.push(activeStroke.current);
@@ -369,13 +400,13 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
     window.addEventListener("pointerdown", onPointerDown, opts);
     window.addEventListener("pointermove", onPointerMove, opts);
     window.addEventListener("pointerup", onPointerUp, opts);
-    window.addEventListener("pointercancel", onPointerUp, opts);
+    window.addEventListener("pointercancel", onPointerCancel, opts);
 
     return () => {
       window.removeEventListener("pointerdown", onPointerDown, opts);
       window.removeEventListener("pointermove", onPointerMove, opts);
       window.removeEventListener("pointerup", onPointerUp, opts);
-      window.removeEventListener("pointercancel", onPointerUp, opts);
+      window.removeEventListener("pointercancel", onPointerCancel, opts);
     };
   }, [isActive, requestRedraw]);
 
