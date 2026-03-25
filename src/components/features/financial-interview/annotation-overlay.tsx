@@ -66,6 +66,22 @@ function isLikelyIPad(): boolean {
   return iPadUA || iPadOSDesktopUA;
 }
 
+function isStylusLikePointerEvent(e: PointerEvent): boolean {
+  if (e.pointerType === "pen") return true;
+  if (e.pointerType !== "touch") return false;
+  if (!isLikelyIPad()) return false;
+
+  // iPad Chrome may classify Apple Pencil input as touch.
+  // Use conservative heuristics to keep finger input blocked in pencil-only mode.
+  const width = Number.isFinite(e.width) ? e.width : 0;
+  const height = Number.isFinite(e.height) ? e.height : 0;
+  const contactSize = Math.max(width, height);
+  if (contactSize > 0 && contactSize <= 12) return true;
+  if (Math.abs(e.tiltX) > 0 || Math.abs(e.tiltY) > 0) return true;
+  if (Number.isFinite(e.pressure) && e.pressure > 0 && e.pressure < 0.45) return true;
+  return false;
+}
+
 // ── Drawing helpers ──────────────────────────────────────────
 
 function drawPath(
@@ -207,7 +223,7 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
   const [activeTool, setActiveTool] = useState<Tool>("pen");
   const [activeColor, setActiveColor] = useState("#ef4444");
   const [showColors, setShowColors] = useState(false);
-  const [pencilOnlyMode, setPencilOnlyMode] = useState(false);
+  const [pencilOnlyMode, setPencilOnlyMode] = useState<boolean>(() => isLikelyIPad());
   const [, setRenderTick] = useState(0);
 
   // Store current tool/color in refs so window-level handlers see latest values
@@ -221,8 +237,20 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
 
   useEffect(() => {
     if (!isActive) return;
-    // iPad default: ignore finger input while annotating; use Apple Pencil only.
-    if (isLikelyIPad()) setPencilOnlyMode(true);
+    // Prevent viewport pan/zoom during strokes on iPad.
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlTouchAction = html.style.touchAction;
+    const prevBodyTouchAction = body.style.touchAction;
+    const prevBodyOverscrollBehavior = body.style.overscrollBehavior;
+    html.style.touchAction = "none";
+    body.style.touchAction = "none";
+    body.style.overscrollBehavior = "contain";
+    return () => {
+      html.style.touchAction = prevHtmlTouchAction;
+      body.style.touchAction = prevBodyTouchAction;
+      body.style.overscrollBehavior = prevBodyOverscrollBehavior;
+    };
   }, [isActive]);
 
   // ── Canvas sizing ────────────────────────────────────────
@@ -273,7 +301,7 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
     if (!isActive) return;
 
     const getPagePoint = (e: PointerEvent): Point => {
-      const isPen = e.pointerType === "pen";
+      const isStylus = isStylusLikePointerEvent(e);
       const tool = activeToolRef.current;
       const pressure = Number.isFinite(e.pressure) ? e.pressure : 0;
       let stylusWidth = Math.max(PEN_WIDTH_STYLUS_MIN, pressure * PEN_WIDTH_STYLUS_MAX);
@@ -288,7 +316,7 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
       return {
         x: e.clientX + window.scrollX,
         y: e.clientY + window.scrollY,
-        w: isPen
+        w: isStylus
           ? stylusWidth
           : tool === "highlighter"
             ? HIGHLIGHTER_WIDTH
@@ -300,7 +328,7 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
       if (activePointerIdRef.current !== null) return;
       // If the target is an interactive element, let it handle the event
       if (isInteractiveElement(e.target)) return;
-      if (pencilOnlyModeRef.current && e.pointerType !== "pen") return;
+      if (pencilOnlyModeRef.current && !isStylusLikePointerEvent(e)) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
 
       e.preventDefault();

@@ -311,7 +311,7 @@ export function FinancialHomeScreen({ caseId, onContinue }: FinancialHomeScreenP
             </div>
 
             <div className="rounded-xl border border-l-4 border-l-teal-500 bg-teal-50/40 p-5 shadow-sm">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-teal-700">ADVISOR NOTES — Not shown to client</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-teal-700">ADVISOR NOTES</p>
               <div className="grid gap-4 lg:grid-cols-2">
                 <ul className="space-y-1">
                   {(sections?.advisorInsights?.observations ?? []).map((h: unknown, i: number) => (
