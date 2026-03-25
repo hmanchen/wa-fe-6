@@ -36,10 +36,6 @@ const HIGHLIGHTER_WIDTH_STYLUS_MAX = 30;
 const ERASER_RADIUS = 14;
 const MAX_POINT_JUMP_PX = 180;
 
-/** Interactive elements the user can click through to */
-const INTERACTIVE_SELECTOR =
-  'input, textarea, select, button, a, label, [role="button"], [role="checkbox"], [role="radio"], [role="switch"], [role="combobox"], [role="listbox"], [role="option"], [role="tab"], [contenteditable="true"]';
-
 type Tool = "pen" | "highlighter" | "eraser";
 
 interface Point {
@@ -74,13 +70,14 @@ function isStylusLikePointerEvent(e: PointerEvent): boolean {
   if (!isLikelyIPad()) return false;
 
   // iPad Chrome may classify Apple Pencil input as touch.
-  // Use conservative heuristics to keep finger input blocked in pencil-only mode.
+  // Use broader heuristics so Pencil events are not dropped.
   const width = Number.isFinite(e.width) ? e.width : 0;
   const height = Number.isFinite(e.height) ? e.height : 0;
   const contactSize = Math.max(width, height);
-  if (contactSize > 0 && contactSize <= 12) return true;
+  if (contactSize > 0 && contactSize <= 28) return true;
   if (Math.abs(e.tiltX) > 0 || Math.abs(e.tiltY) > 0) return true;
-  if (Number.isFinite(e.pressure) && e.pressure > 0 && e.pressure < 0.45) return true;
+  if (Number.isFinite(e.pressure) && e.pressure > 0) return true;
+  if (e.buttons === 1 && e.isPrimary) return true;
   return false;
 }
 
@@ -199,15 +196,13 @@ function renderStroke(
 
 function isInteractiveElement(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
-  // Check the element itself and walk up to find interactive parents
-  const interactive = el.closest(INTERACTIVE_SELECTOR);
-  if (interactive) return true;
-  // Also check if inside a popover, dialog, dropdown, or the toolbar
+  // Never draw on top of annotation toolbar/popovers.
   const overlay = el.closest("[data-annotation-toolbar]");
   if (overlay) return true;
-  // Shadcn select/popover portals
   const portal = el.closest("[data-radix-popper-content-wrapper], [role='dialog'], [role='listbox'], [data-radix-menu-content]");
   if (portal) return true;
+  // In draw mode, we intentionally allow drawing over underlying page controls.
+  // In pan mode, canvas pointer-events are disabled so controls remain interactive.
   return false;
 }
 
@@ -484,8 +479,13 @@ export function AnnotationOverlay({ isActive, onClose }: AnnotationOverlayProps)
       {/* Canvas: pointer-events OFF — doesn't block UI interaction */}
       <canvas
         ref={canvasRef}
-        className="pointer-events-none fixed inset-0 z-50 h-full w-full"
-        style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
+        className="fixed inset-0 z-50 h-full w-full"
+        style={{
+          pointerEvents: panMode ? "none" : "auto",
+          touchAction: panMode ? "auto" : "none",
+          WebkitUserSelect: "none",
+          userSelect: "none",
+        }}
       />
 
       {/* Floating toolbar */}
