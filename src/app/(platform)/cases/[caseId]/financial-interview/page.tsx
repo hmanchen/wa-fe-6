@@ -12,7 +12,6 @@ import {
   Users,
   PanelTopClose,
   PanelTopOpen,
-  ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -218,6 +217,7 @@ export default function FinancialInterviewPage() {
 
   // ── Annotation overlay ───────────────────────────────────
   const [annotationActive, setAnnotationActive] = useState(false);
+  const [annotationLauncherOpen, setAnnotationLauncherOpen] = useState(false);
 
   // ── Collapse header + section nav to reclaim vertical space ──
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
@@ -414,6 +414,47 @@ export default function FinancialInterviewPage() {
         onClose={() => setAnnotationActive(false)}
       />
 
+      {/* Floating annotation launcher */}
+      <div className="fixed right-3 top-1/2 z-[70] -translate-y-1/2">
+        {annotationLauncherOpen ? (
+          <div className="flex items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-lg backdrop-blur-sm">
+            <Button
+              size="sm"
+              variant={annotationActive ? "default" : "outline"}
+              className="gap-1.5"
+              onClick={() => setAnnotationActive((v) => !v)}
+            >
+              <Pencil className="size-3.5" />
+              {annotationActive ? "Stop Annotation" : "Draw / Annotate"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-xs"
+              onClick={() => setAnnotationLauncherOpen(false)}
+              title="Hide annotation launcher"
+            >
+              Hide
+            </Button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAnnotationLauncherOpen(true)}
+            className="relative flex items-center gap-1 rounded-full border bg-background/95 px-3 py-2 text-xs font-medium shadow-lg backdrop-blur-sm transition hover:bg-muted"
+            title="Show annotation tools"
+          >
+            <Pencil className="size-3.5" />
+            Annotate
+            <span
+              className={`absolute -right-0.5 -top-0.5 size-2 rounded-full ${
+                annotationActive ? "bg-emerald-500" : "bg-amber-500"
+              }`}
+            />
+          </button>
+        )}
+      </div>
+
       <div className="flex flex-col gap-1 px-4 pt-0 pb-1 sm:px-6">
         {/* ── Collapsible header + section nav ── */}
         {!headerCollapsed && (
@@ -433,15 +474,6 @@ export default function FinancialInterviewPage() {
                   {clientNames} — Financial Interview
                 </h1>
               </div>
-              <Button
-                variant={annotationActive ? "default" : "outline"}
-                size="sm"
-                className="gap-1.5"
-                onClick={() => setAnnotationActive(!annotationActive)}
-              >
-                <Pencil className="size-3.5" />
-                {annotationActive ? "Drawing..." : "Draw / Annotate"}
-              </Button>
             </div>
             <div className="rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-800">
               Confidentiality Notice: Client information in this interview is private and intended only for advisory planning purposes.
@@ -707,10 +739,10 @@ export default function FinancialInterviewPage() {
               setCollegeRecommendation((rec as Record<string, unknown>) || { monthly_cost: 800 });
               setCurrentSection("college-funding");
             }}
-            onOpenDebtFreedom={(_rec: unknown) => {
+            onOpenDebtFreedom={() => {
               setCurrentSection("debt-freedom");
             }}
-            onOpenRetirementDiversification={(_rec: unknown) => {
+            onOpenRetirementDiversification={() => {
               setCurrentSection("retirement-diversification");
             }}
             initialData={recommendationsCache}
