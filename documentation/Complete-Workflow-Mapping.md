@@ -1,4 +1,4 @@
-# WealthArchitect — Workflow Mapped to Your Manual FNA Process
+# Arclis — Workflow Mapped to Your Manual FNA Process
 ## The App Digitizes YOUR Paper Process. AI Makes It Better.
 
 ---
@@ -387,7 +387,7 @@ PHASE 2: Build Basic Protection (Month 12-24)
 PHASE 3: Full Financial Plan (Month 24+)
 ```
 
-This is what makes WealthArchitect different — it knows when NOT to sell. That builds trust. The client comes back in 12 months ready to buy because the advisor didn't push products on a drowning person.
+This is what makes Arclis different — it knows when NOT to sell. That builds trust. The client comes back in 12 months ready to buy because the advisor didn't push products on a drowning person.
 
 #### 🤖 WHERE AI ADDS VALUE (Tab 7):
 

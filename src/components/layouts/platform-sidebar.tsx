@@ -9,6 +9,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 
+import { APP_SHORT_NAME } from "@/lib/app-branding"
 import { useAuth } from "@/lib/auth-provider"
 import {
   Sidebar,
@@ -45,7 +46,7 @@ export function PlatformSidebar() {
         >
           <TrendingUp className="size-5 shrink-0 text-primary" aria-hidden />
           <span className="truncate text-base group-data-[collapsible=icon]:hidden">
-            WealthArchitect
+            {APP_SHORT_NAME}
           </span>
         </Link>
       </SidebarHeader>

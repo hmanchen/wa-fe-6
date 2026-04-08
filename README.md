@@ -1,4 +1,4 @@
-# WealthArchitect - Frontend Application
+# Arclis - Frontend Application
 
 An insurance-centric financial intelligence platform designed to help financial advisors conduct structured discovery, compute defensible needs analysis, validate insurance funding designs, and generate client-ready recommendation packages.
 
@@ -46,7 +46,8 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NEXT_PUBLIC_API_URL` | Python FastAPI backend URL | `http://localhost:8000/api/v1` |
-| `NEXT_PUBLIC_APP_NAME` | Application display name | `WealthArchitect` |
+| `NEXT_PUBLIC_APP_NAME` | Short display name (sidebar, auth header, title segment) | `Arclis` |
+| `NEXT_PUBLIC_APP_FULL_NAME` | Full product name (PWA manifest `name`, `applicationName` meta) | `Arclis Financial Intelligence Platform` |
 | `NEXT_PUBLIC_APP_URL` | Frontend application URL | `http://localhost:3000` |
 
 ## Project Structure

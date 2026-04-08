@@ -1,5 +1,5 @@
 /**
- * API response and error types for WealthArchitect platform
+ * API response and error types for Arclis platform
  */
 
 /**

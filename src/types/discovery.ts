@@ -1,5 +1,5 @@
 /**
- * Discovery workflow types for WealthArchitect platform
+ * Discovery workflow types for Arclis platform
  */
 
 import type {

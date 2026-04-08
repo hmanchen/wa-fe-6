@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileDown, Loader2, CheckCircle2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { APP_SHORT_NAME } from "@/lib/app-branding";
 import { apiClient } from "@/lib/api/client";
 
 interface DeliveryScreenProps {
@@ -41,7 +42,7 @@ export function DeliveryScreen({ caseId, clientNames }: DeliveryScreenProps) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `WealthArchitect-${clientNames.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`;
+      a.download = `${APP_SHORT_NAME.replace(/\s+/g, "-")}-${clientNames.replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

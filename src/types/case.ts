@@ -1,5 +1,5 @@
 /**
- * Case management types for WealthArchitect platform
+ * Case management types for Arclis platform
  */
 
 export const CaseStatus = {

@@ -1,8 +1,34 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+/** Avoid hanging the dev server when Supabase is unreachable or misconfigured. */
+const AUTH_FETCH_TIMEOUT_MS = 8_000
+
+function isSupabaseConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+  if (!url || !key) return false
+  if (url.includes('your-project.supabase.co')) return false
+  if (key === 'your-supabase-anon-key') return false
+  return true
+}
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
+
+  const publicRoutes = ['/login', '/register', '/auth/callback']
+  const isPublicRoute = publicRoutes.some(route =>
+    request.nextUrl.pathname.startsWith(route)
+  )
+
+  if (!isSupabaseConfigured()) {
+    if (!isPublicRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,20 +49,21 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Public routes that don't require auth
-  const publicRoutes = ['/login', '/register', '/auth/callback']
-  const isPublicRoute = publicRoutes.some(route =>
-    request.nextUrl.pathname.startsWith(route)
-  )
-
-  // Refresh session and get user
-  // Wrapped in try-catch: if Supabase is unreachable, treat as unauthenticated
   let user = null
   try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
+    const { data, error } = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new Error('supabase_auth_timeout')),
+          AUTH_FETCH_TIMEOUT_MS
+        )
+      }),
+    ])
+    if (!error) {
+      user = data.user
+    }
   } catch {
-    // Supabase fetch failed — if on a protected route, redirect to login
     if (!isPublicRoute) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
@@ -50,7 +77,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If logged in and trying to access login/register, redirect to dashboard
   if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'

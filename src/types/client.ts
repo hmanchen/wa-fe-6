@@ -1,5 +1,5 @@
 /**
- * Client types for WealthArchitect platform
+ * Client types for Arclis platform
  */
 
 export type MaritalStatus =

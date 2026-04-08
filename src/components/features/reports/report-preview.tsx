@@ -3,6 +3,7 @@
 import type { ReportConfig, ReportSection } from "@/types/report";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { APP_SHORT_NAME } from "@/lib/app-branding";
 import { cn } from "@/lib/utils";
 
 const SECTION_CONFIG: Record<
@@ -74,7 +75,7 @@ export function ReportPreview({ caseId, config, className }: ReportPreviewProps)
         <div className="relative z-0 flex flex-1 flex-col gap-6 overflow-y-auto">
           <header className="border-b pb-6">
             <h1 className="text-2xl font-bold text-foreground">
-              WealthArchitect
+              {APP_SHORT_NAME}
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
               Client Recommendation Report — Case #{caseId}

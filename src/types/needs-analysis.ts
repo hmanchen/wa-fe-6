@@ -1,5 +1,5 @@
 /**
- * Needs analysis types for WealthArchitect platform
+ * Needs analysis types for Arclis platform
  */
 
 import type { DiscoveryData } from './discovery';

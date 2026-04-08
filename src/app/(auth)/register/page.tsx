@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Loader2 } from "lucide-react"
 
+import { APP_SHORT_NAME } from "@/lib/app-branding"
 import { signUpWithEmail } from "@/lib/auth-actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -118,7 +119,8 @@ export default function RegisterPage() {
       <CardHeader className="space-y-1">
         <CardTitle className="text-xl sm:text-2xl">Create an account</CardTitle>
         <CardDescription>
-          Enter your details to get started with WealthArchitect
+          Enter your details to get started with{" "}
+          {APP_SHORT_NAME}
         </CardDescription>
       </CardHeader>
       <Form {...form}>

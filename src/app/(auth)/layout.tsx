@@ -1,5 +1,7 @@
 import { TrendingUp } from "lucide-react";
 
+import { APP_SHORT_NAME } from "@/lib/app-branding";
+
 export default function AuthLayout({
   children,
 }: {
@@ -10,7 +12,7 @@ export default function AuthLayout({
       <div className="mb-6 flex items-center gap-2 sm:mb-8">
         <TrendingUp className="size-8 text-primary" aria-hidden />
         <span className="text-xl font-bold tracking-tight sm:text-2xl">
-          WealthArchitect
+          {APP_SHORT_NAME}
         </span>
       </div>
       <div className="w-full max-w-full sm:max-w-md">{children}</div>
