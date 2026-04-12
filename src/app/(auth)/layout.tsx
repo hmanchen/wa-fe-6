@@ -10,30 +10,37 @@ const montserrat = Montserrat({
   weight: ["500", "600"],
 });
 
-/** Brand mark: white arc + gold hollow triangle (Arclis identity). */
+/** Brand mark: white arc + gold hollow triangle (Arclis identity).
+ *  Triangle sits slightly right; arc is the upper-left quarter of a circle centered on the
+ *  triangle’s bottom-left vertex — 7→12 o’clock sweep, convex toward top-left, triangle nestled inside.
+ */
 function ArclisLogoMark() {
+  /* Equilateral triangle: base 42, apex up; bottom-left (52,58) shared with arc center */
+  const tri = "M 73 22 L 94 58 L 52 58 Z";
+  /* Circle center (52,58), r=38: arc from 180° (14,58) to 270° (52,20) — short clockwise quarter */
+  const arc = "M 14 58 A 38 38 0 0 1 52 20";
+
   return (
     <svg
-      viewBox="0 0 140 88"
+      viewBox="0 0 140 90"
       className="mx-auto block h-[4.5rem] w-auto sm:h-[5.25rem]"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      {/* Quarter arc — upper left */}
       <path
-        d="M 28 32 A 38 38 0 0 1 62 20"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      {/* Hollow triangle — gold stroke */}
-      <path
-        d="M 74 40 L 104 78 L 44 78 Z"
+        d={tri}
         fill="none"
         stroke="#C09433"
-        strokeWidth="2"
+        strokeWidth="1.75"
         strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <path
+        d={arc}
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth="1.75"
+        strokeLinecap="round"
       />
     </svg>
   );
