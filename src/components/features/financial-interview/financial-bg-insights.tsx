@@ -460,6 +460,7 @@ export function FinancialBgInsights({
         totalRentalEquity > 0 ||
         totalMonthlyNetRentalIncome !== 0)
   );
+  const shouldShowRentalPortfolio = realEstateRentals.length > 0;
 
   const cashFlow = fa?.cashFlow ?? hsAny?.cashFlow ?? hsAny?.cash_flow ?? null;
   const cashFlowGross = Number(cashFlow?.monthlyGrossIncome ?? cashFlow?.monthly_gross_income ?? 0);
@@ -1204,15 +1205,17 @@ export function FinancialBgInsights({
                     <div className="flex justify-between"><span>LTV</span><span className="font-semibold">{Number(realEstatePrimary?.loanToValue ?? realEstatePrimary?.loan_to_value ?? 0).toFixed(1)}%</span></div>
                   </div>
                 </div>
-                <div className="rounded-lg border bg-muted/20 p-3">
-                  <p className="mb-1 font-semibold">Rental Portfolio</p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between"><span>Net rental income</span><span className="font-semibold">{fmtDollars(totalMonthlyNetRentalIncome)}/mo</span></div>
-                    <div className="flex justify-between"><span>Rental property equity</span><span className="font-semibold">{fmtDollars(totalRentalEquity)}</span></div>
-                    <div className="flex justify-between"><span>Real estate concentration</span><span className="font-semibold">{realEstateConcentration.toFixed(1)}%</span></div>
-                    <div className="flex justify-between"><span>Properties analyzed</span><span className="font-semibold">{realEstateRentals.length}</span></div>
+                {shouldShowRentalPortfolio && (
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="mb-1 font-semibold">Rental Portfolio</p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between"><span>Net rental income</span><span className="font-semibold">{fmtDollars(totalMonthlyNetRentalIncome)}/mo</span></div>
+                      <div className="flex justify-between"><span>Rental property equity</span><span className="font-semibold">{fmtDollars(totalRentalEquity)}</span></div>
+                      <div className="flex justify-between"><span>Real estate concentration</span><span className="font-semibold">{realEstateConcentration.toFixed(1)}%</span></div>
+                      <div className="flex justify-between"><span>Properties analyzed</span><span className="font-semibold">{realEstateRentals.length}</span></div>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
               {realEstateRentals.length > 0 && (
                 <div className="mt-3 space-y-2">
