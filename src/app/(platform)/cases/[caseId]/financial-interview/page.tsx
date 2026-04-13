@@ -156,7 +156,7 @@ export default function FinancialInterviewPage() {
   const { data: xcurveData } = useXCurveData(
     caseId,
     retirementTargetAge,
-    currentSection === "financial-x-curve"
+    currentSection === "analysis-dashboard" || currentSection === "financial-x-curve"
   );
   const shouldLoadFullAnalysis =
     currentSection === "analysis-dashboard" ||
@@ -673,6 +673,7 @@ export default function FinancialInterviewPage() {
             <div className="p-4 pb-0">
               <FinancialFreedomEngine
                 fullAnalysis={fullAnalysisData}
+                xcurveData={xcurveData}
                 healthScore={healthScore}
                 caseData={caseData}
                 interviewData={interviewData}
