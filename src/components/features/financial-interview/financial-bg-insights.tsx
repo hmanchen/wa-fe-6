@@ -476,6 +476,10 @@ export function FinancialBgInsights({
   const cashFlowSurplus = Number(
     cashFlow?.monthlySurplusOrDeficit ?? cashFlow?.monthly_surplus_or_deficit ?? 0
   );
+  const monthlyHousingPiti = Number(
+    realEstatePrimary?.monthlyPayment ?? realEstatePrimary?.monthly_payment ?? 0
+  );
+  const otherFixedExpenses = Math.max(cashFlowFixedExpenses - monthlyHousingPiti, 0);
   const displayedUnallocatedSurplus = cashFlow
     ? Math.max(cashFlowSurplus, 0)
     : Math.max(unallocatedSurplus, 0);
@@ -1022,7 +1026,8 @@ export function FinancialBgInsights({
                     <div className="flex justify-between"><span>Health insurance</span><span>- {fmtExactDollars(cashFlowHealthInsurance)}/mo</span></div>
                     <div className="flex justify-between"><span>Other payroll deductions</span><span>- {fmtExactDollars(cashFlowOtherDeductions)}/mo</span></div>
                     <div className="flex justify-between border-t pt-1.5"><span>Net take-home</span><span>{fmtExactDollars(cashFlowNet)}/mo</span></div>
-                    <div className="flex justify-between"><span>Monthly lifestyle expenses</span><span>- {fmtExactDollars(cashFlowFixedExpenses)}/mo</span></div>
+                    <div className="flex justify-between"><span>Mortgage / housing (PITI)</span><span>- {fmtExactDollars(monthlyHousingPiti)}/mo</span></div>
+                    <div className="flex justify-between"><span>Other fixed expenses</span><span>- {fmtExactDollars(otherFixedExpenses)}/mo</span></div>
                     <div className="flex justify-between"><span>Monthly debt payments</span><span>- {fmtExactDollars(cashFlowDebtService)}/mo</span></div>
                     <div className="flex justify-between"><span>Discretionary spending</span><span>- {fmtExactDollars(cashFlowDiscretionary)}/mo</span></div>
                     <div className="flex justify-between"><span>Remittances</span><span>- {fmtExactDollars(cashFlowRemittances)}/mo</span></div>
@@ -1292,7 +1297,8 @@ export function FinancialBgInsights({
                 </button>
                 {expandedCashFlowSections.expensesAndSurplus && (
                   <div className="mt-2 space-y-1.5">
-                    <div className="flex justify-between"><span>Fixed Expenses</span><span>{fmtExactDollars(cashFlowFixedExpenses)}/mo</span></div>
+                    <div className="flex justify-between"><span>Mortgage / housing (PITI)</span><span>{fmtExactDollars(monthlyHousingPiti)}/mo</span></div>
+                    <div className="flex justify-between"><span>Other fixed expenses</span><span>{fmtExactDollars(otherFixedExpenses)}/mo</span></div>
                     <div className="flex justify-between"><span>Debt service</span><span>{fmtExactDollars(cashFlowDebtService)}/mo</span></div>
                     <div className="flex justify-between"><span>Discretionary spending</span><span>{fmtExactDollars(cashFlowDiscretionary)}/mo</span></div>
                     <div className="flex justify-between"><span>Remittances</span><span>{fmtExactDollars(cashFlowRemittances)}/mo</span></div>
