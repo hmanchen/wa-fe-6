@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Shield,
   ScrollText,
@@ -31,6 +31,76 @@ import {
 } from "@/components/ui/tooltip";
 
 type SubTab = "life-insurance" | "will-trust";
+
+function normalizeLifeInsuranceData(
+  value: PersonFinancialBackground["lifeInsurance"] | undefined
+): PersonFinancialBackground["lifeInsurance"] {
+  const life = value ?? {};
+  const policies = Array.isArray(life.policies) ? life.policies : [];
+  const policyCoverageTotal = policies.reduce(
+    (sum, policy) => sum + Number(policy?.coverageAmount ?? 0),
+    0
+  );
+  const groupCoverage = Number(life.groupLifeAmount ?? 0);
+  const termCoverage = Number(life.termLifeAmount ?? 0);
+  const permCoverage = Number(life.permLifeAmount ?? 0);
+  const hasGroupPolicy = policies.some((policy) => policy?.policyType === "group");
+  const hasTermPolicy = policies.some((policy) => policy?.policyType === "term");
+  const hasPermPolicy = policies.some((policy) =>
+    ["whole-life", "universal", "iul"].includes(String(policy?.policyType ?? ""))
+  );
+
+  return {
+    ...life,
+    policies,
+    hasGroupLife: Boolean(life.hasGroupLife || groupCoverage > 0 || hasGroupPolicy),
+    hasTermLife: Boolean(life.hasTermLife || termCoverage > 0 || hasTermPolicy),
+    hasPermLife: Boolean(life.hasPermLife || permCoverage > 0 || hasPermPolicy),
+    totalCoverageAmount: groupCoverage + termCoverage + permCoverage + policyCoverageTotal,
+  };
+}
+
+function normalizeProtectionEstateData(
+  role: "primary" | "spouse",
+  value?: PersonFinancialBackground
+): PersonFinancialBackground {
+  const base = value ?? {
+    role,
+    yearsInCountry: 0,
+    countryOfResidence: "US",
+    income: {},
+    monthlyExpenses: {},
+    retirement401k: { has401k: false },
+    employmentHistory: [],
+    hsa: { hasHSA: false },
+    ira: { hasIRA: false },
+    rothIRA: { hasRothIRA: false },
+    backdoorRothIRA: { hasBackdoorRoth: false },
+    pension: { hasPension: false },
+    plan403b457b: { hasPlan: false },
+    brokerage: { hasBrokerage: false },
+    cd: { hasCDs: false },
+    bonds: { hasBonds: false },
+    annuity: { hasAnnuity: false },
+    equityCompensation: { hasEquityComp: false },
+    education529: { has529: false },
+    realEstate: { hasRealEstate: false },
+    crypto: { hasCrypto: false },
+    cashOnHand: { hasCashOnHand: false },
+    socialSecurity: { hasEstimate: false },
+    systematicInvestments: { hasSystematicInvestments: false },
+    fundsAbroad: { sendsFundsAbroad: false },
+    debts: {},
+    lifeInsurance: {},
+    estate: {},
+  };
+
+  return {
+    ...base,
+    role,
+    lifeInsurance: normalizeLifeInsuranceData(base.lifeInsurance),
+  };
+}
 
 function YesNoField({
   label,
@@ -163,7 +233,19 @@ function LifeInsuranceTab({
         label="Group Life Insurance (Employer)"
         description="Life insurance provided through your employer"
         value={ins.hasGroupLife}
-        onChange={(v) => setIns({ hasGroupLife: v })}
+        onChange={(v) =>
+          setIns(
+            v
+              ? { hasGroupLife: true }
+              : {
+                  hasGroupLife: false,
+                  groupLifeBasedOnSalary: false,
+                  groupLifeSalaryMultiple: undefined,
+                  groupLifeAmount: undefined,
+                  policies: policies.filter((policy) => policy.policyType !== "group"),
+                }
+          )
+        }
       >
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
@@ -265,7 +347,20 @@ function LifeInsuranceTab({
         label="Individual Term Life Insurance"
         description="Personal term life policy"
         value={ins.hasTermLife}
-        onChange={(v) => setIns({ hasTermLife: v })}
+        onChange={(v) =>
+          setIns(
+            v
+              ? { hasTermLife: true }
+              : {
+                  hasTermLife: false,
+                  termLifeAmount: undefined,
+                  termLifePremium: undefined,
+                  termLengthYears: undefined,
+                  hasLivingBenefits: false,
+                  policies: policies.filter((policy) => policy.policyType !== "term"),
+                }
+          )
+        }
       >
         <div className="grid gap-3 sm:grid-cols-3">
           <CurrencyField label="Coverage amount" value={ins.termLifeAmount}
@@ -339,7 +434,25 @@ function LifeInsuranceTab({
         label="Permanent Life Insurance (Whole / Universal / IUL)"
         description="Cash-value life insurance policies"
         value={ins.hasPermLife}
-        onChange={(v) => setIns({ hasPermLife: v })}
+        onChange={(v) =>
+          setIns(
+            v
+              ? { hasPermLife: true }
+              : {
+                  hasPermLife: false,
+                  permLifeType: undefined,
+                  permLifeAmount: undefined,
+                  permLifePremium: undefined,
+                  permLifeCashValue: undefined,
+                  policies: policies.filter(
+                    (policy) =>
+                      !["whole-life", "universal", "iul"].includes(
+                        String(policy.policyType ?? "")
+                      )
+                  ),
+                }
+          )
+        }
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
@@ -623,7 +736,6 @@ function WillTrustTab({
 
 export interface ProtectionEstateScreenProps {
   clientNames: string;
-  caseId: string;
   defaultValues?: PersonFinancialBackground;
   role: "primary" | "spouse";
   onSubmit: (data: PersonFinancialBackground) => void | Promise<void>;
@@ -633,7 +745,6 @@ export interface ProtectionEstateScreenProps {
 
 export function ProtectionEstateScreen({
   clientNames,
-  caseId,
   defaultValues,
   role,
   onSubmit,
@@ -641,42 +752,17 @@ export function ProtectionEstateScreen({
   onContinue,
 }: ProtectionEstateScreenProps) {
   const [data, setData] = useState<PersonFinancialBackground>(
-    defaultValues ?? {
-      role,
-      yearsInCountry: 0,
-      countryOfResidence: "US",
-      income: {},
-      monthlyExpenses: {},
-      retirement401k: { has401k: false },
-      employmentHistory: [],
-      hsa: { hasHSA: false },
-      ira: { hasIRA: false },
-      rothIRA: { hasRothIRA: false },
-      backdoorRothIRA: { hasBackdoorRoth: false },
-      pension: { hasPension: false },
-      plan403b457b: { hasPlan: false },
-      brokerage: { hasBrokerage: false },
-      cd: { hasCDs: false },
-      bonds: { hasBonds: false },
-      annuity: { hasAnnuity: false },
-      equityCompensation: { hasEquityComp: false },
-      education529: { has529: false },
-      realEstate: { hasRealEstate: false },
-      crypto: { hasCrypto: false },
-      cashOnHand: { hasCashOnHand: false },
-      socialSecurity: { hasEstimate: false },
-      systematicInvestments: { hasSystematicInvestments: false },
-      fundsAbroad: { sendsFundsAbroad: false },
-      debts: {},
-      lifeInsurance: {},
-      estate: {},
-    }
+    normalizeProtectionEstateData(role, defaultValues)
   );
   const [activeTab, setActiveTab] = useState<SubTab>("life-insurance");
 
   const update = useCallback((patch: Partial<PersonFinancialBackground>) => {
     setData((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  useEffect(() => {
+    setData(normalizeProtectionEstateData(role, defaultValues));
+  }, [defaultValues, role]);
 
   const handleSave = async () => {
     await onSubmit(data);

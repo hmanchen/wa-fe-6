@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -306,17 +306,10 @@ export function GoalsDiscoveryScreen({
   const selectedSet = useMemo(() => new Set(selectedGoalIds), [selectedGoalIds]);
   const availableGoals = useMemo(() => GOAL_OPTIONS.filter((g) => !selectedSet.has(g.id)), [selectedSet]);
 
-  useEffect(() => {
-    if (defaultValues) {
-      setData(normalizeGoalsDiscovery(defaultValues));
-      setPendingPatch({});
-    }
-  }, [defaultValues]);
-
   const triggerSave = useCallback(async () => {
     if (Object.keys(pendingPatch).length === 0) return;
     try {
-      await onSave(pendingPatch);
+      await onSave(data);
       setPendingPatch({});
     } catch (err) {
       const message =
@@ -324,7 +317,7 @@ export function GoalsDiscoveryScreen({
       setError(message);
       throw err;
     }
-  }, [onSave, pendingPatch]);
+  }, [onSave, pendingPatch, data]);
 
   const updateData = useCallback((patch: Partial<GoalsDiscoveryData>) => {
     setData((prev) => ({ ...prev, ...patch }));
@@ -427,7 +420,6 @@ export function GoalsDiscoveryScreen({
 
       if (shouldApplyFallback) {
         await onSave({
-          ...pendingPatch,
           retirementVision: {
             ...data.retirementVision,
             desiredMonthlyIncome: fallbackRetirementIncomeGoal,
@@ -448,7 +440,6 @@ export function GoalsDiscoveryScreen({
     monthlyExpenses,
     onNext,
     onSave,
-    pendingPatch,
     triggerSave,
     validateBeforeNext,
   ]);
@@ -539,7 +530,7 @@ export function GoalsDiscoveryScreen({
 
             <div>
               <p className="mb-2 text-xs font-semibold text-muted-foreground">Available Goals</p>
-              <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid max-h-[28rem] gap-2 overflow-y-auto pr-1 md:grid-cols-2">
                 {availableGoals.map((goal) => (
                   <button
                     type="button"

@@ -156,7 +156,7 @@ export default function FinancialInterviewPage() {
   const { data: xcurveData } = useXCurveData(
     caseId,
     retirementTargetAge,
-    currentSection === "financial-x-curve"
+    currentSection === "analysis-dashboard" || currentSection === "financial-x-curve"
   );
   const shouldLoadFullAnalysis =
     currentSection === "analysis-dashboard" ||
@@ -633,7 +633,6 @@ export default function FinancialInterviewPage() {
             <TabsContent value="primary">
               <ProtectionEstateScreen
                 clientNames={clientNames}
-                caseId={caseId}
                 defaultValues={interviewData?.primaryBackground}
                 role="primary"
                 onSubmit={handlePrimarySave}
@@ -645,7 +644,6 @@ export default function FinancialInterviewPage() {
             <TabsContent value="spouse">
               <ProtectionEstateScreen
                 clientNames={clientNames}
-                caseId={caseId}
                 defaultValues={interviewData?.spouseBackground}
                 role="spouse"
                 onSubmit={handleSpouseSave}
@@ -673,6 +671,7 @@ export default function FinancialInterviewPage() {
             <div className="p-4 pb-0">
               <FinancialFreedomEngine
                 fullAnalysis={fullAnalysisData}
+                xcurveData={xcurveData}
                 healthScore={healthScore}
                 caseData={caseData}
                 interviewData={interviewData}
