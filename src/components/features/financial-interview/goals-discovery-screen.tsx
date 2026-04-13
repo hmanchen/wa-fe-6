@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -305,6 +305,14 @@ export function GoalsDiscoveryScreen({
   );
   const selectedSet = useMemo(() => new Set(selectedGoalIds), [selectedGoalIds]);
   const availableGoals = useMemo(() => GOAL_OPTIONS.filter((g) => !selectedSet.has(g.id)), [selectedSet]);
+
+  useEffect(() => {
+    if (defaultValues) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setData(normalizeGoalsDiscovery(defaultValues));
+      setPendingPatch({});
+    }
+  }, [defaultValues]);
 
   const triggerSave = useCallback(async () => {
     if (Object.keys(pendingPatch).length === 0) return;
