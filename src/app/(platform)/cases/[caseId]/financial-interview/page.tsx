@@ -38,7 +38,10 @@ import { FinancialBgInsights } from "@/components/features/financial-interview/f
 import FinancialFreedomEngine from "@/components/analysis/FinancialFreedomEngine";
 import { FinancialHomeScreen } from "@/components/features/financial-interview/financial-home-screen";
 import { FinancialHomePyramid } from "@/components/features/financial-interview/financial-home-pyramid/FinancialHomePyramid";
-import { XCurveScreen } from "@/components/features/financial-interview/xcurve-screen";
+import {
+  XCurveScreen,
+  computeXCurveCrossingAgeForDashboard,
+} from "@/components/features/financial-interview/xcurve-screen";
 import RecommendationsScreen from "@/components/recommendations/RecommendationsScreen";
 import IULIllustrationScreen from "@/components/recommendations/IULIllustrationScreen";
 import CollegeFundingScreen from "@/components/recommendations/CollegeFundingScreen";
@@ -173,6 +176,16 @@ export default function FinancialInterviewPage() {
     caseId,
     caseData?.clientPersonalInfo?.address?.province || "unknown",
     shouldLoadFullAnalysis
+  );
+  const dashboardCrossingAge = useMemo(
+    () =>
+      computeXCurveCrossingAgeForDashboard(
+        caseData,
+        healthScore,
+        fullAnalysisData,
+        xcurveData
+      ),
+    [caseData, healthScore, fullAnalysisData, xcurveData]
   );
 
   // ── Derived display name ────────────────────────────────
@@ -672,6 +685,7 @@ export default function FinancialInterviewPage() {
               <FinancialFreedomEngine
                 fullAnalysis={fullAnalysisData}
                 xcurveData={xcurveData}
+                crossingPointAge={dashboardCrossingAge}
                 healthScore={healthScore}
                 caseData={caseData}
                 interviewData={interviewData}

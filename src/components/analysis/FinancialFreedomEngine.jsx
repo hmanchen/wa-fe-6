@@ -12,7 +12,8 @@ export default function FinancialFreedomEngine(props) {
     props?.fullAnalysis?.xcurve ||
     {};
   const crossingPointAge = toNum(
-    xcurve.crossing_age ||
+    props?.crossingPointAge ||
+      xcurve.crossing_age ||
       xcurve.crossingAge ||
       xcurve.crossover_age ||
       xcurve.crossoverAge ||

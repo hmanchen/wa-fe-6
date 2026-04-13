@@ -39,6 +39,7 @@ type XCurveInputs = {
     replacementYears: number;
     incomeReplacementRationale: string;
     mortgageBalance: number;
+    mortgageMonthlyPiti: number;
     hasMortgage: boolean;
     educationNeed: number;
     educationDerivation: string;
@@ -67,6 +68,7 @@ type XCurveInputs = {
     desiredAnnualIncome: number;
     yearsInRetirement: number;
     monthlyExpenses: number;
+    monthlyExpensesInput: number;
     projected401kWithdrawal: number;
     projectedSocialSecurity: number;
     projectedPension: number;
@@ -245,14 +247,41 @@ function deriveXCurveInputs(
     (((pi["primary_background"] as Dict | undefined) ?? {})["real_estate"] as Dict | undefined) ??
     (((pi["primaryBackground"] as Dict | undefined) ?? {})["realEstate"] as Dict | undefined) ??
     {};
+  const spouseBackground =
+    ((pi["spouse_background"] as Dict | undefined) ??
+      (pi["spouseBackground"] as Dict | undefined) ??
+      {});
   const primaryResidenceDetail =
     (primaryResidence["primaryResidence"] as Dict | undefined) ??
     (primaryResidence["primary_residence"] as Dict | undefined) ??
     {};
+  const primaryBackground =
+    ((pi["primary_background"] as Dict | undefined) ??
+      (pi["primaryBackground"] as Dict | undefined) ??
+      {});
+
+  const sumMonthlyExpenses = (background: Dict): number => {
+    const section =
+      ((background["monthly_expenses"] as Dict | undefined) ??
+        (background["monthlyExpenses"] as Dict | undefined) ??
+        {});
+    return Object.values(section).reduce((sum, value) => {
+      const amount = Number(value ?? 0);
+      return Number.isFinite(amount) ? sum + amount : sum;
+    }, 0);
+  };
 
   const mortgageFromCase =
     n(primaryResidenceDetail["mortgageBalance"] ?? primaryResidenceDetail["mortgage_balance"]) ||
     n(pi["mortgageBalance"]);
+  const mortgageMonthlyPiti = n(
+    primaryResidenceDetail["monthlyPaymentPiti"] ??
+      primaryResidenceDetail["monthly_payment_piti"] ??
+      primaryResidence["monthlyPaymentPiti"] ??
+      primaryResidence["monthly_payment_piti"]
+  );
+  const monthlyExpensesInput =
+    sumMonthlyExpenses(primaryBackground) + sumMonthlyExpenses(spouseBackground);
 
   const retirementMonthly =
     n(cashFlow["monthlyRetirementContributions"] ?? cashFlow["monthly_retirement_contributions"]) || 0;
@@ -383,6 +412,7 @@ function deriveXCurveInputs(
       replacementYears,
       incomeReplacementRationale: derivedIncomeRationale,
       mortgageBalance: resolvedMortgage,
+      mortgageMonthlyPiti,
       hasMortgage: resolvedMortgage > 0,
       educationNeed: hasEducationFundFromXCurve
         ? n(xcurveEducation)
@@ -439,6 +469,14 @@ function deriveXCurveInputs(
         }
         return rawMonthlyExpenses;
       })(),
+      monthlyExpensesInput:
+        monthlyExpensesInput > 0
+          ? monthlyExpensesInput
+          : (() => {
+              const fallback =
+                n(cashFlow["totalMonthlyExpenses"] ?? cashFlow["total_monthly_expenses"]) || 0;
+              return fallback;
+            })(),
       projected401kWithdrawal: n(
         goalRet["projectedAnnual401kWithdrawal"] ?? goalRet["projected_annual_401k_withdrawal"]
       ),
@@ -457,6 +495,23 @@ function deriveXCurveInputs(
       ),
     },
   };
+}
+
+export function computeXCurveCrossingAgeForDashboard(
+  caseData: unknown,
+  healthScore: FinancialHealthScore | null | undefined,
+  fullAnalysis: unknown,
+  xcurveData?: unknown
+): number | null {
+  const inputs = deriveXCurveInputs(caseData, healthScore, fullAnalysis, xcurveData);
+  const editable: DimeEditable = {
+    debt: inputs.risk.totalDebt,
+    replacementYears: inputs.risk.replacementYears,
+    mortgage: inputs.risk.mortgageBalance,
+    education: inputs.risk.educationNeed,
+    finalExpenses: inputs.risk.finalExpenses,
+  };
+  return buildCurve(inputs, editable).crossingAge;
 }
 
 function buildCurve(
@@ -632,17 +687,28 @@ function formatIncomeLabel(annualIncome: number): string {
 }
 
 function getResponsibilities(inputs: XCurveInputs, editable: DimeEditable) {
-  const monthlyBase = Math.max(0, inputs.retirement.monthlyExpenses);
+  const monthlyBase = Math.max(
+    0,
+    inputs.retirement.monthlyExpensesInput || inputs.retirement.monthlyExpenses
+  );
   const eligibleChildrenCount = (inputs.client.children ?? []).filter((child) => n(child.age) < 18).length;
+  const housing = Math.min(
+    monthlyBase,
+    inputs.risk.mortgageMonthlyPiti > 0 ? inputs.risk.mortgageMonthlyPiti : monthlyBase * 0.3
+  );
+  const remaining = Math.max(0, monthlyBase - housing);
+  const childcareEdu = eligibleChildrenCount > 0 ? Math.round(remaining * 0.3) : 0;
+  const food = Math.round(remaining * (eligibleChildrenCount > 0 ? 0.5 : 0.7));
+  const transportation = Math.max(0, Math.round(remaining - childcareEdu - food));
   const debtStatus =
     editable.debt > 0 ? `${formatAmountCompact(editable.debt)} total` : "Debt-free";
   const mortgageStatus =
     editable.mortgage > 0 ? formatAmount(editable.mortgage) : "No mortgage";
   return [
-    { label: "Housing", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.3)}/mo` : "Not captured" },
-    { label: "Food/Groceries", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.16)}/mo` : "Not captured" },
-    { label: "Childcare/Edu", value: eligibleChildrenCount > 0 ? `${formatAmount(monthlyBase * 0.12)}/mo` : "N/A" },
-    { label: "Transportation", value: monthlyBase > 0 ? `${formatAmount(monthlyBase * 0.08)}/mo` : "Not captured" },
+    { label: "Housing", value: monthlyBase > 0 ? `${formatAmount(housing)}/mo` : "Not captured" },
+    { label: "Food/Groceries", value: monthlyBase > 0 ? `${formatAmount(food)}/mo` : "Not captured" },
+    { label: "Childcare/Edu", value: eligibleChildrenCount > 0 ? `${formatAmount(childcareEdu)}/mo` : "N/A" },
+    { label: "Transportation", value: monthlyBase > 0 ? `${formatAmount(transportation)}/mo` : "Not captured" },
     { label: "Healthcare", value: "Not captured" },
     { label: "Debts", value: debtStatus },
     { label: "Mortgage", value: mortgageStatus },
@@ -780,6 +846,7 @@ export function XCurveScreen({
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditable({
       debt: inputs.risk.totalDebt,
       replacementYears: inputs.risk.replacementYears,
@@ -888,10 +955,6 @@ export function XCurveScreen({
   const projectedAtRetirementDerivation = useMemo(() => {
     const years = Math.max(0, inputs.retirement.targetAge - inputs.client.primaryAge);
     const annualSavings = Math.max(0, inputs.accumulation.monthlySurplus) * 12;
-    const liabilitiesNow = Math.max(
-      0,
-      inputs.risk.totalDebt + Math.max(0, editable.mortgage)
-    );
     return `Derived by goal net worth projection: current assets (${formatCurrency(
       inputs.accumulation.totalCurrentAssets
     )}) + annual savings (${formatCurrency(annualSavings)}/yr) over ${years} years at assumed growth, minus projected liabilities and planned major purchases.`;
