@@ -265,7 +265,7 @@ function deriveXCurveInputs(
       ((background["monthly_expenses"] as Dict | undefined) ??
         (background["monthlyExpenses"] as Dict | undefined) ??
         {});
-    return Object.values(section).reduce((sum, value) => {
+    return Object.values(section as Record<string, unknown>).reduce<number>((sum, value) => {
       const amount = Number(value ?? 0);
       return Number.isFinite(amount) ? sum + amount : sum;
     }, 0);
