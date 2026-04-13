@@ -443,6 +443,18 @@ export function FinancialBgInsights({
   const hasPrimaryProperty = Boolean(
     realEstateAnalysis?.hasPrimaryProperty ?? realEstateAnalysis?.has_primary_property
   );
+  const primaryHomeValue = Number(
+    realEstatePrimary?.marketValue ?? realEstatePrimary?.market_value ?? 0
+  );
+  const primaryMortgageBalance = Number(
+    realEstatePrimary?.mortgageBalance ?? realEstatePrimary?.mortgage_balance ?? 0
+  );
+  const primaryHousingRatio = Number(
+    realEstatePrimary?.housingCostRatio ?? realEstatePrimary?.housing_cost_ratio ?? 0
+  );
+  const primaryLtv = Number(
+    realEstatePrimary?.loanToValue ?? realEstatePrimary?.loan_to_value ?? 0
+  );
   const shouldShowRealEstateAnalysis = Boolean(
     realEstateAnalysis &&
       (hasPrimaryProperty ||
@@ -1212,8 +1224,18 @@ export function FinancialBgInsights({
                   <div className="space-y-1">
                     <div className="flex justify-between"><span>Home equity</span><span className="font-semibold">{fmtDollars(Number(realEstatePrimary?.homeEquity ?? realEstatePrimary?.home_equity ?? 0))}</span></div>
                     <div className="flex justify-between"><span>Equity %</span><span className="font-semibold">{Number(realEstatePrimary?.equityPercentage ?? realEstatePrimary?.equity_percentage ?? 0).toFixed(1)}%</span></div>
-                    <div className="flex justify-between"><span>Housing cost ratio</span><span className="font-semibold">{Number(realEstatePrimary?.housingCostRatio ?? realEstatePrimary?.housing_cost_ratio ?? 0).toFixed(1)}%</span></div>
-                    <div className="flex justify-between"><span>LTV</span><span className="font-semibold">{Number(realEstatePrimary?.loanToValue ?? realEstatePrimary?.loan_to_value ?? 0).toFixed(1)}%</span></div>
+                    <div className="flex justify-between"><span>Monthly housing cost as % of income</span><span className="font-semibold">{primaryHousingRatio.toFixed(1)}%</span></div>
+                    <div className="flex justify-between"><span>Loan-to-Value (LTV)</span><span className="font-semibold">{primaryLtv.toFixed(1)}%</span></div>
+                  </div>
+                  <div className="mt-2 space-y-1 border-t pt-2 text-[11px] text-muted-foreground">
+                    <p>
+                      Housing ratio derivation: {fmtExactDollars(monthlyHousingPiti)} monthly housing payment / {fmtExactDollars(cashFlowGross)} gross income ={" "}
+                      {cashFlowGross > 0 ? ((monthlyHousingPiti / cashFlowGross) * 100).toFixed(1) : "0.0"}%.
+                    </p>
+                    <p>
+                      Loan-to-Value derivation: {fmtExactDollars(primaryMortgageBalance)} mortgage balance / {fmtExactDollars(primaryHomeValue)} home value ={" "}
+                      {primaryHomeValue > 0 ? ((primaryMortgageBalance / primaryHomeValue) * 100).toFixed(1) : "0.0"}%.
+                    </p>
                   </div>
                 </div>
                 {shouldShowRentalPortfolio && (

@@ -259,6 +259,11 @@ export default function FinancialInterviewPage() {
   const handlePrimarySave = useCallback(
     async (data: PersonFinancialBackground) => {
       await saveBackground.mutateAsync({ role: "primary", data });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["full-analysis", caseId] }),
+        queryClient.invalidateQueries({ queryKey: ["xcurve-data", caseId] }),
+        queryClient.invalidateQueries({ queryKey: ["financial-health-score", caseId] }),
+      ]);
       if (caseData?.id && caseData?.status === "draft") {
         await updateCase.mutateAsync({
           id: caseData.id,
@@ -277,6 +282,8 @@ export default function FinancialInterviewPage() {
       caseData?.status,
       caseData?.clientPersonalInfo?.partnerFirstName,
       spouseBackgroundComplete,
+      queryClient,
+      caseId,
       updateCase,
     ]
   );
@@ -284,10 +291,15 @@ export default function FinancialInterviewPage() {
   const handleSpouseSave = useCallback(
     async (data: PersonFinancialBackground) => {
       await saveBackground.mutateAsync({ role: "spouse", data });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["full-analysis", caseId] }),
+        queryClient.invalidateQueries({ queryKey: ["xcurve-data", caseId] }),
+        queryClient.invalidateQueries({ queryKey: ["financial-health-score", caseId] }),
+      ]);
       toast.success("Spouse financial background saved");
       setSpousePromptOpen(false);
     },
-    [saveBackground]
+    [saveBackground, queryClient, caseId]
   );
 
   const isCurrentSectionLoading = (() => {
