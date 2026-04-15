@@ -38,6 +38,7 @@ type XCurveInputs = {
     debtBreakdown: Array<{ label: string; amount: number }>;
     debtDataCaptured: boolean;
     annualIncome: number;
+    passiveIncomeAnnual: number;
     replacementYears: number;
     incomeReplacementRationale: string;
     mortgageBalance: number;
@@ -51,6 +52,10 @@ type XCurveInputs = {
     estateCosts: number;
     estateCostsDerivation: string;
     debtPayoffMonths: number;
+    grossRisk: number;
+    netRisk: number;
+    coverageGap: number;
+    coverageGapDeductions: Array<{ key: string; label: string; amount: number }>;
   };
   accumulation: {
     retirementAccounts: number;
@@ -244,8 +249,16 @@ function deriveXCurveInputs(
   const primaryAge = calculateAgeFromDob(String(pi["dateOfBirth"] ?? "")) ?? 40;
   const retirementAge = n(hsGoalSummary["retirementTargetAge"]) || 65;
   const incomeSources = (cashFlow["incomeSources"] as unknown[] | undefined) ?? [];
-  let annualIncome = incomeSources.reduce<number>((sum, src) => {
+  const annualIncome = incomeSources.reduce<number>((sum, src) => {
     const s = (src as Dict | null) ?? {};
+    return sum + n(s["annual"]);
+  }, 0);
+  const passiveIncomeAnnual = incomeSources.reduce<number>((sum, src) => {
+    const s = (src as Dict | null) ?? {};
+    const sourceType = String(s["type"] ?? "").toLowerCase();
+    if (!["rental_income", "rental", "passive"].includes(sourceType)) {
+      return sum;
+    }
     return sum + n(s["annual"]);
   }, 0);
 
@@ -406,11 +419,6 @@ function deriveXCurveInputs(
   const xcurveIncomeYears = n(
     xcurve["income_replacement_years"] ?? xcurve["incomeReplacementYears"]
   );
-  if (xcurveIncomeReplacement > 0 && xcurveIncomeYears > 0) {
-    // Prefer the authoritative income basis from xcurve computation output
-    // so DIME I display matches backend DIME engine exactly.
-    annualIncome = Math.round(xcurveIncomeReplacement / xcurveIncomeYears);
-  }
   const xcurveIncomeRationale = String(
     xcurve["income_replacement_rationale"] ?? xcurve["incomeReplacementRationale"] ?? ""
   ).trim();
@@ -444,6 +452,32 @@ function deriveXCurveInputs(
     n(netWorth["totalAssets"] ?? netWorth["total_assets"]) ||
     n(goalCoverage["existingAssets"] ?? goalCoverage["existing_assets"]);
 
+  const coverageChainRaw =
+    ((goalCoverage["coverageGapChain"] as Dict | undefined) ??
+      (goalCoverage["coverage_gap_chain"] as Dict | undefined) ??
+      {}) as Dict;
+  const coverageChainDeductionsRaw =
+    ((coverageChainRaw["deductions"] as unknown[] | undefined) ?? []);
+  const coverageGapDeductions = coverageChainDeductionsRaw.map((row) => {
+    const r = (row as Dict | null) ?? {};
+    return {
+      key: String(r["key"] ?? "deduction"),
+      label: String(r["label"] ?? "Deduction"),
+      amount: n(r["amount"]),
+    };
+  });
+  const grossRisk =
+    n(coverageChainRaw["grossRisk"] ?? coverageChainRaw["gross_risk"]) ||
+    n(goalCoverage["dimeTotal"] ?? goalCoverage["dime_total"]);
+  const netRisk =
+    n(coverageChainRaw["netRisk"] ?? coverageChainRaw["net_risk"]) ||
+    n(goalCoverage["netRisk"] ?? goalCoverage["net_risk"]) ||
+    Math.max(0, grossRisk - totalAssets);
+  const coverageGap =
+    n(coverageChainRaw["coverageGap"] ?? coverageChainRaw["coverage_gap"]) ||
+    n(goalCoverage["coverageGap"] ?? goalCoverage["coverage_gap"]) ||
+    Math.max(0, netRisk - existingLifeCoverage);
+
   return {
     client: {
       primaryAge,
@@ -457,6 +491,7 @@ function deriveXCurveInputs(
       debtBreakdown,
       debtDataCaptured,
       annualIncome,
+      passiveIncomeAnnual,
       replacementYears,
       incomeReplacementRationale: derivedIncomeRationale,
       mortgageBalance: resolvedMortgage,
@@ -486,6 +521,10 @@ function deriveXCurveInputs(
           : "Trust in place - probate avoided"),
       debtPayoffMonths:
         n(((debt["avalancheStrategy"] as Dict | undefined) ?? {})["payoffMonths"]) || 36,
+      grossRisk,
+      netRisk,
+      coverageGap,
+      coverageGapDeductions,
     },
     accumulation: {
       retirementAccounts: n(((nwCategories["retirement"] as Dict | undefined) ?? {})["total"]),
@@ -582,7 +621,8 @@ function buildCurve(
     editable.debt +
     incomeReplacementNeed +
     editable.mortgage +
-    editable.education;
+    editable.education +
+    inputs.risk.estateCosts;
   const netRisk = Math.max(0, grossRisk - inputs.accumulation.totalCurrentAssets);
   const coverageGap = Math.max(0, netRisk - inputs.accumulation.existingLifeInsurance);
 
@@ -920,8 +960,8 @@ export function XCurveScreen({
       (fa["goal_coverage_adequacy"] as Dict | undefined) ??
       {};
     const fromGoal = n(cov["coverageGap"] ?? cov["coverage_gap"]);
-    return fromGoal > 0 ? fromGoal : curve.coverageGap;
-  }, [fullAnalysis, curve.coverageGap]);
+    return fromGoal > 0 ? fromGoal : inputs.risk.coverageGap;
+  }, [fullAnalysis, inputs.risk.coverageGap]);
   const milestones = useMemo(
     () => calculateMilestones(inputs, editable.mortgage),
     [inputs, editable.mortgage]
@@ -1045,6 +1085,12 @@ export function XCurveScreen({
     .filter((m, idx, arr) => arr.findIndex((x) => x.label === m.label && x.age === m.age) === idx)
     .slice(0, 7);
   const positionedMilestones = positionMilestones(timelineMilestones, svgWidth);
+  const existingAssetsDeduction =
+    inputs.risk.coverageGapDeductions.find((row) => row.key === "existing_assets")?.amount ??
+    inputs.accumulation.totalCurrentAssets;
+  const postNetDeductions = inputs.risk.coverageGapDeductions.filter(
+    (row) => row.key !== "existing_assets"
+  );
 
   return (
     <div className="space-y-6">
@@ -1145,13 +1191,13 @@ export function XCurveScreen({
             <text x={svgWidth * 0.25} y={lowerTextStartY} fill="#1B365D" fontSize="16" fontWeight="700" textDecoration="underline" textAnchor="middle">Active Income</text>
             <text x={svgWidth * 0.25} y={lowerTextStartY + 20} fill="#1B365D" fontSize="13" textAnchor="middle">(Man At Work)</text>
             <text x={svgWidth * 0.25} y={lowerTextStartY + 42} fill="#1B365D" fontSize="12" textAnchor="middle">
-              {inputs.client.primaryName} earns {formatIncomeLabel(inputs.risk.annualIncome)}/yr
+              {inputs.client.primaryName} earns {formatIncomeLabel(Math.max(inputs.risk.annualIncome - inputs.risk.passiveIncomeAnnual, 0))}/yr
             </text>
 
             <text x={svgWidth * 0.75} y={lowerTextStartY} fill="#8B0000" fontSize="16" fontWeight="700" textDecoration="underline" textAnchor="middle">Passive Income</text>
             <text x={svgWidth * 0.75} y={lowerTextStartY + 20} fill="#8B0000" fontSize="13" textAnchor="middle">(Money At Work)</text>
             <text x={svgWidth * 0.75} y={lowerTextStartY + 42} fill="#8B0000" fontSize="12" textAnchor="middle">
-              Target {formatAmount(inputs.retirement.desiredMonthlyIncome || retirementIncomeTotal / 12)}/mo by age {inputs.retirement.targetAge}
+              Current {formatAmount(inputs.risk.passiveIncomeAnnual / 12)}/mo; target {formatAmount(inputs.retirement.desiredMonthlyIncome || retirementIncomeTotal / 12)}/mo by age {inputs.retirement.targetAge}
             </text>
 
             {(() => {
@@ -1210,7 +1256,7 @@ export function XCurveScreen({
             <p className="text-xs text-muted-foreground">(Life Insurance / Income Replacement)</p>
             <p className="mt-1 font-mono text-lg font-bold text-[#E74C3C]">Coverage Gap: {formatCurrency(authoritativeCoverageGap)}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Total DIME risk is {formatCurrency(curve.grossRisk)}; after current assets and existing life insurance, the remaining gap is{" "}
+              Total DIME risk is {formatCurrency(inputs.risk.grossRisk)}; after current assets and existing life insurance, the remaining gap is{" "}
               {formatCurrency(authoritativeCoverageGap)}.
             </p>
           </div>
@@ -1403,20 +1449,22 @@ export function XCurveScreen({
           <div className="mt-4 space-y-1 rounded-lg border bg-muted/20 p-3 font-mono text-sm">
             <div className="flex justify-between">
               <span>GROSS RISK</span>
-              <span>{formatCurrency(curve.grossRisk)}</span>
+              <span>{formatCurrency(inputs.risk.grossRisk)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>- Existing Assets</span>
-              <span>({formatCurrency(inputs.accumulation.totalCurrentAssets)})</span>
+              <span>({formatCurrency(existingAssetsDeduction)})</span>
             </div>
             <div className="flex justify-between border-t pt-1">
               <span>NET RISK</span>
-              <span>{formatCurrency(curve.netRisk)}</span>
+              <span>{formatCurrency(inputs.risk.netRisk)}</span>
             </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>- Existing Life Insurance</span>
-              <span>({formatCurrency(inputs.accumulation.existingLifeInsurance)})</span>
-            </div>
+            {postNetDeductions.map((row) => (
+              <div key={row.key} className="flex justify-between text-muted-foreground">
+                <span>- {row.label}</span>
+                <span>({formatCurrency(row.amount)})</span>
+              </div>
+            ))}
             <div className="flex justify-between border-t pt-1 text-base font-bold text-[#E67E22]">
               <span>COVERAGE GAP</span>
               <span>{formatCurrency(authoritativeCoverageGap)}</span>
@@ -1508,13 +1556,13 @@ export function XCurveScreen({
           </summary>
           <div className="mt-3 space-y-2 text-sm text-muted-foreground">
             <p>
-              1. The red curve shows what the family would need today ({formatCurrency(curve.grossRisk)}). The green curve shows what has been built ({formatCurrency(inputs.accumulation.totalCurrentAssets)}). The gap is {formatCurrency(authoritativeCoverageGap)}.
+              1. The red curve shows what the family would need today ({formatCurrency(inputs.risk.grossRisk)}). The green curve shows what has been built ({formatCurrency(existingAssetsDeduction)}). The gap is {formatCurrency(authoritativeCoverageGap)}.
             </p>
             <p>
               2. The curves cross at {curve.crossingAge === null ? "beyond age 90" : `age ${curve.crossingAge}`}. Retirement goal is age {inputs.retirement.targetAge}, which is {curve.crossingAge !== null && inputs.retirement.targetAge < curve.crossingAge ? "before crossing point." : "after crossing point."}
             </p>
             <p>
-              3. DIME shows where {formatCurrency(curve.grossRisk)} comes from; the largest lever is income replacement ({formatCurrency(inputs.risk.annualIncome * editable.replacementYears)}) at {editable.replacementYears} years.
+              3. DIME shows where {formatCurrency(inputs.risk.grossRisk)} comes from; the largest lever is income replacement ({formatCurrency(inputs.risk.annualIncome * editable.replacementYears)}) at {editable.replacementYears} years.
             </p>
             <p>
               4. Retirement projection shows a separate retirement deficit of {formatCurrency(retirementDeficit)}.

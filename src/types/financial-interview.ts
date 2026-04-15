@@ -962,6 +962,7 @@ export interface FinancialHealthScore {
     }>;
     totalMonthlyNetRentalIncome: number;
     totalRentalEquity: number;
+    concentrationPctOfTotalAssets?: number;
     concentrationPctOfNetWorth: number;
     alerts: string[];
   };

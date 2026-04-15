@@ -436,7 +436,9 @@ export function FinancialBgInsights({
     realEstateAnalysis?.totalRentalEquity ?? realEstateAnalysis?.total_rental_equity ?? 0
   );
   const realEstateConcentration = Number(
-    realEstateAnalysis?.concentrationPctOfNetWorth ??
+    realEstateAnalysis?.concentrationPctOfTotalAssets ??
+      realEstateAnalysis?.concentration_pct_of_total_assets ??
+      realEstateAnalysis?.concentrationPctOfNetWorth ??
       realEstateAnalysis?.concentration_pct_of_net_worth ??
       0
   );
@@ -1244,7 +1246,7 @@ export function FinancialBgInsights({
                     <div className="space-y-1">
                       <div className="flex justify-between"><span>Net rental income</span><span className="font-semibold">{fmtDollars(totalMonthlyNetRentalIncome)}/mo</span></div>
                       <div className="flex justify-between"><span>Rental property equity</span><span className="font-semibold">{fmtDollars(totalRentalEquity)}</span></div>
-                      <div className="flex justify-between"><span>Real estate concentration</span><span className="font-semibold">{realEstateConcentration.toFixed(1)}%</span></div>
+                      <div className="flex justify-between"><span>Real estate as % of total assets</span><span className="font-semibold">{realEstateConcentration.toFixed(1)}%</span></div>
                       <div className="flex justify-between"><span>Properties analyzed</span><span className="font-semibold">{realEstateRentals.length}</span></div>
                     </div>
                   </div>
