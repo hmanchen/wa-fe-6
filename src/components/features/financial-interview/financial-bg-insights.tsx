@@ -1122,7 +1122,7 @@ export function FinancialBgInsights({
                 )}
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                Bonus estimates are approximate (typically 10%-25%) and depend on state and provider program terms. Rollover bonus estimates are approximate and depend on the receiving institution&apos;s current promotional programs, which may change. This is not a guaranteed offer.
+                Bonus estimates are approximate (typically 10%-25%) and depend on state and provider program terms. Rollover bonus estimates are approximate and depend on the receiving institution&apos;s current promotional programs, which are subject to change and are not guaranteed offers.
               </p>
             </div>
           )}
@@ -1419,8 +1419,8 @@ export function FinancialBgInsights({
                 <p className="text-xs font-bold uppercase tracking-widest text-violet-700 dark:text-violet-300">
                   🔒 Advisor Notes — Not visible to client
                 </p>
-                <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
-                  Agent only
+                <span className="ml-auto rounded-md bg-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-100">
+                  🔒 Agent Only — Not visible to client
                 </span>
                 {advisorHintsOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
               </button>

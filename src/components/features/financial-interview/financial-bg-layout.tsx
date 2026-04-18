@@ -1978,7 +1978,7 @@ function InvestmentsSection({
             <CurrencyField label="Monthly at FRA" value={data.socialSecurity?.estimatedMonthlyBenefitFRA}
               onChange={(v) => update({ socialSecurity: { ...data.socialSecurity, hasEstimate: true, estimatedMonthlyBenefitFRA: v } })} />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Social Security estimates are approximate. Actual benefits depend on your earnings history and claiming age. Visit ssa.gov for your official estimate.
+              Estimates only. Visit ssa.gov for your official Social Security benefit statement.
             </p>
           </div>
         )}

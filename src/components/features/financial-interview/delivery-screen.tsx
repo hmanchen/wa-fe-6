@@ -132,7 +132,7 @@ export function DeliveryScreen({ caseId, clientNames }: DeliveryScreenProps) {
                   checked={acknowledgedEducationalUse}
                   onChange={(e) => setAcknowledgedEducationalUse(e.target.checked)}
                 />
-                I understand that this Financial Blueprint is for educational and discussion purposes only, and does not constitute professional financial, investment, legal, or tax advice.
+                I understand this Blueprint is for educational and discussion purposes only, and does not constitute professional financial, legal, or tax advice.
               </label>
               <Button
                 size="lg"

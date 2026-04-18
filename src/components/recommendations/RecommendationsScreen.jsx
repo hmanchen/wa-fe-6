@@ -295,7 +295,7 @@ export default function RecommendationsScreen({
           <div style={{ fontWeight: 700, marginBottom: 4 }}>
             ℹ️ About These Recommendations
           </div>
-          The recommendations below are generated based on your Financial Needs Analysis results and are for educational discussion purposes. They are not a solicitation or offer to sell any specific insurance product. All insurance products require carrier underwriting approval. Premiums, coverage amounts, and product availability may differ from estimates shown. Licensed Insurance Professional is licensed to sell insurance products only and is not a registered investment advisor.
+          Generated for educational discussion purposes only. Not a solicitation. Subject to carrier underwriting. Licensed insurance professional only. Premiums, coverage amounts, and product availability may differ from estimates shown.
         </div>
         {(summary?.hiddenMoney || 0) > 0 && (
           <div

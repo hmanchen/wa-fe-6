@@ -79,6 +79,12 @@ type XCurveInputs = {
     yearsInRetirement: number;
     monthlyExpenses: number;
     monthlyExpensesInput: number;
+    monthlyExpenseBreakdown: {
+      housing: number;
+      groceries: number;
+      childcare: number;
+      transportation: number;
+    };
     projected401kWithdrawal: number;
     projectedSocialSecurity: number;
     projectedPension: number;
@@ -328,6 +334,10 @@ function deriveXCurveInputs(
       return Number.isFinite(amount) ? sum + amount : sum;
     }, 0);
   };
+  const getMonthlyExpenseSection = (background: Dict): Dict =>
+    ((background["monthly_expenses"] as Dict | undefined) ??
+      (background["monthlyExpenses"] as Dict | undefined) ??
+      {});
 
   const mortgageFromCase =
     n(primaryResidenceDetail["mortgageBalance"] ?? primaryResidenceDetail["mortgage_balance"]) ||
@@ -338,12 +348,59 @@ function deriveXCurveInputs(
       primaryResidence["monthlyPaymentPiti"] ??
       primaryResidence["monthly_payment_piti"]
   );
+  const hsRealEstateAnalysis =
+    (hs["realEstateAnalysis"] as Dict | undefined) ??
+    (hs["real_estate_analysis"] as Dict | undefined) ??
+    {};
+  const hsRealEstatePrimary =
+    (hsRealEstateAnalysis["primary"] as Dict | undefined) ??
+    (hsRealEstateAnalysis["primaryResidence"] as Dict | undefined) ??
+    (hsRealEstateAnalysis["primary_residence"] as Dict | undefined) ??
+    {};
+  const realEstateAnalysis =
+    (fa["realEstateAnalysis"] as Dict | undefined) ??
+    (fa["real_estate_analysis"] as Dict | undefined) ??
+    {};
+  const realEstatePrimary =
+    (realEstateAnalysis["primary"] as Dict | undefined) ??
+    (realEstateAnalysis["primaryResidence"] as Dict | undefined) ??
+    (realEstateAnalysis["primary_residence"] as Dict | undefined) ??
+    {};
+  const resolvedMortgageMonthlyPiti =
+    mortgageMonthlyPiti ||
+    n(
+      hsRealEstatePrimary["monthlyPaymentPiti"] ??
+        hsRealEstatePrimary["monthly_payment_piti"] ??
+        hsRealEstatePrimary["monthlyPayment"] ??
+        hsRealEstatePrimary["monthly_payment"]
+    ) ||
+    n(xcurve["mortgageMonthlyPayment"] ?? xcurve["mortgage_monthly_payment"]) ||
+    n(
+      realEstatePrimary["monthlyPaymentPiti"] ??
+        realEstatePrimary["monthly_payment_piti"] ??
+        realEstatePrimary["monthlyPayment"] ??
+        realEstatePrimary["monthly_payment"]
+    );
   const primaryMonthlyExpensesInput = sumMonthlyExpenses(primaryBackground);
   const spouseMonthlyExpensesInput = sumMonthlyExpenses(spouseBackground);
   const monthlyExpensesInput = Math.max(
     primaryMonthlyExpensesInput,
     spouseMonthlyExpensesInput
   );
+  const chosenMonthlyExpenseSection =
+    primaryMonthlyExpensesInput >= spouseMonthlyExpensesInput
+      ? getMonthlyExpenseSection(primaryBackground)
+      : getMonthlyExpenseSection(spouseBackground);
+  const monthlyExpenseBreakdown = {
+    housing: n(chosenMonthlyExpenseSection["housing"]),
+    groceries: n(chosenMonthlyExpenseSection["groceries"]),
+    childcare: n(
+      chosenMonthlyExpenseSection["childcare"] ??
+        chosenMonthlyExpenseSection["childcareEducation"] ??
+        chosenMonthlyExpenseSection["childcare_education"]
+    ),
+    transportation: n(chosenMonthlyExpenseSection["transportation"]),
+  };
 
   const retirementMonthly =
     n(cashFlow["monthlyRetirementContributions"] ?? cashFlow["monthly_retirement_contributions"]) || 0;
@@ -496,7 +553,7 @@ function deriveXCurveInputs(
       replacementYears,
       incomeReplacementRationale: derivedIncomeRationale,
       mortgageBalance: resolvedMortgage,
-      mortgageMonthlyPiti,
+      mortgageMonthlyPiti: resolvedMortgageMonthlyPiti,
       hasMortgage: resolvedMortgage > 0,
       educationNeed: hasEducationFundFromXCurve
         ? n(xcurveEducation)
@@ -565,6 +622,7 @@ function deriveXCurveInputs(
         monthlyExpensesInput > 0
           ? monthlyExpensesInput
           : n(cashFlow["totalMonthlyExpenses"] ?? cashFlow["total_monthly_expenses"]) || 0,
+      monthlyExpenseBreakdown,
       projected401kWithdrawal: n(
         goalRet["projectedAnnual401kWithdrawal"] ?? goalRet["projected_annual_401k_withdrawal"]
       ),
@@ -781,20 +839,38 @@ function getResponsibilities(inputs: XCurveInputs, editable: DimeEditable) {
     inputs.retirement.monthlyExpensesInput || inputs.retirement.monthlyExpenses
   );
   const eligibleChildrenCount = (inputs.client.children ?? []).filter((child) => n(child.age) < 18).length;
-  const housing = Math.min(
-    monthlyBase,
-    inputs.risk.mortgageMonthlyPiti > 0 ? inputs.risk.mortgageMonthlyPiti : monthlyBase * 0.3
-  );
+  const hasHousingPiti = inputs.risk.mortgageMonthlyPiti > 0;
+  const housing = hasHousingPiti
+    ? inputs.risk.mortgageMonthlyPiti
+    : inputs.risk.hasMortgage
+      ? 0
+    : !inputs.risk.hasMortgage && inputs.retirement.monthlyExpenseBreakdown.housing > 0
+      ? inputs.retirement.monthlyExpenseBreakdown.housing
+      : Math.round(monthlyBase * 0.3);
   const remaining = Math.max(0, monthlyBase - housing);
-  const childcareEdu = eligibleChildrenCount > 0 ? Math.round(remaining * 0.3) : 0;
-  const food = Math.round(remaining * (eligibleChildrenCount > 0 ? 0.5 : 0.7));
-  const transportation = Math.max(0, Math.round(remaining - childcareEdu - food));
+  const childcareEdu = eligibleChildrenCount > 0
+    ? (inputs.retirement.monthlyExpenseBreakdown.childcare > 0
+        ? inputs.retirement.monthlyExpenseBreakdown.childcare
+        : Math.round(remaining * 0.3))
+    : 0;
+  const food = inputs.retirement.monthlyExpenseBreakdown.groceries > 0
+    ? inputs.retirement.monthlyExpenseBreakdown.groceries
+    : Math.round(remaining * (eligibleChildrenCount > 0 ? 0.5 : 0.7));
+  const transportation = inputs.retirement.monthlyExpenseBreakdown.transportation > 0
+    ? inputs.retirement.monthlyExpenseBreakdown.transportation
+    : Math.max(0, Math.round(remaining - childcareEdu - food));
   const debtStatus =
     editable.debt > 0 ? `${formatAmountCompact(editable.debt)} total` : "Debt-free";
   const mortgageStatus =
     editable.mortgage > 0 ? formatAmount(editable.mortgage) : "No mortgage";
   return [
-    { label: "Housing", value: monthlyBase > 0 ? `${formatAmount(housing)}/mo` : "Not captured" },
+    {
+      label: hasHousingPiti ? "Housing (PITI)" : "Housing",
+      value:
+        (hasHousingPiti || (!inputs.risk.hasMortgage && monthlyBase > 0))
+          ? `${formatAmount(housing)}/mo`
+          : "Not captured",
+    },
     { label: "Food/Groceries", value: monthlyBase > 0 ? `${formatAmount(food)}/mo` : "Not captured" },
     { label: "Childcare/Edu", value: eligibleChildrenCount > 0 ? `${formatAmount(childcareEdu)}/mo` : "N/A" },
     { label: "Transportation", value: monthlyBase > 0 ? `${formatAmount(transportation)}/mo` : "Not captured" },
@@ -1306,7 +1382,7 @@ export function XCurveScreen({
         <div className="rounded-xl border bg-card p-4">
           <h3 className="text-base font-bold text-[#1B365D]">DIME Analysis - Risk Breakdown</h3>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            DIME analysis is a financial planning framework used to estimate potential life insurance needs. It is not a guarantee of the exact coverage required. Actual needs depend on individual circumstances, existing coverage, and insurer underwriting.
+            DIME is a financial planning framework for estimating life insurance needs. Not a guarantee of exact coverage required. Actual needs depend on individual circumstances, existing coverage, and insurer underwriting.
           </p>
           <div className="mt-3 space-y-3">
             <DimeRow
@@ -1482,7 +1558,7 @@ export function XCurveScreen({
             Planning for age {inputs.retirement.targetAge} to 90
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Retirement projections are estimates based on assumed rates of return, inflation, and Social Security benefits. Actual results will vary. This is not a retirement plan and does not constitute investment advice.
+            Retirement projections are estimates based on assumed rates of return and may not reflect actual outcomes. This is not a retirement plan and does not constitute investment advice.
           </p>
 
           <div className="mt-3 rounded-lg border bg-background p-3">
@@ -1524,7 +1600,7 @@ export function XCurveScreen({
               <div className="flex justify-between"><span>Social Security</span><span>{formatCurrency(inputs.retirement.projectedSocialSecurity)}/yr</span></div>
               <div className="flex justify-between"><span>Pension</span><span>{formatCurrency(inputs.retirement.projectedPension)}/yr</span></div>
               <p className="text-[11px] text-muted-foreground">
-                Social Security income estimates are approximate. Actual benefits depend on your earnings history, claiming age, and future legislative changes.
+                Social Security estimates are approximate. Visit ssa.gov for your official benefit statement. Actual benefits depend on your earnings history, claiming age, and future legislative changes.
               </p>
               <div className="flex justify-between border-t pt-1"><span>Total Income</span><span>{formatCurrency(retirementIncomeTotal)}/yr</span></div>
               <div className="flex justify-between"><span>Need</span><span>{formatCurrency(retirementExpenses.totalAnnual)}/yr</span></div>
@@ -1562,7 +1638,7 @@ export function XCurveScreen({
         <details>
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#1B365D]">
             <Info className="size-4" />
-            🔒 Agent Notes — Advisor View Only
+            🔒 Agent View Only
           </summary>
           <div className="mt-3 space-y-2 text-sm text-muted-foreground">
             <p>

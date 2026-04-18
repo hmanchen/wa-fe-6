@@ -373,7 +373,7 @@ export default function RecommendationCard({
             lineHeight: 1.5,
           }}
         >
-          IUL illustration values are hypothetical and based on assumed non-guaranteed interest crediting rates. Actual cash value accumulation and death benefit may be higher or lower. This is not a contract. Final policy terms are determined by the issuing insurance carrier.
+          IUL illustration values are hypothetical based on non-guaranteed interest crediting rates. Actual cash value accumulation and death benefit may be higher or lower. This is not a contract. Final policy terms are determined by the issuing insurance carrier.
         </div>
       )}
 
