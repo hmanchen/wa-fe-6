@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, ChevronUp, Pencil, Info } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatCompactCurrency } from "@/lib/formatters/currency";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import type { FinancialHealthScore } from "@/types/financial-interview";
 
 type Dict = Record<string, unknown>;
@@ -1304,6 +1305,9 @@ export function XCurveScreen({
       <section className="grid gap-4 xl:grid-cols-2">
         <div className="rounded-xl border bg-card p-4">
           <h3 className="text-base font-bold text-[#1B365D]">DIME Analysis - Risk Breakdown</h3>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            DIME analysis is a financial planning framework used to estimate potential life insurance needs. It is not a guarantee of the exact coverage required. Actual needs depend on individual circumstances, existing coverage, and insurer underwriting.
+          </p>
           <div className="mt-3 space-y-3">
             <DimeRow
               letter="D"
@@ -1477,6 +1481,9 @@ export function XCurveScreen({
           <p className="text-xs text-muted-foreground">
             Planning for age {inputs.retirement.targetAge} to 90
           </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Retirement projections are estimates based on assumed rates of return, inflation, and Social Security benefits. Actual results will vary. This is not a retirement plan and does not constitute investment advice.
+          </p>
 
           <div className="mt-3 rounded-lg border bg-background p-3">
             <p className="text-sm font-semibold">Projected Monthly Expenses in Retirement</p>
@@ -1516,6 +1523,9 @@ export function XCurveScreen({
               <div className="flex justify-between"><span>401(k) Withdrawal</span><span>{formatCurrency(inputs.retirement.projected401kWithdrawal)}/yr</span></div>
               <div className="flex justify-between"><span>Social Security</span><span>{formatCurrency(inputs.retirement.projectedSocialSecurity)}/yr</span></div>
               <div className="flex justify-between"><span>Pension</span><span>{formatCurrency(inputs.retirement.projectedPension)}/yr</span></div>
+              <p className="text-[11px] text-muted-foreground">
+                Social Security income estimates are approximate. Actual benefits depend on your earnings history, claiming age, and future legislative changes.
+              </p>
               <div className="flex justify-between border-t pt-1"><span>Total Income</span><span>{formatCurrency(retirementIncomeTotal)}/yr</span></div>
               <div className="flex justify-between"><span>Need</span><span>{formatCurrency(retirementExpenses.totalAnnual)}/yr</span></div>
               <div className="flex justify-between font-semibold text-[#E67E22]">
@@ -1552,7 +1562,7 @@ export function XCurveScreen({
         <details>
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#1B365D]">
             <Info className="size-4" />
-            Agent Notes
+            🔒 Agent Notes — Advisor View Only
           </summary>
           <div className="mt-3 space-y-2 text-sm text-muted-foreground">
             <p>
@@ -1571,6 +1581,7 @@ export function XCurveScreen({
         </details>
       </section>
 
+      <DisclaimerBanner variant="standard" context="projections" className="rounded-md border border-[#E5E7EB]" />
       <div className="flex justify-end">
         <Button onClick={onContinue} className="gap-1.5">
           Continue to Recommendations <ChevronRight className="size-4" />

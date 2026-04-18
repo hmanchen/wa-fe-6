@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import type { FinancialHealthScore } from "@/types/financial-interview";
 import { apiClient } from "@/lib/api/client";
 
@@ -1121,7 +1122,7 @@ export function FinancialBgInsights({
                 )}
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                Bonus estimates are approximate (typically 10%-25%) and depend on state and provider program terms.
+                Bonus estimates are approximate (typically 10%-25%) and depend on state and provider program terms. Rollover bonus estimates are approximate and depend on the receiving institution&apos;s current promotional programs, which may change. This is not a guaranteed offer.
               </p>
             </div>
           )}
@@ -1194,6 +1195,9 @@ export function FinancialBgInsights({
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Tax Buckets Distribution</p>
               <p className="mb-2 text-[11px] text-muted-foreground">
                 Distribution of assets by tax treatment: pre-tax (tax deferred), tax-free, and taxable.
+              </p>
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                Tax treatment classifications are based on account types as reported. Consult a CPA or tax professional for tax planning guidance.
               </p>
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between"><span className="text-muted-foreground">Tax Deferred</span><span className="font-semibold">{fmtDollars(taxDeferred)} ({taxDeferredPct.toFixed(0)}%)</span></div>
@@ -1277,7 +1281,7 @@ export function FinancialBgInsights({
                 {fmtExactDollars(cashFlowGross)} gross → {fmtExactDollars(cashFlowNet)} net
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Values are estimated from the financial inputs provided and rounded to monthly approximations.
+                Values are estimated from the financial inputs provided and rounded to monthly approximations. Net income estimates use approximate tax withholding calculations and may not reflect your actual take-home pay.
               </p>
 
               <div className="mt-3 rounded-lg border bg-muted/20 p-3 text-xs">
@@ -1413,7 +1417,7 @@ export function FinancialBgInsights({
                 className="flex w-full items-center gap-2 text-left"
               >
                 <p className="text-xs font-bold uppercase tracking-widest text-violet-700 dark:text-violet-300">
-                  💡 Advisor Notes
+                  🔒 Advisor Notes — Not visible to client
                 </p>
                 <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
                   Agent only
@@ -1432,6 +1436,7 @@ export function FinancialBgInsights({
         </div>
       </div>
 
+      <DisclaimerBanner variant="standard" context="projections" className="rounded-md border border-[#E5E7EB]" />
       {/* Continue button */}
       <div className="flex justify-end">
         <Button size="lg" className="gap-2 px-8" onClick={onContinue} disabled={isSubmitting}>

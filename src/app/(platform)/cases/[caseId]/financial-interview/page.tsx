@@ -501,7 +501,7 @@ export default function FinancialInterviewPage() {
               </div>
             </div>
             <div className="rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-800">
-              Confidentiality Notice: Client information in this interview is private and intended only for advisory planning purposes.
+              🔒 Confidentiality Notice: Client information in this interview is private and confidential, intended solely for Financial Needs Analysis and insurance planning purposes. Not for redistribution.
             </div>
             {spousePromptOpen && spouseName && (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">

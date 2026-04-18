@@ -52,6 +52,7 @@ import {
   PrefillSuccessBanner,
 } from "@/components/features/financial-interview/prefill-banners";
 import { useCalculate401k } from "@/hooks/use-financial-interview";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import type { Calculate401kRequest } from "@/lib/api/financial-interview";
 import type { PersonFinancialBackground, EmploymentStatus, FinancialHealthScore, IncomeSource, IncomeSourceType, Previous401k, DebtEntry, DebtType, ContributionLimitsData, ContributionLimitPlan, MarketSnapshot, MatchStructureType, TenureTier } from "@/types/financial-interview";
 import type { Case } from "@/types/case";
@@ -1804,6 +1805,9 @@ function InvestmentsSection({
           <div>
             <p className="text-sm font-semibold">Investment Accounts</p>
             <p className="text-xs text-muted-foreground">Brokerage, bonds, annuities, equity compensation & crypto</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Investment balances are self-reported. Market values fluctuate and are not guaranteed.
+            </p>
           </div>
           <Button
             type="button"
@@ -1970,9 +1974,12 @@ function InvestmentsSection({
           </Button>
         </div>
         {expandedInvestmentsSections.socialSecurity && (
-          <div className="w-40">
+          <div className="w-full max-w-sm">
             <CurrencyField label="Monthly at FRA" value={data.socialSecurity?.estimatedMonthlyBenefitFRA}
               onChange={(v) => update({ socialSecurity: { ...data.socialSecurity, hasEstimate: true, estimatedMonthlyBenefitFRA: v } })} />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Social Security estimates are approximate. Actual benefits depend on your earnings history and claiming age. Visit ssa.gov for your official estimate.
+            </p>
           </div>
         )}
       </div>
@@ -3884,30 +3891,34 @@ export function FinancialBgLayout({
             )}
 
             {/* ── Bottom navigation ── */}
-            <div className="mt-8 flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={handlePrev}
-                disabled={currentIdx === 0}
-              >
-                <ChevronLeft className="size-3.5" />
-                Previous Section
-              </Button>
-              <Button
-                size="sm"
-                className="gap-1.5"
-                onClick={handleSaveAndNext}
-                disabled={isSubmitting}
-              >
-                {isSubmitting
-                  ? "Saving..."
-                  : currentIdx < visibleSections.length - 1
-                    ? "Save & Next Section"
-                    : "Save & Continue"}
-                <ChevronRight className="size-3.5" />
-              </Button>
+            <div className="mt-8 space-y-2">
+              <DisclaimerBanner variant="compact" context="fna" />
+              <DisclaimerBanner variant="standard" context="fna" />
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handlePrev}
+                  disabled={currentIdx === 0}
+                >
+                  <ChevronLeft className="size-3.5" />
+                  Previous Section
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handleSaveAndNext}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting
+                    ? "Saving..."
+                    : currentIdx < visibleSections.length - 1
+                      ? "Save & Next Section"
+                      : "Save & Continue"}
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
             </div>
 
           </div>

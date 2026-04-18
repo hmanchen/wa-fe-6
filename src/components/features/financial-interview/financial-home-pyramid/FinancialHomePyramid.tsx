@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronRight, HelpCircle, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import type { FinancialHealthScore } from "@/types/financial-interview";
 import { mapPyramidData, getLevelSummary } from "./pyramidDataMapper";
 import { PyramidVisualization } from "./PyramidVisualization";
@@ -439,6 +440,12 @@ export function FinancialHomePyramid({
         />
 
         <BottomUpIndicator />
+
+        <DisclaimerBanner
+          variant="standard"
+          context="educational"
+          className="rounded-md border border-[#E5E7EB]"
+        />
 
         <div className="flex justify-end">
           <Button onClick={onContinue} className="gap-1.5">

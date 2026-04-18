@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import { cn } from "@/lib/utils";
 import type {
   GoalsDiscoveryData,
@@ -942,6 +943,9 @@ export function GoalsDiscoveryScreen({
                 <div style={{ fontSize: 12, color: "#4A5568", marginTop: 4 }}>
                   {riskProfileMeta.description}
                 </div>
+                <div style={{ fontSize: 11, color: "#6B7280", marginTop: 6 }}>
+                  Your risk profile is used for educational purposes to frame this financial analysis only. It is not an investment suitability assessment and does not constitute investment advice.
+                </div>
               </div>
             )}
           </AccordionContent>
@@ -1233,6 +1237,7 @@ export function GoalsDiscoveryScreen({
       </Accordion>
 
       <div className="sticky bottom-0 z-10 rounded-xl border bg-background/95 p-3 backdrop-blur">
+        <DisclaimerBanner variant="standard" context="fna" className="mb-3 rounded-md border border-[#E5E7EB]" />
         <div className="flex items-center justify-between">
           <Button variant="outline" onClick={onBack} className="gap-1.5">
             <ArrowLeft className="size-4" />

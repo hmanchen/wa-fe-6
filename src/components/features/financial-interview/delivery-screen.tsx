@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { APP_SHORT_NAME } from "@/lib/app-branding";
 import { apiClient } from "@/lib/api/client";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 
 interface DeliveryScreenProps {
   caseId: string;
@@ -30,6 +31,7 @@ export function DeliveryScreen({ caseId, clientNames }: DeliveryScreenProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGenerated, setIsGenerated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [acknowledgedEducationalUse, setAcknowledgedEducationalUse] = useState(false);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -49,8 +51,12 @@ export function DeliveryScreen({ caseId, clientNames }: DeliveryScreenProps) {
       window.URL.revokeObjectURL(url);
       await apiClient.put(`/cases/${caseId}/`, { status: "review" });
       setIsGenerated(true);
-    } catch (err: any) {
-      setError(err.message || "PDF generation failed. Please ensure all prior sections are complete.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "PDF generation failed. Please ensure all prior sections are complete.";
+      setError(message);
     } finally {
       setIsGenerating(false);
     }
@@ -73,6 +79,9 @@ export function DeliveryScreen({ caseId, clientNames }: DeliveryScreenProps) {
             <div>
               <h3 className="text-lg font-bold">Client Financial Plan</h3>
               <p className="text-sm text-muted-foreground">{clientNames} · {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+              <p className="text-[11px] text-muted-foreground">
+                Prepared for discussion purposes only. Not a financial plan. See disclosures inside.
+              </p>
             </div>
           </div>
 
@@ -116,16 +125,35 @@ export function DeliveryScreen({ caseId, clientNames }: DeliveryScreenProps) {
                   {error}
                 </div>
               )}
-              <Button size="lg" onClick={handleGenerate} disabled={isGenerating} className="gap-2">
+              <label className="max-w-xl cursor-pointer rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3 text-[11px] leading-relaxed text-[#6B7280]">
+                <input
+                  type="checkbox"
+                  className="mr-2 align-middle"
+                  checked={acknowledgedEducationalUse}
+                  onChange={(e) => setAcknowledgedEducationalUse(e.target.checked)}
+                />
+                I understand that this Financial Blueprint is for educational and discussion purposes only, and does not constitute professional financial, investment, legal, or tax advice.
+              </label>
+              <Button
+                size="lg"
+                onClick={handleGenerate}
+                disabled={isGenerating || !acknowledgedEducationalUse}
+                className="gap-2"
+              >
                 {isGenerating ? (
                   <><Loader2 className="size-5 animate-spin" /> Generating PDF...</>
                 ) : (
-                  <><FileDown className="size-5" /> Generate Client PDF</>
+                  <><FileDown className="size-5" /> Download Blueprint</>
                 )}
               </Button>
             </>
           )}
         </div>
+        <DisclaimerBanner
+          variant="full"
+          context="recommendations"
+          className={cn("rounded-md border border-[#E5E7EB]")}
+        />
       </div>
     </div>
   );

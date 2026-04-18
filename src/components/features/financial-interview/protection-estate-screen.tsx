@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
 import { EstatePlanningGuide } from "@/components/features/protection/EstatePlanningGuide";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import {
   Tooltip,
   TooltipContent,
@@ -622,6 +623,10 @@ function LifeInsuranceTab({
             </p>
           </div>
         </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Coverage amounts are self-reported and have not been independently verified.
+          Contact your insurance carrier to confirm active coverage and current benefit amounts.
+        </p>
       </div>
 
       <YesNoField
@@ -728,6 +733,12 @@ function WillTrustTab({
         value={est.beneficiaryDesignationsCurrent}
         onChange={(v) => setEst({ beneficiaryDesignationsCurrent: v })}
       />
+
+      <p className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-3 text-[11px] text-amber-900">
+        Estate planning status is self-reported for Financial Needs Analysis purposes only.
+        Arclis does not provide legal advice or prepare legal documents. Consult a licensed
+        estate attorney.
+      </p>
 
       <div className="rounded-xl border bg-card px-5 py-4 shadow-sm">
         <div className="space-y-1">
@@ -853,6 +864,14 @@ export function ProtectionEstateScreen({
               data={data}
               update={update}
               clientName={clientNames?.split(/[,&]/)[0]?.trim()}
+            />
+          )}
+
+          {activeTab === "life-insurance" && (
+            <DisclaimerBanner
+              variant="standard"
+              context="insurance"
+              className="mt-6 rounded-md border border-[#E5E7EB]"
             />
           )}
 

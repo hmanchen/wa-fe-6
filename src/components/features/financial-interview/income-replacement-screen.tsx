@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 
 // ── Story step data ──────────────────────────────────────────
 
@@ -286,6 +287,9 @@ function RiskExplainer({ visible }: { visible: boolean }) {
                     </span>
                   ))}
                 </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Insurance products referenced are for educational illustration. Actual products, premiums, and availability vary by carrier, state, and individual underwriting.
+                </p>
               </div>
             </div>
             <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-background p-4">
@@ -304,6 +308,9 @@ function RiskExplainer({ visible }: { visible: boolean }) {
                     </span>
                   ))}
                 </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Estate planning documents require a licensed attorney. This is educational illustration only.
+                </p>
               </div>
             </div>
           </div>
@@ -441,6 +448,7 @@ export function IncomeReplacementScreen({
       <RiskExplainer visible={showRisk} />
 
       {/* Navigation buttons */}
+      <DisclaimerBanner variant="standard" context="insurance" className="rounded-md border border-[#E5E7EB]" />
       <div className="flex items-center justify-between border-t pt-6">
         <Button
           variant="ghost"

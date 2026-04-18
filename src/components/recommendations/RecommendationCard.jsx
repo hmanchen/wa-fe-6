@@ -361,6 +361,23 @@ export default function RecommendationCard({
       </div>
 
       {showIULLink && (
+        <div
+          style={{
+            margin: "0 20px 10px 20px",
+            border: "1px solid #DBEAFE",
+            background: "#EFF6FF",
+            borderRadius: 8,
+            padding: "10px 12px",
+            color: "#1E3A8A",
+            fontSize: 11,
+            lineHeight: 1.5,
+          }}
+        >
+          IUL illustration values are hypothetical and based on assumed non-guaranteed interest crediting rates. Actual cash value accumulation and death benefit may be higher or lower. This is not a contract. Final policy terms are determined by the issuing insurance carrier.
+        </div>
+      )}
+
+      {showIULLink && (
         <button
           onClick={handleIULClick}
           style={{
