@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
+import { EstatePlanningGuide } from "@/components/features/protection/EstatePlanningGuide";
 import {
   Tooltip,
   TooltipContent,
@@ -656,9 +657,11 @@ function LifeInsuranceTab({
 function WillTrustTab({
   data,
   update,
+  clientName,
 }: {
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
+  clientName?: string;
 }) {
   const est = data.estate ?? {};
   const setEst = (patch: Partial<PersonFinancialBackground["estate"]>) =>
@@ -666,6 +669,11 @@ function WillTrustTab({
 
   return (
     <div className="space-y-3">
+      <EstatePlanningGuide
+        clientName={clientName}
+        hasHome={Boolean(data.realEstate?.hasRealEstate)}
+      />
+
       <YesNoField
         label="Will"
         description="A legal document specifying how your assets should be distributed"
@@ -789,7 +797,7 @@ export function ProtectionEstateScreen({
 
       <div className="flex min-h-[500px] rounded-b-xl border border-t-0">
         {/* Left sidebar */}
-        <div className="hidden w-56 shrink-0 border-r bg-muted/10 p-4 md:block">
+        <div className="hidden w-56 shrink-0 border-r bg-muted/10 p-4 lg:block">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Sections
           </p>
@@ -826,7 +834,7 @@ export function ProtectionEstateScreen({
         </div>
 
         {/* Main content */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-4 sm:p-6">
           <div className="mb-5">
             <h3 className="flex items-center gap-2 text-lg font-bold">
               <span>{activeTab === "life-insurance" ? "🛡️" : "📜"}</span>
@@ -840,13 +848,19 @@ export function ProtectionEstateScreen({
           </div>
 
           {activeTab === "life-insurance" && <LifeInsuranceTab data={data} update={update} />}
-          {activeTab === "will-trust" && <WillTrustTab data={data} update={update} />}
+          {activeTab === "will-trust" && (
+            <WillTrustTab
+              data={data}
+              update={update}
+              clientName={clientNames?.split(/[,&]/)[0]?.trim()}
+            />
+          )}
 
-          <div className="mt-8 flex items-center justify-between">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className="w-full gap-1.5 sm:w-auto"
               onClick={() => {
                 if (activeTab === "will-trust") setActiveTab("life-insurance");
               }}
@@ -858,7 +872,7 @@ export function ProtectionEstateScreen({
             {activeTab === "life-insurance" ? (
               <Button
                 size="sm"
-                className="gap-1.5"
+                className="w-full gap-1.5 sm:w-auto"
                 onClick={async () => { await handleSave(); setActiveTab("will-trust"); }}
                 disabled={isSubmitting}
               >
@@ -868,7 +882,7 @@ export function ProtectionEstateScreen({
             ) : (
               <Button
                 size="sm"
-                className="gap-1.5"
+                className="w-full gap-1.5 sm:w-auto"
                 onClick={handleSaveAndContinue}
                 disabled={isSubmitting}
               >
