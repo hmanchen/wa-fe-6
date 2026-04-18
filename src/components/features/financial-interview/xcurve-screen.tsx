@@ -274,8 +274,8 @@ function deriveXCurveInputs(
   const fallbackChildren: Child[] = dependentsDetail.map((dep) => {
     const d = (dep as Dict | null) ?? {};
     return {
-      name: String(d["name"] ?? "Child"),
-      age: n(d["age"]),
+      name: String(d["name"] ?? d["childName"] ?? d["child_name"] ?? "Child"),
+      age: n(d["age"] ?? d["childAge"] ?? d["child_age"]),
     };
   });
   const educationChildren: Child[] =
@@ -283,14 +283,26 @@ function deriveXCurveInputs(
       ? eduChildrenRaw.map((c) => {
           const x = (c as Dict | null) ?? {};
           return {
-            name: String(x["name"] ?? "Child"),
-            age: n(x["age"]),
-            enrollmentYear: n(x["enrollmentYear"] ?? x["enrollment_year"]),
+            name: String(x["name"] ?? x["childName"] ?? x["child_name"] ?? "Child"),
+            age: n(x["age"] ?? x["childAge"] ?? x["child_age"]),
+            enrollmentYear: n(
+              x["enrollmentYear"] ??
+                x["enrollment_year"] ??
+                x["collegeStartYear"] ??
+                x["college_start_year"]
+            ),
             projectedAnnualCostAtEnrollment: n(
               x["projectedAnnualCostAtEnrollment"] ??
-                x["projected_annual_cost_at_enrollment"]
+                x["projected_annual_cost_at_enrollment"] ??
+                x["annualCostAtEnrollment"] ??
+                x["annual_cost_at_enrollment"]
             ),
-            projectedTotalNeed: n(x["projectedTotalNeed"] ?? x["projected_total_need"]),
+            projectedTotalNeed: n(
+              x["projectedTotalNeed"] ??
+                x["projected_total_need"] ??
+                x["totalNeed"] ??
+                x["total_need"]
+            ),
           };
         })
       : fallbackChildren;
@@ -1132,6 +1144,51 @@ export function XCurveScreen({
     }
     return defaults;
   }, [editable.replacementYears]);
+  const educationDisplayRows = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const rawRows = inputs.risk.educationChildren.map((child, idx) => {
+      const age = Math.max(0, Math.round(n(child.age)));
+      const collegeAgeReached = age >= 18;
+      const defaultStartYear = collegeAgeReached ? currentYear : currentYear + Math.max(1, 18 - age);
+      const startYear =
+        child.enrollmentYear && child.enrollmentYear > 0
+          ? child.enrollmentYear
+          : defaultStartYear;
+      const yearsUntilCollege = Math.max(0, startYear - currentYear);
+      const baselineAnnualAtEnrollment = 38_000 * Math.pow(1.05, yearsUntilCollege);
+      const rawAnnual =
+        child.projectedAnnualCostAtEnrollment && child.projectedAnnualCostAtEnrollment > 0
+          ? child.projectedAnnualCostAtEnrollment
+          : collegeAgeReached
+            ? 0
+            : baselineAnnualAtEnrollment;
+      const rawTotal =
+        child.projectedTotalNeed && child.projectedTotalNeed > 0
+          ? child.projectedTotalNeed
+          : rawAnnual * 4;
+      return {
+        key: `${child.name}_${idx}`,
+        name: child.name || `Child ${idx + 1}`,
+        age,
+        collegeAgeReached,
+        startYear,
+        rawAnnual,
+        rawTotal,
+      };
+    });
+    const hasServiceChildTotals = rawRows.some((row) => row.rawTotal > 0);
+    const rawTotalSum = rawRows.reduce((sum, row) => sum + row.rawTotal, 0);
+    const authoritativeEducationNeed = Math.max(0, editable.education);
+    const scaleFactor =
+      !hasServiceChildTotals && rawTotalSum > 0 && authoritativeEducationNeed > 0
+        ? authoritativeEducationNeed / rawTotalSum
+        : 1;
+    return rawRows.map((row) => ({
+      ...row,
+      annualAtEnrollment: row.rawAnnual * scaleFactor,
+      totalNeed: row.rawTotal * scaleFactor,
+    }));
+  }, [inputs.risk.educationChildren, editable.education]);
 
   const retirementAnnualGap = Math.max(
     0,
@@ -1441,11 +1498,11 @@ export function XCurveScreen({
             />
             <DimeRow
               letter="E"
-              title="Education Funding Need"
+              title="Education Funding Need (Estimated)"
               colorClass="bg-[#8E44AD]"
               amount={editable.education}
               onChange={(next) => setEditable((prev) => ({ ...prev, education: next }))}
-              subtitle={inputs.risk.educationDerivation}
+              subtitle="Projected college costs from your family profile. All figures are estimates based on current college cost data and assumed 5% annual tuition inflation."
             />
             {inputs.risk.educationChildren.length > 0 && (
               <div className="rounded-lg border bg-background p-3">
@@ -1465,13 +1522,10 @@ export function XCurveScreen({
                 </button>
                 {educationDerivationExpanded && (
                   <div className="mt-2 space-y-2 text-xs">
-                    {inputs.risk.educationChildren.map((child, idx) => {
-                      const startYear =
-                        child.enrollmentYear ||
-                        new Date().getFullYear() + Math.max(0, 18 - n(child.age));
+                    {educationDisplayRows.map((child, idx) => {
                       return (
                         <div
-                          key={`${child.name}_${idx}`}
+                          key={child.key}
                           className="rounded border bg-muted/20 p-2"
                         >
                           <div className="flex justify-between">
@@ -1479,22 +1533,20 @@ export function XCurveScreen({
                               {child.name} (age {child.age})
                             </span>
                             <span>
-                              Start year: {startYear}
+                              Est. start year: {child.collegeAgeReached ? "College age reached" : `~${child.startYear}`}
                             </span>
                           </div>
                           <div className="mt-1 flex justify-between text-muted-foreground">
-                            <span>Projected annual cost at enrollment</span>
+                            <span>Est. annual cost at enrollment (inflation-adjusted)</span>
                             <span>
-                              {child.projectedAnnualCostAtEnrollment
-                                ? formatCurrency(
-                                    child.projectedAnnualCostAtEnrollment
-                                  )
-                                : "Included in service estimate"}
+                              {child.annualAtEnrollment > 0
+                                ? `~${formatCurrency(child.annualAtEnrollment)}/yr`
+                                : "See total below"}
                             </span>
                           </div>
                           <div className="flex justify-between text-muted-foreground">
-                            <span>Projected total need (4-year program)</span>
-                            <span>{formatCurrency(child.projectedTotalNeed || 0)}</span>
+                            <span>Est. total need (4-year program)</span>
+                            <span>{child.totalNeed > 0 ? `~${formatCurrency(child.totalNeed)}` : formatCurrency(0)}</span>
                           </div>
                         </div>
                       );
@@ -1504,12 +1556,14 @@ export function XCurveScreen({
                       <span>{formatCurrency(inputs.risk.educationExistingSavings)}</span>
                     </div>
                     <div className="flex justify-between border-t pt-1 font-semibold">
-                      <span>Total projected education need used in DIME</span>
-                      <span>{formatCurrency(editable.education)}</span>
+                      <span>Est. total education need used in DIME</span>
+                      <span>{editable.education > 0 ? `~${formatCurrency(editable.education)}` : formatCurrency(0)}</span>
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Uses your children&apos;s ages and projected college costs from
-                      the education funding calculation (inflation-adjusted).
+                      Estimates use your children&apos;s current ages, a 5% annual college cost inflation rate, and projected 4-year enrollment costs. Actual costs will vary. Existing 529 savings are deducted from the gross need. These figures are for Financial Needs Analysis purposes and are not a guarantee of future costs.
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      📋 College cost estimates are based on current national averages and projected at 5% annual inflation. Actual costs depend on institution type, location, financial aid, and future tuition changes.
                     </p>
                   </div>
                 )}
