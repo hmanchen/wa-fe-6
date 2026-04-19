@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency, formatCompactCurrency } from "@/lib/formatters/currency";
 import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import type { FinancialHealthScore } from "@/types/financial-interview";
+import { XCurveHelpPanel } from "@/components/features/xcurve/XCurveHelpPanel";
 
 type Dict = Record<string, unknown>;
 
@@ -44,6 +45,8 @@ type XCurveInputs = {
     incomeReplacementRationale: string;
     mortgageBalance: number;
     mortgageMonthlyPiti: number;
+    mortgageRateAnnual: number;
+    mortgageRemainingYears: number;
     hasMortgage: boolean;
     educationNeed: number;
     educationExistingSavings: number;
@@ -84,9 +87,12 @@ type XCurveInputs = {
       groceries: number;
       childcare: number;
       transportation: number;
+      other: number;
     };
     projected401kWithdrawal: number;
     projectedSocialSecurity: number;
+    socialSecurityMonthlyPrimary: number;
+    socialSecurityMonthlySpouse: number;
     projectedPension: number;
     retirementIncomeGapAnnual: number;
     retirementIncomeGapMonthly: number;
@@ -148,10 +154,16 @@ function calculateEducationNeedAtAge(children: Child[], age: number, currentPare
 
 function estimateRetirementExpenses(
   currentMonthlyExpenses: number,
-  mortgagePaidOff: boolean,
   mortgageMonthlyPiti: number,
   debtServiceMonthly: number,
-  debtPaidOffByRetirement: boolean
+  debtPaidOffByRetirement: boolean,
+  yearsWithMortgageInRetirement: number,
+  yearsWithoutMortgageInRetirement: number,
+  fallbackHousingMonthly: number,
+  hasMortgage: boolean,
+  currentFoodMonthly: number,
+  currentTransportationMonthly: number,
+  currentOtherMonthly: number
 ) {
   if (currentMonthlyExpenses <= 0) {
     return {
@@ -164,14 +176,39 @@ function estimateRetirementExpenses(
       other: 0,
       totalMonthly: 0,
       totalAnnual: 0,
+      housingLabel: "Housing",
+      housingNote: "",
+      otherNote: "",
     };
   }
   const normalizedPiti = Math.max(0, mortgageMonthlyPiti);
   const normalizedDebt = Math.max(0, debtServiceMonthly);
   const debtInRetirement = debtPaidOffByRetirement ? 0 : normalizedDebt;
-  const housingInRetirement = mortgagePaidOff
-    ? Math.round(normalizedPiti * 0.35)
-    : normalizedPiti;
+  const yearsWithMortgage = Math.max(0, yearsWithMortgageInRetirement);
+  const yearsWithoutMortgage = Math.max(0, yearsWithoutMortgageInRetirement);
+  const totalRetirementYearsForHousing = yearsWithMortgage + yearsWithoutMortgage;
+  const postMortgageHousing = normalizedPiti > 0 ? Math.round(normalizedPiti * 0.12) : Math.max(0, fallbackHousingMonthly);
+  let housingInRetirement = Math.max(0, fallbackHousingMonthly);
+  let housingLabel = "Housing";
+  let housingNote = "";
+
+  if (hasMortgage && normalizedPiti > 0) {
+    if (yearsWithMortgage <= 0) {
+      housingInRetirement = postMortgageHousing;
+      housingLabel = "Housing (taxes + insurance — mortgage paid before retirement)";
+    } else if (yearsWithoutMortgage <= 0 || totalRetirementYearsForHousing <= 0) {
+      housingInRetirement = normalizedPiti;
+      housingLabel = "Housing (PITI — mortgage active throughout retirement period)";
+    } else {
+      housingInRetirement = Math.round(
+        ((normalizedPiti * yearsWithMortgage) + (postMortgageHousing * yearsWithoutMortgage)) /
+        totalRetirementYearsForHousing
+      );
+      housingLabel = "Housing (blended avg — PITI until mortgage payoff, taxes/insurance only after)";
+      housingNote = `~${formatCurrency(normalizedPiti)}/mo while mortgage is active, ~${formatCurrency(postMortgageHousing)}/mo after payoff. Blended average used for ${totalRetirementYearsForHousing} retirement years.`;
+    }
+  }
+
   const nonHousingBase = Math.max(
     currentMonthlyExpenses - normalizedPiti - normalizedDebt,
     0
@@ -179,16 +216,16 @@ function estimateRetirementExpenses(
   const baseWithoutDebt = nonHousingBase + housingInRetirement + debtInRetirement;
   const medical = Math.round(Math.max(baseWithoutDebt * 0.12, 1000));
   const insurancePremiums = Math.round(Math.max(baseWithoutDebt * 0.09, 600));
-  const food = Math.round(baseWithoutDebt * 0.2);
+  const food = currentFoodMonthly > 0 ? Math.round(currentFoodMonthly) : Math.round(baseWithoutDebt * 0.2);
   const utilities = Math.round(baseWithoutDebt * 0.08);
-  const transportation = Math.round(baseWithoutDebt * 0.1);
-  const other = Math.max(
-    0,
-    Math.round(
-      baseWithoutDebt -
-        (food + insurancePremiums + medical + housingInRetirement + utilities + transportation)
-    )
-  );
+  const transportation = currentTransportationMonthly > 0
+    ? Math.round(currentTransportationMonthly)
+    : 0;
+  const isOtherFromMonthlyExpenses = currentOtherMonthly > 0;
+  const other = isOtherFromMonthlyExpenses ? Math.round(currentOtherMonthly) : 400;
+  const otherNote = isOtherFromMonthlyExpenses
+    ? `~${formatCurrency(other)}/mo (from Monthly Expenses — other category)`
+    : `~${formatCurrency(other)}/mo (estimated minimum — covers personal care, subscriptions, clothing, household maintenance, and miscellaneous expenses in retirement. Actual discretionary spending may vary. Enter specific amounts in Monthly Expenses for a more accurate figure.)`;
   const totalMonthly = Math.round(
     food +
       insurancePremiums +
@@ -208,6 +245,9 @@ function estimateRetirementExpenses(
     other,
     totalMonthly,
     totalAnnual: totalMonthly * 12,
+    housingLabel,
+    housingNote,
+    otherNote,
   };
 }
 
@@ -379,7 +419,12 @@ function deriveXCurveInputs(
     (realEstateAnalysis["primary_residence"] as Dict | undefined) ??
     {};
   const resolvedMortgageMonthlyPiti =
-    mortgageMonthlyPiti ||
+    n(
+      realEstatePrimary["monthlyPaymentPiti"] ??
+        realEstatePrimary["monthly_payment_piti"] ??
+        realEstatePrimary["monthlyPayment"] ??
+        realEstatePrimary["monthly_payment"]
+    ) ||
     n(
       hsRealEstatePrimary["monthlyPaymentPiti"] ??
         hsRealEstatePrimary["monthly_payment_piti"] ??
@@ -387,32 +432,84 @@ function deriveXCurveInputs(
         hsRealEstatePrimary["monthly_payment"]
     ) ||
     n(xcurve["mortgageMonthlyPayment"] ?? xcurve["mortgage_monthly_payment"]) ||
-    n(
-      realEstatePrimary["monthlyPaymentPiti"] ??
-        realEstatePrimary["monthly_payment_piti"] ??
-        realEstatePrimary["monthlyPayment"] ??
-        realEstatePrimary["monthly_payment"]
-    );
+    mortgageMonthlyPiti;
   const primaryMonthlyExpensesInput = sumMonthlyExpenses(primaryBackground);
   const spouseMonthlyExpensesInput = sumMonthlyExpenses(spouseBackground);
   const monthlyExpensesInput = Math.max(
     primaryMonthlyExpensesInput,
     spouseMonthlyExpensesInput
   );
+  const goalRetirementMonthlyExpenses =
+    (goalRet["retirementMonthlyExpenses"] as Dict | undefined) ??
+    (goalRet["retirement_monthly_expenses"] as Dict | undefined) ??
+    {};
+  const goalRetComputed =
+    (goalRet["computed"] as Dict | undefined) ?? {};
   const chosenMonthlyExpenseSection =
     primaryMonthlyExpensesInput >= spouseMonthlyExpensesInput
       ? getMonthlyExpenseSection(primaryBackground)
       : getMonthlyExpenseSection(spouseBackground);
   const monthlyExpenseBreakdown = {
     housing: n(chosenMonthlyExpenseSection["housing"]),
-    groceries: n(chosenMonthlyExpenseSection["groceries"]),
+    groceries: n(
+      goalRetirementMonthlyExpenses["foodGroceries"] ??
+        goalRetirementMonthlyExpenses["food_groceries"] ??
+        chosenMonthlyExpenseSection["food_groceries"] ??
+        chosenMonthlyExpenseSection["groceries"] ??
+        goalRetComputed["checklistFood"] ??
+        goalRetComputed["checklist_food"]
+    ),
     childcare: n(
       chosenMonthlyExpenseSection["childcare"] ??
         chosenMonthlyExpenseSection["childcareEducation"] ??
         chosenMonthlyExpenseSection["childcare_education"]
     ),
-    transportation: n(chosenMonthlyExpenseSection["transportation"]),
+    transportation: n(
+      chosenMonthlyExpenseSection["transportation"] ??
+        goalRetirementMonthlyExpenses["transportation"] ??
+        goalRetComputed["checklistTransportation"] ??
+        goalRetComputed["checklist_transportation"]
+    ),
+    other: n(
+      goalRetirementMonthlyExpenses["other"] ??
+        chosenMonthlyExpenseSection["other"] ??
+        chosenMonthlyExpenseSection["other_expenses"] ??
+        goalRetComputed["checklistOther"] ??
+        goalRetComputed["checklist_other"]
+    ),
   };
+  const extractSocialSecurityMonthlyFRA = (background: Dict): number => {
+    const ss =
+      ((background["social_security"] as Dict | undefined) ??
+        (background["socialSecurity"] as Dict | undefined) ??
+        {});
+    return n(
+      ss["estimatedMonthlyBenefitFRA"] ??
+        ss["estimated_monthly_benefit_fra"] ??
+        ss["estimatedBenefitFRA"] ??
+        ss["estimated_benefit_fra"]
+    );
+  };
+  const primarySocialSecurityMonthly = extractSocialSecurityMonthlyFRA(primaryBackground);
+  const spouseSocialSecurityMonthly = extractSocialSecurityMonthlyFRA(spouseBackground);
+  const mortgageRateAnnual = n(
+    primaryResidenceDetail["mortgageRate"] ??
+      primaryResidenceDetail["mortgage_rate"] ??
+      primaryResidenceDetail["interestRate"] ??
+      primaryResidenceDetail["interest_rate"] ??
+      realEstatePrimary["mortgageRate"] ??
+      realEstatePrimary["mortgage_rate"] ??
+      realEstatePrimary["interestRate"] ??
+      realEstatePrimary["interest_rate"]
+  );
+  const mortgageRemainingYears = n(
+    primaryResidenceDetail["remainingTermYears"] ??
+      primaryResidenceDetail["remaining_term_years"] ??
+      primaryResidenceDetail["mortgageRemainingYears"] ??
+      primaryResidenceDetail["mortgage_remaining_years"] ??
+      realEstatePrimary["remainingTermYears"] ??
+      realEstatePrimary["remaining_term_years"]
+  );
 
   const retirementMonthly =
     n(cashFlow["monthlyRetirementContributions"] ?? cashFlow["monthly_retirement_contributions"]) || 0;
@@ -566,6 +663,8 @@ function deriveXCurveInputs(
       incomeReplacementRationale: derivedIncomeRationale,
       mortgageBalance: resolvedMortgage,
       mortgageMonthlyPiti: resolvedMortgageMonthlyPiti,
+      mortgageRateAnnual,
+      mortgageRemainingYears,
       hasMortgage: resolvedMortgage > 0,
       educationNeed: hasEducationFundFromXCurve
         ? n(xcurveEducation)
@@ -641,6 +740,8 @@ function deriveXCurveInputs(
       projectedSocialSecurity: n(
         goalRet["projectedSocialSecurityAnnual"] ?? goalRet["projected_social_security_annual"]
       ),
+      socialSecurityMonthlyPrimary: primarySocialSecurityMonthly,
+      socialSecurityMonthlySpouse: spouseSocialSecurityMonthly,
       projectedPension: n(goalRet["projectedPensionAnnual"] ?? goalRet["projected_pension_annual"]),
       retirementIncomeGapAnnual: n(
         goalRet["retirementIncomeGapAnnual"] ?? goalRet["retirement_income_gap_annual"]
@@ -845,6 +946,35 @@ function formatIncomeLabel(annualIncome: number): string {
   return `$${v}`;
 }
 
+function estimateMortgageBalanceAtRetirement(
+  currentBalance: number,
+  annualRatePct: number,
+  remainingYears: number,
+  yearsToRetirement: number
+): number {
+  const balance = Math.max(0, currentBalance);
+  const yearsRemaining = Math.max(0, remainingYears);
+  const yearsUntilRetirement = Math.max(0, yearsToRetirement);
+  if (balance <= 0 || yearsRemaining <= 0) return 0;
+  if (yearsUntilRetirement >= yearsRemaining) return 0;
+
+  const monthlyRate = Math.max(0, annualRatePct) / 100 / 12;
+  const totalMonths = Math.round(yearsRemaining * 12);
+  const monthsUntilRetirement = Math.round(yearsUntilRetirement * 12);
+
+  if (monthlyRate <= 0) {
+    const remainingRatio = Math.max(0, (totalMonths - monthsUntilRetirement) / Math.max(totalMonths, 1));
+    return balance * remainingRatio;
+  }
+
+  const monthlyPayment =
+    balance * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -totalMonths)));
+  const remaining =
+    balance * Math.pow(1 + monthlyRate, monthsUntilRetirement) -
+    monthlyPayment * ((Math.pow(1 + monthlyRate, monthsUntilRetirement) - 1) / monthlyRate);
+  return Math.max(0, remaining);
+}
+
 function getResponsibilities(inputs: XCurveInputs, editable: DimeEditable) {
   const monthlyBase = Math.max(
     0,
@@ -868,9 +998,10 @@ function getResponsibilities(inputs: XCurveInputs, editable: DimeEditable) {
   const food = inputs.retirement.monthlyExpenseBreakdown.groceries > 0
     ? inputs.retirement.monthlyExpenseBreakdown.groceries
     : Math.round(remaining * (eligibleChildrenCount > 0 ? 0.5 : 0.7));
-  const transportation = inputs.retirement.monthlyExpenseBreakdown.transportation > 0
+  const hasTransportation = inputs.retirement.monthlyExpenseBreakdown.transportation > 0;
+  const transportation = hasTransportation
     ? inputs.retirement.monthlyExpenseBreakdown.transportation
-    : Math.max(0, Math.round(remaining - childcareEdu - food));
+    : 0;
   const debtStatus =
     editable.debt > 0 ? `${formatAmountCompact(editable.debt)} total` : "Debt-free";
   const mortgageStatus =
@@ -885,7 +1016,10 @@ function getResponsibilities(inputs: XCurveInputs, editable: DimeEditable) {
     },
     { label: "Food/Groceries", value: monthlyBase > 0 ? `${formatAmount(food)}/mo` : "Not captured" },
     { label: "Childcare/Edu", value: eligibleChildrenCount > 0 ? `${formatAmount(childcareEdu)}/mo` : "N/A" },
-    { label: "Transportation", value: monthlyBase > 0 ? `${formatAmount(transportation)}/mo` : "Not captured" },
+    {
+      label: "Transportation",
+      value: hasTransportation ? `${formatAmount(transportation)}/mo` : "Not captured",
+    },
     { label: "Healthcare", value: "Not captured" },
     { label: "Debts", value: debtStatus },
     { label: "Mortgage", value: mortgageStatus },
@@ -1023,6 +1157,7 @@ export function XCurveScreen({
   });
   const [educationDerivationExpanded, setEducationDerivationExpanded] =
     useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1094,7 +1229,16 @@ export function XCurveScreen({
       0,
       inputs.retirement.targetAge - inputs.client.primaryAge
     );
-    const mortgagePaidOff = milestones.mortgagePayoff !== null && milestones.mortgagePayoff <= inputs.retirement.targetAge;
+    const retirementEndAge = 90;
+    const payoffAge = milestones.mortgagePayoff;
+    const yearsWithMortgageInRetirement =
+      payoffAge === null
+        ? Math.max(0, retirementEndAge - inputs.retirement.targetAge)
+        : Math.max(0, Math.min(payoffAge, retirementEndAge) - inputs.retirement.targetAge);
+    const yearsWithoutMortgageInRetirement =
+      payoffAge === null
+        ? 0
+        : Math.max(0, retirementEndAge - Math.max(payoffAge, inputs.retirement.targetAge));
     const debtPaidOffByRetirement =
       inputs.risk.debtPayoffMonths > 0 &&
       inputs.risk.debtPayoffMonths <= yearsToRetirement * 12;
@@ -1108,10 +1252,16 @@ export function XCurveScreen({
           : Math.round((inputs.risk.annualIncome * 0.5) / 12);
     return estimateRetirementExpenses(
       Math.max(0, baselineMonthly),
-      mortgagePaidOff,
       inputs.risk.mortgageMonthlyPiti,
       inputs.accumulation.monthlyDebtService,
-      debtPaidOffByRetirement
+      debtPaidOffByRetirement,
+      yearsWithMortgageInRetirement,
+      yearsWithoutMortgageInRetirement,
+      inputs.retirement.monthlyExpenseBreakdown.housing,
+      inputs.risk.hasMortgage,
+      inputs.retirement.monthlyExpenseBreakdown.groceries,
+      inputs.retirement.monthlyExpenseBreakdown.transportation,
+      inputs.retirement.monthlyExpenseBreakdown.other
     );
   }, [
     inputs.client.primaryAge,
@@ -1121,8 +1271,12 @@ export function XCurveScreen({
     inputs.retirement.targetAge,
     inputs.risk.annualIncome,
     inputs.risk.mortgageMonthlyPiti,
+    inputs.risk.hasMortgage,
     inputs.risk.debtPayoffMonths,
     inputs.accumulation.monthlyDebtService,
+    inputs.retirement.monthlyExpenseBreakdown.housing,
+    inputs.retirement.monthlyExpenseBreakdown.groceries,
+    inputs.retirement.monthlyExpenseBreakdown.transportation,
     milestones.mortgagePayoff,
   ]);
 
@@ -1132,9 +1286,50 @@ export function XCurveScreen({
     [retirementExpenses.totalAnnual, inputs.retirement.yearsInRetirement]
   );
 
+  const socialSecurityFRAAge = 67;
+  const socialSecurityEarliestClaimAge = 62;
+  const socialSecurityPrimaryMonthlyInput = Math.max(0, inputs.retirement.socialSecurityMonthlyPrimary);
+  const socialSecuritySpouseMonthlyInput = Math.max(0, inputs.retirement.socialSecurityMonthlySpouse);
+  const socialSecurityCombinedMonthlyInput =
+    socialSecurityPrimaryMonthlyInput + socialSecuritySpouseMonthlyInput;
+  const socialSecurityEntered = socialSecurityCombinedMonthlyInput > 0;
+  const fullSocialSecurityAnnual = socialSecurityEntered ? socialSecurityCombinedMonthlyInput * 12 : 0;
+  const socialSecurityTiming = useMemo(() => {
+    if (!socialSecurityEntered) {
+      return {
+        annual: 0,
+        monthly: 0,
+        note: "Social Security not entered. If you have a Social Security estimate, enter it in Investments & Assets → Social Security Estimate to include it in this projection.",
+      };
+    }
+    const retirementAge = inputs.retirement.targetAge;
+    if (retirementAge < socialSecurityEarliestClaimAge) {
+      return {
+        annual: 0,
+        monthly: 0,
+        note: `Social Security cannot be claimed before age ${socialSecurityEarliestClaimAge}. Estimated Social Security gap: ${socialSecurityEarliestClaimAge - retirementAge} years (age ${retirementAge} to ${socialSecurityEarliestClaimAge}).`,
+      };
+    }
+    if (retirementAge < socialSecurityFRAAge) {
+      const yearsEarly = socialSecurityFRAAge - retirementAge;
+      const reductionPct = Math.min(30, Math.max(0, (yearsEarly / (socialSecurityFRAAge - socialSecurityEarliestClaimAge)) * 30));
+      const factor = 1 - reductionPct / 100;
+      const annual = Math.max(0, fullSocialSecurityAnnual * factor);
+      return {
+        annual,
+        monthly: annual / 12,
+        note: `Early claim assumed at age ${retirementAge} with ~${reductionPct.toFixed(0)}% reduction vs Full Retirement Age ${socialSecurityFRAAge}.`,
+      };
+    }
+    return {
+      annual: fullSocialSecurityAnnual,
+      monthly: fullSocialSecurityAnnual / 12,
+      note: `Full Retirement Age ${socialSecurityFRAAge} benefit assumption.`,
+    };
+  }, [inputs.retirement.targetAge, fullSocialSecurityAnnual, socialSecurityEntered]);
   const retirementIncomeTotal =
     inputs.retirement.projected401kWithdrawal +
-    inputs.retirement.projectedSocialSecurity +
+    socialSecurityTiming.annual +
     inputs.retirement.projectedPension;
   const replacementYearOptions = useMemo(() => {
     const defaults = [5, 7, 8, 10, 12, 15, 20];
@@ -1196,18 +1391,58 @@ export function XCurveScreen({
   );
   const retirementMonthlyGap = Math.max(0, retirementAnnualGap / 12);
   const retirementDeficit = retirementAnnualGap;
+  const retirementMonthlySurplus = Math.max(0, (retirementIncomeTotal - retirementExpenses.totalAnnual) / 12);
+  const inflatedNeedAtAge90 = retirementExpenses.totalAnnual * Math.pow(1.03, 30);
+  const estimated401kBalanceAtRetirement =
+    inputs.retirement.projected401kWithdrawal > 0
+      ? inputs.retirement.projected401kWithdrawal / 0.04
+      : 0;
+  const projectedMortgageBalanceAtRetirement = useMemo(() => {
+    const yearsToRetirement = Math.max(0, inputs.retirement.targetAge - inputs.client.primaryAge);
+    const fallbackRemainingYears =
+      milestones.mortgagePayoff !== null
+        ? Math.max(0, milestones.mortgagePayoff - inputs.client.primaryAge)
+        : 0;
+    const effectiveRemainingYears =
+      inputs.risk.mortgageRemainingYears > 0 ? inputs.risk.mortgageRemainingYears : fallbackRemainingYears;
+    return estimateMortgageBalanceAtRetirement(
+      inputs.risk.mortgageBalance,
+      inputs.risk.mortgageRateAnnual,
+      effectiveRemainingYears,
+      yearsToRetirement
+    );
+  }, [
+    milestones.mortgagePayoff,
+    inputs.retirement.targetAge,
+    inputs.client.primaryAge,
+    inputs.risk.mortgageBalance,
+    inputs.risk.mortgageRateAnnual,
+    inputs.risk.mortgageRemainingYears,
+  ]);
   const projectedAtRetirementDerivation = useMemo(() => {
     const years = Math.max(0, inputs.retirement.targetAge - inputs.client.primaryAge);
     const annualSavings = Math.max(0, inputs.accumulation.monthlySurplus) * 12;
-    return `Derived by goal net worth projection: current assets (${formatCurrency(
+    const growthRateAssumedPct = 6;
+    return `Derived from: current assets (${formatCurrency(
       inputs.accumulation.totalCurrentAssets
-    )}) + annual savings (${formatCurrency(annualSavings)}/yr) over ${years} years at assumed growth, minus projected liabilities and planned major purchases.`;
+    )}) grown at assumed rate over ${years} years + annual savings of ${formatCurrency(
+      annualSavings
+    )}/yr compounded. Minus outstanding mortgage balance at retirement (~${formatCurrency(
+      projectedMortgageBalanceAtRetirement
+    )}) and other projected liabilities. Growth rate assumed: ${growthRateAssumedPct}%. This is an estimate — actual results will vary.`;
   }, [
     inputs.retirement.targetAge,
     inputs.client.primaryAge,
     inputs.accumulation.monthlySurplus,
     inputs.accumulation.totalCurrentAssets,
+    projectedMortgageBalanceAtRetirement,
   ]);
+  const formatEstimatedCurrency = (value: number): string =>
+    `~$${Math.round(Math.max(0, value)).toLocaleString()}`;
+  const displayedProjectedAtRetirement = Math.max(
+    0,
+    inputs.accumulation.projectedNetWorthAtRetirement - projectedMortgageBalanceAtRetirement
+  );
 
   const timelineMilestones = [
     { label: "Age", age: inputs.client.primaryAge },
@@ -1225,12 +1460,45 @@ export function XCurveScreen({
   const postNetDeductions = inputs.risk.coverageGapDeductions.filter(
     (row) => row.key !== "existing_assets"
   );
+  const helpPanelCaseData = useMemo(
+    () => ({
+      coverageGap: authoritativeCoverageGap,
+      incomeI: inputs.risk.annualIncome * editable.replacementYears,
+      multiplierYears: editable.replacementYears,
+      retirementAge: inputs.retirement.targetAge,
+      crossingPointAge: curve.crossingAge,
+      monthlyRetirementGap: retirementMonthlyGap,
+      primaryClientName: inputs.client.primaryName,
+    }),
+    [
+      authoritativeCoverageGap,
+      inputs.risk.annualIncome,
+      editable.replacementYears,
+      inputs.retirement.targetAge,
+      curve.crossingAge,
+      retirementMonthlyGap,
+      inputs.client.primaryName,
+    ]
+  );
 
   return (
     <div className="space-y-6">
       <div className="rounded-xl border bg-card p-5">
-        <h2 className="text-xl font-bold text-[#1B365D]">Financial X-Curve</h2>
-        <p className="text-sm text-muted-foreground">Your lifetime financial risk vs accumulation</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-[#1B365D]">Financial X-Curve</h2>
+            <p className="text-sm text-muted-foreground">Your lifetime financial risk vs accumulation</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            title="How does this work?"
+            className="inline-flex items-center gap-2 rounded-full border border-[#0D3B6E]/30 bg-white px-3 py-1.5 text-xs font-semibold text-[#0D3B6E] hover:bg-[#0D3B6E]/5"
+          >
+            <span aria-hidden="true">📖</span>
+            How is this calculated?
+          </button>
+        </div>
       </div>
 
       <section className="rounded-xl border bg-[#FAFAF7] p-4 md:p-5">
@@ -1385,7 +1653,7 @@ export function XCurveScreen({
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border border-[#1B365D]/35 bg-white p-3">
-            <p className="text-base font-bold text-[#1B365D]">a. DIE TOO SOON</p>
+            <p className="text-base font-bold text-[#1B365D]">a. IF SOMETHING HAPPENS TO YOU</p>
             <p className="text-sm font-semibold text-[#1B365D]">PROTECT YOUR FAMILY</p>
             <p className="text-xs text-muted-foreground">(Life Insurance / Income Replacement)</p>
             <p className="mt-1 font-mono text-lg font-bold text-[#E74C3C]">Coverage Gap: {formatCurrency(authoritativeCoverageGap)}</p>
@@ -1395,9 +1663,9 @@ export function XCurveScreen({
             </p>
           </div>
           <div className="rounded-lg border border-[#8B0000]/35 bg-white p-3">
-            <p className="text-base font-bold text-[#8B0000]">b. LIVE TOO LONG</p>
+            <p className="text-base font-bold text-[#8B0000]">b. IF YOU OUTLIVE YOUR SAVINGS</p>
             <p className="text-sm font-semibold text-[#8B0000]">PROTECT YOURSELF</p>
-            <p className="text-xs text-muted-foreground">(Investments / Living on Interest)</p>
+            <p className="text-xs text-muted-foreground">(Retirement Investments / Living on Returns)</p>
             <p className="mt-1 font-mono text-lg font-bold text-[#8B0000]">Retirement Gap: {formatCurrency(retirementDeficit)}</p>
           </div>
         </div>
@@ -1616,30 +1884,42 @@ export function XCurveScreen({
           </p>
 
           <div className="mt-3 rounded-lg border bg-background p-3">
-            <p className="text-sm font-semibold">Projected Monthly Expenses in Retirement</p>
+            <p className="text-sm font-semibold">Est. Monthly Expenses in Retirement</p>
             <div className="mt-2 space-y-1 text-sm">
-              <div className="flex justify-between"><span>Food/Groceries</span><span>{formatCurrency(retirementExpenses.food)}/mo</span></div>
-              <div className="flex justify-between"><span>Insurance Premiums</span><span>{formatCurrency(retirementExpenses.insurancePremiums)}/mo</span></div>
-              <div className="flex justify-between"><span>Medical/Healthcare</span><span>{formatCurrency(retirementExpenses.medical)}/mo</span></div>
-              <div className="flex justify-between"><span>Housing</span><span>{formatCurrency(retirementExpenses.housing)}/mo</span></div>
-              <div className="flex justify-between"><span>Utilities</span><span>{formatCurrency(retirementExpenses.utilities)}/mo</span></div>
-              <div className="flex justify-between"><span>Transportation</span><span>{formatCurrency(retirementExpenses.transportation)}/mo</span></div>
-              <div className="flex justify-between"><span>Other</span><span>{formatCurrency(retirementExpenses.other)}/mo</span></div>
+              <div className="flex justify-between"><span>Food/Groceries</span><span>{formatEstimatedCurrency(retirementExpenses.food)}/mo</span></div>
+              <div className="flex justify-between"><span>Insurance Premiums</span><span>{formatEstimatedCurrency(retirementExpenses.insurancePremiums)}/mo</span></div>
+              <p className="text-[11px] text-muted-foreground">
+                {formatEstimatedCurrency(retirementExpenses.insurancePremiums)}/mo (estimated — includes assumed health insurance costs in retirement. Enter actual insurance premiums in Monthly Expenses for a more accurate figure.)
+              </p>
+              <div className="flex justify-between"><span>Medical/Healthcare</span><span>{formatEstimatedCurrency(retirementExpenses.medical)}/mo</span></div>
+              <p className="text-[11px] text-muted-foreground">
+                Medical/Healthcare {formatEstimatedCurrency(retirementExpenses.medical)}/mo (default estimate — actual healthcare expenses not captured. Enter in Monthly Expenses for a more accurate projection.)
+              </p>
+              <div className="flex justify-between"><span>{retirementExpenses.housingLabel}</span><span>{formatEstimatedCurrency(retirementExpenses.housing)}/mo</span></div>
+              {retirementExpenses.housingNote ? (
+                <p className="text-[11px] text-muted-foreground">{retirementExpenses.housingNote}</p>
+              ) : null}
+              <div className="flex justify-between"><span>Utilities</span><span>{formatEstimatedCurrency(retirementExpenses.utilities)}/mo</span></div>
+              <div className="flex justify-between"><span>Transportation</span><span>{formatEstimatedCurrency(retirementExpenses.transportation)}/mo</span></div>
+              <div className="flex justify-between"><span>Other (miscellaneous)</span><span>{formatEstimatedCurrency(retirementExpenses.other)}/mo</span></div>
+              <p className="text-[11px] text-muted-foreground">
+                {retirementExpenses.otherNote}
+              </p>
               <div className="mt-1 flex justify-between border-t pt-1 font-semibold">
-                <span>Total Monthly</span>
-                <span>{formatCurrency(retirementExpenses.totalMonthly)}/mo</span>
+                <span>Est. Total Monthly</span>
+                <span>{formatEstimatedCurrency(retirementExpenses.totalMonthly)}/mo</span>
               </div>
               <div className="flex justify-between">
-                <span>Total Annual</span>
-                <span>{formatCurrency(retirementExpenses.totalAnnual)}/yr</span>
+                <span>Est. Total Annual</span>
+                <span>{formatEstimatedCurrency(retirementExpenses.totalAnnual)}/yr</span>
               </div>
               <div className="flex justify-between">
-                <span>Total Need ({inputs.retirement.yearsInRetirement} yrs)</span>
-                <span>{formatCurrency(retirementExpenses.totalAnnual * inputs.retirement.yearsInRetirement)}</span>
+                <span>Est. Total Need ({inputs.retirement.yearsInRetirement} yrs)</span>
+                <span>{formatEstimatedCurrency(retirementExpenses.totalAnnual * inputs.retirement.yearsInRetirement)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Inflation-adjusted corpus</span>
-                <span>{formatCurrency(retirementCorpus.recommended)}</span>
+                <span>Est. Inflation-adjusted corpus</span>
+                <span>{formatEstimatedCurrency(retirementCorpus.recommended)}</span>
               </div>
             </div>
           </div>
@@ -1647,44 +1927,94 @@ export function XCurveScreen({
           <div className="mt-3 rounded-lg border bg-background p-3">
             <p className="text-sm font-semibold">Retirement Income Sources</p>
             <div className="mt-2 space-y-1 text-sm">
-              <div className="flex justify-between"><span>Current Savings</span><span>{formatCurrency(inputs.accumulation.totalCurrentAssets)}</span></div>
-              <div className="flex justify-between"><span>Projected at Retirement</span><span>{formatCurrency(inputs.accumulation.projectedNetWorthAtRetirement)}</span></div>
+              <div className="flex justify-between"><span>Current Savings</span><span>{formatEstimatedCurrency(inputs.accumulation.totalCurrentAssets)}</span></div>
+              <div className="flex justify-between"><span>Est. Projected at Retirement</span><span>{formatEstimatedCurrency(displayedProjectedAtRetirement)}</span></div>
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>Gross projection before liabilities</span>
+                <span>{formatEstimatedCurrency(inputs.accumulation.projectedNetWorthAtRetirement)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>Less est. mortgage at retirement</span>
+                <span>- {formatEstimatedCurrency(projectedMortgageBalanceAtRetirement)}</span>
+              </div>
               <p className="text-xs text-muted-foreground">{projectedAtRetirementDerivation}</p>
-              <div className="flex justify-between"><span>401(k) Withdrawal</span><span>{formatCurrency(inputs.retirement.projected401kWithdrawal)}/yr</span></div>
-              <div className="flex justify-between"><span>Social Security</span><span>{formatCurrency(inputs.retirement.projectedSocialSecurity)}/yr</span></div>
-              <div className="flex justify-between"><span>Pension</span><span>{formatCurrency(inputs.retirement.projectedPension)}/yr</span></div>
+              <div className="flex justify-between"><span>Est. 401(k) Withdrawal</span><span>{formatEstimatedCurrency(inputs.retirement.projected401kWithdrawal)}/yr</span></div>
+              <p className="text-[11px] text-muted-foreground">
+                Estimated at 4% annual withdrawal rate from projected 401(k) and retirement account balance of {formatEstimatedCurrency(estimated401kBalanceAtRetirement)} at retirement. (4% rule is a common retirement planning guideline — not a guarantee.)
+              </p>
+              <div className="flex justify-between"><span>Social Security</span><span>{formatEstimatedCurrency(socialSecurityTiming.annual)}/yr</span></div>
+              <p className="text-[11px] text-muted-foreground">
+                {socialSecurityEntered
+                  ? `Combined Social Security estimate: Primary ${formatEstimatedCurrency(socialSecurityPrimaryMonthlyInput)}/mo + Spouse ${formatEstimatedCurrency(socialSecuritySpouseMonthlyInput)}/mo = ${formatEstimatedCurrency(socialSecurityCombinedMonthlyInput)}/mo total (as entered). Annual: ${formatEstimatedCurrency(socialSecurityCombinedMonthlyInput * 12)}/yr. ${socialSecurityTiming.note}`
+                  : socialSecurityTiming.note}
+              </p>
+              {!socialSecurityEntered && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                  💡 Tip: Enter your Social Security estimate in Financial Background → Investments & Assets to include SS income in this projection. At ~\$3,310/mo combined (typical for this income level), SS may significantly reduce this gap.
+                </p>
+              )}
+              <div className="flex justify-between"><span>Pension</span><span>{formatEstimatedCurrency(inputs.retirement.projectedPension)}/yr</span></div>
               <p className="text-[11px] text-muted-foreground">
                 Social Security estimates are approximate. Visit ssa.gov for your official benefit statement. Actual benefits depend on your earnings history, claiming age, and future legislative changes.
               </p>
-              <div className="flex justify-between border-t pt-1"><span>Total Income</span><span>{formatCurrency(retirementIncomeTotal)}/yr</span></div>
-              <div className="flex justify-between"><span>Need</span><span>{formatCurrency(retirementExpenses.totalAnnual)}/yr</span></div>
+              <div className="flex justify-between border-t pt-1"><span>Est. Total Income</span><span>{formatEstimatedCurrency(retirementIncomeTotal)}/yr</span></div>
+              <div className="flex justify-between"><span>Est. Annual Need</span><span>{formatEstimatedCurrency(retirementExpenses.totalAnnual)}/yr</span></div>
               <div className="flex justify-between font-semibold text-[#E67E22]">
-                <span>Annual Gap</span>
-                <span>{formatCurrency(retirementAnnualGap)}/yr</span>
+                <span>Est. Annual Gap</span>
+                <span>{formatEstimatedCurrency(retirementAnnualGap)}/yr</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
-                <span>Monthly Gap</span>
-                <span>{formatCurrency(retirementMonthlyGap)}/mo</span>
+                <span>Est. Monthly Gap</span>
+                <span>{formatEstimatedCurrency(retirementMonthlyGap)}/mo</span>
               </div>
               <div className="mt-1 flex justify-between border-t pt-1 font-semibold text-[#E74C3C]">
-                <span>Retirement Deficit</span>
-                <span>{formatCurrency(retirementDeficit)}</span>
+                <span>Est. Retirement Deficit</span>
+                <span>{formatEstimatedCurrency(retirementDeficit)}</span>
               </div>
             </div>
+            {retirementMonthlySurplus > 0 && retirementMonthlySurplus < 500 && (
+              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <p className="font-semibold">⚠️ Retirement Surplus Warning</p>
+                <p className="mt-1">
+                  Your estimated retirement income exceeds your projected needs by only {formatEstimatedCurrency(retirementMonthlySurplus)}/month.
+                </p>
+                <p className="mt-1">
+                  This margin does not account for inflation on living expenses over 30 years, rising healthcare costs in later years, market volatility affecting investment returns, and unexpected large expenses.
+                </p>
+                <p className="mt-1">
+                  At 3% annual inflation, your expenses could reach {formatEstimatedCurrency(inflatedNeedAtAge90)}/yr by age 90.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mt-3 rounded-lg border border-[#00838F]/30 bg-[#00838F]/5 p-3 text-sm">
             {retirementDeficit > 0 ? (
-              <p>
-                ⚠ Your plan must generate <strong>{formatCompactCurrency(retirementMonthlyGap)}/mo</strong> above
-                Social Security to meet your retirement goal. The Roth IRA and IUL recommendations address this gap.
-              </p>
+              socialSecurityTiming.annual > 0 ? (
+                <p>
+                  ⚠ Your plan must generate <strong>{formatCompactCurrency(retirementMonthlyGap)}/mo</strong> above
+                  Social Security to meet your retirement goal. The Roth IRA and IUL recommendations address this gap.
+                </p>
+              ) : (
+                <p>
+                  ⚠ Your estimated retirement income of <strong>{formatEstimatedCurrency(retirementIncomeTotal / 12)}/mo</strong>
+                  {" "}falls short of your projected need of <strong>{formatEstimatedCurrency(retirementExpenses.totalMonthly)}/mo</strong>
+                  {" "}by <strong>{formatEstimatedCurrency(retirementMonthlyGap)}/mo</strong>. This gap does not include Social Security — enter your SS estimate in Investments & Assets to update this projection. The Roth IRA and IUL recommendations address this gap.
+                </p>
+              )
             ) : (
               <p>
                 ✓ Current trajectory projects sufficient retirement income. Maintaining savings discipline is key.
               </p>
             )}
           </div>
+          {socialSecurityTiming.annual > 0 && (
+            <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 text-xs text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-950/20 dark:text-indigo-100">
+              📊 With Social Security: Est. Total Income {formatEstimatedCurrency(retirementIncomeTotal)}/yr,
+              a surplus of {formatEstimatedCurrency(Math.max(0, retirementIncomeTotal - retirementExpenses.totalAnnual))}/yr
+              above the projected need. Note: Social Security income before age {socialSecurityFRAAge} may be reduced based on claim age.
+            </div>
+          )}
         </div>
       </section>
 
@@ -1717,6 +2047,11 @@ export function XCurveScreen({
           Continue to Recommendations <ChevronRight className="size-4" />
         </Button>
       </div>
+      <XCurveHelpPanel
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        caseData={helpPanelCaseData}
+      />
 
       <style jsx>{`
         .xcurve-diagram {
