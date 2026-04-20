@@ -120,7 +120,6 @@ export function XCurveHelpPanel({ isOpen, onClose, caseData }: XCurveHelpPanelPr
         <header className="flex items-start justify-between bg-[#0D3B6E] px-4 py-3 text-white">
           <div>
             <h3 className="text-base font-bold">📊 Understanding the Financial X Curve</h3>
-            <p className="text-xs text-slate-100">A plain-English guide to every number on this screen</p>
           </div>
           <button type="button" onClick={onClose} className="rounded p-1 hover:bg-white/10" aria-label="Close help panel">
             <X className="size-4" />

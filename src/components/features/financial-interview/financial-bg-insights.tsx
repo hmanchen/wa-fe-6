@@ -55,6 +55,11 @@ function fmtDollars(n: number): string {
   return `$${n.toLocaleString()}`;
 }
 
+function fmtDollarsPreciseMillions(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  return fmtDollars(n);
+}
+
 function fmtExactDollars(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
@@ -1174,8 +1179,8 @@ export function FinancialBgInsights({
             <div className="rounded-xl border bg-card p-4">
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Net Worth</p>
               <div className="space-y-1 text-xs text-muted-foreground">
-                <div className="flex justify-between"><span>Total Assets</span><span className="font-semibold text-foreground">{fmtDollars(assets)}</span></div>
-                <div className="flex justify-between"><span>Total Liabilities</span><span className="font-semibold text-foreground">{fmtDollars(liabilities)}</span></div>
+                <div className="flex justify-between"><span>Total Assets</span><span className="font-semibold text-foreground">{fmtDollarsPreciseMillions(assets)}</span></div>
+                <div className="flex justify-between"><span>Total Liabilities</span><span className="font-semibold text-foreground">{fmtDollarsPreciseMillions(liabilities)}</span></div>
                 <div className="mt-1 flex justify-between border-t pt-1.5"><span className="font-bold">Net Worth</span><span className="text-sm font-black text-foreground">{fmtDollars(netWorthVal)}</span></div>
               </div>
               <div className="mt-3 space-y-1">
