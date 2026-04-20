@@ -271,46 +271,157 @@ function RiskExplainer({ visible }: { visible: boolean }) {
             </h3>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-background p-4">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <Shield className="size-4.5 text-primary" />
-              </div>
-              <div className="min-w-0">
+            <div className="rounded-lg border border-primary/20 bg-background p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <Shield className="size-4.5 text-primary" />
+                </div>
+                <div className="min-w-0">
                 <h4 className="text-sm font-bold">Life Insurance</h4>
                 <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  Replaces income for your family — covers mortgage, education, and daily expenses.
+                  Replaces your income — for your family, and for you.
                 </p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {["Term Life", "Permanent", "IUL"].map((tag) => (
-                    <span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                      {tag}
-                    </span>
+                <div className="mt-3 space-y-1.5">
+                  {[
+                    { label: "Term Life", note: "Affordable. Fixed term." },
+                    { label: "Permanent / Whole", note: "Lifelong. Builds cash value." },
+                    { label: "IUL", note: "Growth-linked. Tax-free access." },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center gap-2">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        {item.label}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">{item.note}</span>
+                    </div>
                   ))}
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
+
+                <div className="my-3 flex items-center gap-2">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="text-[11px] font-medium text-muted-foreground">Plus a feature most people don&apos;t know about</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+
+                <div className="rounded-md border-l-[3px] border-l-amber-500 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-foreground">
+                    ⚡ Living Benefits — your policy pays YOU, not just your family.
+                  </p>
+                  <p className="mt-1 text-[12px] text-muted-foreground">
+                    Triggered by critical, chronic, or terminal illness. No need to die to use your policy.
+                  </p>
+                </div>
+
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <div className="h-[130px] rounded-md border border-[#E5E7EB] border-t-[3px] border-t-[#EF4444] bg-white p-3">
+                    <p className="text-2xl leading-none">🫀</p>
+                    <p className="mt-1 text-[13px] font-bold">Critical Illness</p>
+                    <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                      Heart attack, stroke, or cancer diagnosis. Receive a lump sum to cover treatment costs and lost income while you recover.
+                    </p>
+                  </div>
+                  <div className="h-[130px] rounded-md border border-[#E5E7EB] border-t-[3px] border-t-[#8B5CF6] bg-white p-3">
+                    <p className="text-2xl leading-none">🧠</p>
+                    <p className="mt-1 text-[13px] font-bold">Chronic Illness</p>
+                    <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                      Unable to work long-term due to conditions like MS, Parkinson&apos;s, or ALS. Monthly benefit replaces your lost paycheck.
+                    </p>
+                  </div>
+                  <div className="h-[130px] rounded-md border border-[#E5E7EB] border-t-[3px] border-t-[#3B82F6] bg-white p-3">
+                    <p className="text-2xl leading-none">💙</p>
+                    <p className="mt-1 text-[13px] font-bold">Terminal Illness</p>
+                    <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                      Given 12–24 months to live. Access your death benefit early — to live your remaining time on your own terms.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex justify-center">
+                  <span className="inline-flex rounded-full border border-green-500 bg-green-50 px-3 py-1 text-[12px] text-green-700">
+                    ✓ Always ask your advisor: does this policy include Living Benefits?
+                  </span>
+                </div>
+
+                <p className="mt-4 text-[11px] text-muted-foreground">
                   Insurance products referenced are for educational illustration. Actual products, premiums, and availability vary by carrier, state, and individual underwriting.
                 </p>
+                </div>
               </div>
             </div>
-            <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-background p-4">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <ScrollText className="size-4.5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-sm font-bold">Will & Trust</h4>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  Ensures assets are distributed per your wishes — protects from probate and minimizes taxes.
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {["Last Will", "Living Trust", "Power of Attorney"].map((tag) => (
-                    <span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                      {tag}
-                    </span>
-                  ))}
+            <div className="rounded-lg border border-primary/20 bg-background p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <ScrollText className="size-4.5 text-primary" />
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  Estate planning documents require a licensed attorney. This is educational illustration only.
-                </p>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold">Will & Trust</h4>
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                    Ensures your wishes are followed — not a court&apos;s.
+                  </p>
+
+                  <div className="mt-3 space-y-1.5">
+                    {[
+                      { label: "Last Will", note: "Simple. Affordable. Essential." },
+                      { label: "Living Trust", note: "Private. No court. Immediate." },
+                      { label: "Power of Attorney", note: "You choose. They act." },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center gap-2">
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          {item.label}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">{item.note}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="my-3 flex items-center gap-2">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-[11px] font-medium text-muted-foreground">Why this connects to income replacement</span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+
+                  <div className="rounded-md border-l-[3px] border-l-amber-500 bg-amber-50 px-3 py-2">
+                    <p className="text-xs font-semibold text-foreground">
+                      ⚠️ Without these documents, a court decides — not your family.
+                    </p>
+                    <p className="mt-1 text-[12px] text-muted-foreground">
+                      Incapacity or death without documents means delays, legal costs, and outcomes you never intended.
+                    </p>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 md:grid-cols-3">
+                    <div className="h-[130px] rounded-md border border-[#E5E7EB] border-t-[3px] border-t-[#0D3B6E] bg-white p-3">
+                      <p className="text-2xl leading-none">📜</p>
+                      <p className="mt-1 text-[13px] font-bold">Last Will &amp; Testament</p>
+                      <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                        Names who inherits your assets and who raises your children. Without one, a court decides — not you.
+                      </p>
+                    </div>
+                    <div className="h-[130px] rounded-md border border-[#E5E7EB] border-t-[3px] border-t-[#7C3AED] bg-white p-3">
+                      <p className="text-2xl leading-none">🏛️</p>
+                      <p className="mt-1 text-[13px] font-bold">Living Trust</p>
+                      <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                        Assets transfer immediately after death — no probate court, no 6–18 month wait, no public record.
+                      </p>
+                    </div>
+                    <div className="h-[130px] rounded-md border border-[#E5E7EB] border-t-[3px] border-t-[#059669] bg-white p-3">
+                      <p className="text-2xl leading-none">⚖️</p>
+                      <p className="mt-1 text-[13px] font-bold">Power of Attorney</p>
+                      <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                        Names someone to manage your finances if you&apos;re incapacitated. Without one, your family may need a court order first.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex justify-center">
+                    <span className="inline-flex rounded-full border border-green-500 bg-green-50 px-3 py-1 text-[12px] text-green-700">
+                      ✓ Takes 2–4 weeks. Costs less than one month&apos;s mortgage payment.
+                    </span>
+                  </div>
+
+                  <p className="mt-4 text-[11px] text-muted-foreground">
+                    Estate planning documents require a licensed attorney. This is educational illustration only.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
