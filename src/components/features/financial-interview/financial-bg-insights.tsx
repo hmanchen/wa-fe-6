@@ -136,6 +136,7 @@ export function FinancialBgInsights({
   fullAnalysisData,
   disableAutoRefresh,
   onContinue,
+  continueLabel = "Continue to Financial Home",
   isSubmitting,
 }: {
   caseId: string;
@@ -148,6 +149,7 @@ export function FinancialBgInsights({
   fullAnalysisData?: any;
   disableAutoRefresh?: boolean;
   onContinue: () => void | Promise<void>;
+  continueLabel?: string;
   isSubmitting?: boolean;
 }) {
   const [fullAnalysis, setFullAnalysis] = useState<any>(null);
@@ -240,23 +242,12 @@ export function FinancialBgInsights({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId, disableAutoRefresh]);
 
-  if (!healthScore) {
-    return (
-      <div className="space-y-4 rounded-b-xl border border-t-0 p-5">
-        <div className="flex items-center justify-center p-12">
-          <Loader2 className="mr-2 size-4 animate-spin" />
-          <p className="text-sm text-muted-foreground">Loading insights — fetching health score &amp; running analysis...</p>
-        </div>
-      </div>
-    );
-  }
-
   const hsAny = healthScore as any;
   const fa = fullAnalysis as any;
   const goalAware = hsAny?.goalAware ?? false;
   const goalSummary = hsAny?.goalSummary ?? null;
-  const total = Number(healthScore.totalScore ?? 0);
-  const maxScore = Number(healthScore.maxPossibleScore ?? 100);
+  const total = Number(healthScore?.totalScore ?? 0);
+  const maxScore = Number(healthScore?.maxPossibleScore ?? 100);
   const pctTotal = maxScore > 0 ? (total / maxScore) * 100 : 0;
 
   const categorySource = hsAny?.categories ?? {};
@@ -576,6 +567,18 @@ export function FinancialBgInsights({
   const advisorHints = (insights?.advisorHints ?? insights?.advisor_hints ?? []) as string[];
   const [advisorHintsOpen, setAdvisorHintsOpen] = useState(true);
   const isAgentView = true;
+
+  if (!healthScore) {
+    return (
+      <div className="space-y-4 rounded-b-xl border border-t-0 p-5">
+        <div className="flex items-center justify-center p-12">
+          <Loader2 className="mr-2 size-4 animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading insights — fetching health score &amp; running analysis...</p>
+        </div>
+      </div>
+    );
+  }
+
   const renderFactorRow = (
     f: {
       id?: string;
@@ -1445,7 +1448,7 @@ export function FinancialBgInsights({
       {/* Continue button */}
       <div className="flex justify-end">
         <Button size="lg" className="gap-2 px-8" onClick={onContinue} disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Continue to Financial Home"}
+          {isSubmitting ? "Saving..." : continueLabel}
           <ArrowRight className="size-4" />
         </Button>
       </div>

@@ -3,65 +3,9 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FinancialInterviewSection } from "@/types/financial-interview";
+import { getFinancialInterviewSections } from "@/lib/financial-interview/workflow";
 
-interface SectionDef {
-  id: FinancialInterviewSection;
-  label: string;
-  shortLabel: string;
-}
-
-const SECTIONS: SectionDef[] = [
-  {
-    id: "financial-background",
-    label: "Financial Background",
-    shortLabel: "Background",
-  },
-  {
-    id: "goals-discovery",
-    label: "Goals & Discovery",
-    shortLabel: "Goals",
-  },
-  {
-    id: "income-replacement-risk",
-    label: "Income Replacement Risk",
-    shortLabel: "Risk",
-  },
-  {
-    id: "protection-estate",
-    label: "Protection & Estate",
-    shortLabel: "Protection",
-  },
-  {
-    id: "analysis-dashboard",
-    label: "Analysis Dashboard",
-    shortLabel: "Analysis",
-  },
-  {
-    id: "financial-home",
-    label: "Financial Home",
-    shortLabel: "Fin Home",
-  },
-  {
-    id: "financial-home-pyramid",
-    label: "Financial Home Pyramid",
-    shortLabel: "Pyramid",
-  },
-  {
-    id: "financial-x-curve",
-    label: "Financial X Curve",
-    shortLabel: "X Curve",
-  },
-  {
-    id: "recommendations",
-    label: "Recommendations",
-    shortLabel: "Recs",
-  },
-  {
-    id: "delivery",
-    label: "Delivery",
-    shortLabel: "Deliver",
-  },
-];
+const SECTIONS = getFinancialInterviewSections();
 
 interface InterviewSectionNavProps {
   currentSection: FinancialInterviewSection;

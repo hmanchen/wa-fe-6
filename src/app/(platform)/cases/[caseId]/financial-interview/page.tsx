@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
@@ -54,6 +54,13 @@ import type { PersonFinancialBackground } from "@/types/financial-interview";
 import type { GoalsDiscoveryData } from "@/types/financial-interview";
 import { useFullAnalysisData, useXCurveData } from "@/hooks/use-presentation-flow";
 import { recordCaseConsent } from "@/lib/api/cases";
+import {
+  FEATURE_FINANCIAL_HOME_SCREEN,
+  FINANCIAL_HOME_SECTION_ID,
+  FINANCIAL_HOME_PYRAMID_SECTION_ID,
+  getNextSectionAfterAnalysis,
+  resolveFinancialHomeSection,
+} from "@/lib/financial-interview/workflow";
 
 function computeRiskSnapshot(
   riskProfile?: {
@@ -119,7 +126,9 @@ const AnnotationOverlay = dynamic(
 
 export default function FinancialInterviewPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const caseId = params.caseId as string;
+  const requestedSectionParam = searchParams.get("section") as FinancialInterviewSection | null;
   const { data: caseData, isLoading: isCaseLoading } = useCase(caseId);
   const queryClient = useQueryClient();
   const updateCase = useUpdateCase();
@@ -163,7 +172,7 @@ export default function FinancialInterviewPage() {
   );
   const shouldLoadFullAnalysis =
     currentSection === "analysis-dashboard" ||
-    currentSection === "financial-home" ||
+    (FEATURE_FINANCIAL_HOME_SCREEN && currentSection === FINANCIAL_HOME_SECTION_ID) ||
     currentSection === "financial-home-pyramid" ||
     currentSection === "financial-x-curve" ||
     currentSection === "recommendations" ||
@@ -238,7 +247,7 @@ export default function FinancialInterviewPage() {
   // ── Handlers ─────────────────────────────────────────────
   const handleSectionClick = useCallback(
     (section: FinancialInterviewSection) => {
-      setCurrentSection(section);
+      setCurrentSection(resolveFinancialHomeSection(section));
     },
     []
   );
@@ -325,7 +334,11 @@ export default function FinancialInterviewPage() {
   })();
   const consentRequired = Boolean(caseData) && !Boolean(caseData?.consentAcknowledgedAt || consentSessionGiven);
   useEffect(() => {
-    setCurrentSection("financial-background");
+    setCurrentSection(
+      requestedSectionParam
+        ? resolveFinancialHomeSection(requestedSectionParam)
+        : "financial-background"
+    );
     setFinancialBgTab("primary");
     setCompletedSections([]);
     setRecommendationsCache(null);
@@ -346,7 +359,7 @@ export default function FinancialInterviewPage() {
     queryClient.removeQueries({ queryKey: ["financial-interview"] });
     queryClient.removeQueries({ queryKey: ["goals-discovery"] });
     queryClient.removeQueries({ queryKey: ["ai-financial-home"] });
-  }, [caseId, queryClient]);
+  }, [caseId, queryClient, requestedSectionParam]);
   useEffect(() => {
     if (!caseData?.id || caseData.status !== "draft") return;
     if (pipelinePromotedCase.current === caseData.id) return;
@@ -711,7 +724,10 @@ export default function FinancialInterviewPage() {
               clientState={caseData?.clientPersonalInfo?.address?.province}
               fullAnalysisData={fullAnalysisData}
               disableAutoRefresh
-              onContinue={() => setCurrentSection("financial-home")}
+              onContinue={() => setCurrentSection(getNextSectionAfterAnalysis())}
+              continueLabel={`Continue to ${
+                FEATURE_FINANCIAL_HOME_SCREEN ? "Financial Home" : "Financial Home Pyramid"
+              }`}
               isSubmitting={false}
             />
             {isCurrentSectionLoading && (
@@ -721,10 +737,10 @@ export default function FinancialInterviewPage() {
         )}
 
         {/* ── PHASE 5: Financial Home ── */}
-        {currentSection === "financial-home" && (
+        {FEATURE_FINANCIAL_HOME_SCREEN && currentSection === FINANCIAL_HOME_SECTION_ID && (
           <FinancialHomeScreen
             caseId={caseId}
-            onContinue={() => setCurrentSection("financial-home-pyramid")}
+            onContinue={() => setCurrentSection(FINANCIAL_HOME_PYRAMID_SECTION_ID)}
           />
         )}
 

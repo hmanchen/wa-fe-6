@@ -6,6 +6,7 @@ import type {
   ContributionLimitsData,
   MarketSnapshot,
   GoalsDiscoveryData,
+  FinancialInterviewSection,
 } from "@/types/financial-interview";
 import { deepConvertKeys, toCamelCase, toSnakeCase } from "./key-utils";
 
@@ -26,6 +27,8 @@ export interface FinancialInterviewPayload {
   primaryBackground?: PersonFinancialBackground;
   spouseBackground?: PersonFinancialBackground;
   goalsDiscovery?: GoalsDiscoveryData;
+  currentSection?: FinancialInterviewSection;
+  completedSections?: FinancialInterviewSection[];
 }
 
 interface WrappedResponse<T> {
@@ -87,6 +90,8 @@ export async function getFinancialInterviewData(
     goalsDiscovery: fp.goals_discovery
       ? deepConvertKeys(fp.goals_discovery, toCamelCase)
       : undefined,
+    currentSection: fp.current_section ?? raw?.current_section ?? raw?.currentSection,
+    completedSections: fp.completed_sections ?? raw?.completed_sections ?? raw?.completedSections ?? [],
   };
 
   return sanitizeInterviewPayload(result);
@@ -135,6 +140,8 @@ export async function saveFinancialBackground(
     goalsDiscovery: fp.goals_discovery
       ? deepConvertKeys(fp.goals_discovery, toCamelCase)
       : undefined,
+    currentSection: fp.current_section ?? raw?.current_section ?? raw?.currentSection,
+    completedSections: fp.completed_sections ?? raw?.completed_sections ?? raw?.completedSections ?? [],
   };
 
   return sanitizeInterviewPayload(result);
