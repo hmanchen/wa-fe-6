@@ -440,7 +440,7 @@ export default function FinancialInterviewPage() {
       />
 
       {/* Floating annotation launcher */}
-      <div className="fixed right-3 top-1/2 z-[70] -translate-y-1/2">
+      <div className="fixed top-[14px] right-[70px] z-[70]">
         {annotationLauncherOpen ? (
           <div className="flex items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-lg backdrop-blur-sm">
             <Button
