@@ -87,7 +87,7 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <Card>
+      <Card className="border-0 bg-white shadow-2xl">
         <CardHeader className="space-y-1">
           <CardTitle className="text-xl sm:text-2xl">Check your email</CardTitle>
           <CardDescription>
@@ -103,7 +103,7 @@ export default function RegisterPage() {
             Already confirmed?{" "}
             <Link
               href="/login"
-              className="text-primary font-medium underline-offset-4 hover:underline"
+              className="font-medium text-[#C09433] underline-offset-4 hover:text-[#d4b04d] hover:underline"
             >
               Sign in
             </Link>
@@ -114,11 +114,15 @@ export default function RegisterPage() {
   }
 
   return (
-    <Card>
+    <Card className="border-0 bg-white shadow-2xl">
       <CardHeader className="space-y-1">
         <CardTitle className="text-xl sm:text-2xl">Create an account</CardTitle>
         <CardDescription>
-          Enter your details to get started with WealthArchitect
+          Enter your details to get started with{" "}
+          <span className="font-medium text-[#0A1F19]">
+            <span className="text-[#0A1F19]">arc</span>
+            <span className="text-[#C09433]">lis</span>
+          </span>
         </CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -210,7 +214,7 @@ export default function RegisterPage() {
               Already have an account?{" "}
               <Link
                 href="/login"
-                className="text-primary font-medium underline-offset-4 hover:underline"
+                className="font-medium text-[#C09433] underline-offset-4 hover:text-[#d4b04d] hover:underline"
               >
                 Sign in
               </Link>

@@ -1,3 +1,5 @@
+import { APP_SHORT_NAME } from "@/lib/app-branding";
+
 export default function JoinTheTeamCard({ clientName, advisorName, clientAge }) {
   const ageContext = clientAge
     ? `At ${clientAge}, you have the ideal combination of life experience and earning years ahead of you.`
@@ -77,7 +79,7 @@ export default function JoinTheTeamCard({ clientName, advisorName, clientAge }) 
           secure it. If the monthly investment feels like a stretch today, there is a genuine path to
           change that:{" "}
           <strong style={{ color: "#FFFFFF" }}>become a licensed insurance professional yourself</strong>,
-          mentor under {advisorName || "your advisor"}, and use WealthArchitect with your own clients to
+          mentor under {advisorName || "your advisor"}, and use {APP_SHORT_NAME} with your own clients to
           build the income that funds this very plan.
         </p>
 
@@ -91,7 +93,7 @@ export default function JoinTheTeamCard({ clientName, advisorName, clientAge }) 
             {
               icon: "\uD83D\uDCBC",
               title: "Use This Tool",
-              desc: "Access WealthArchitect for your own clients - the same system you just experienced",
+              desc: `Access ${APP_SHORT_NAME} for your own clients - the same system you just experienced`,
             },
             {
               icon: "\uD83D\uDCB0",

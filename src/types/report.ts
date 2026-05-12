@@ -1,5 +1,5 @@
 /**
- * Report types for WealthArchitect platform
+ * Report types for Arclis platform
  */
 
 export type ReportSection =

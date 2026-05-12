@@ -1162,6 +1162,9 @@ export function Section1Form({
               />
             </div>
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Investment balances are self-reported. Market values fluctuate and are not guaranteed.
+          </p>
         </ToggleSection>
       </div>
 
@@ -1304,6 +1307,9 @@ export function Section1Form({
               }
             />
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Estimates only. Visit ssa.gov for your official Social Security benefit statement.
+          </p>
         </ToggleSection>
       </div>
 

@@ -80,7 +80,7 @@ function LoginForm() {
   }
 
   return (
-    <Card>
+    <Card className="border-0 bg-white shadow-2xl">
       <CardHeader className="space-y-1">
         <CardTitle className="text-xl sm:text-2xl">Sign in</CardTitle>
         <CardDescription>
@@ -141,7 +141,7 @@ function LoginForm() {
               Don&apos;t have an account?{" "}
               <Link
                 href="/register"
-                className="text-primary font-medium underline-offset-4 hover:underline"
+                className="font-medium text-[#C09433] underline-offset-4 hover:text-[#d4b04d] hover:underline"
               >
                 Register
               </Link>

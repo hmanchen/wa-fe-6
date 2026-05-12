@@ -44,6 +44,9 @@ export default function PhaseTwoSection({ items }) {
             ? "Starting with critical family protection documents, then building wealth systematically"
             : "These goals activate as your financial foundation strengthens"}
         </p>
+        <p style={{ fontSize: 11, color: "#6B7280", margin: "8px 0 0", paddingLeft: 24 }}>
+          The action plan timeline is illustrative. Implementation timelines depend on carrier underwriting, client eligibility, and individual circumstances.
+        </p>
       </div>
 
       {milestones.map((item, i) => {

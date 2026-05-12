@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Shield,
   ScrollText,
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { PersonFinancialBackground } from "@/types/financial-interview";
+import { EstatePlanningGuide } from "@/components/features/protection/EstatePlanningGuide";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import {
   Tooltip,
   TooltipContent,
@@ -31,6 +33,76 @@ import {
 } from "@/components/ui/tooltip";
 
 type SubTab = "life-insurance" | "will-trust";
+
+function normalizeLifeInsuranceData(
+  value: PersonFinancialBackground["lifeInsurance"] | undefined
+): PersonFinancialBackground["lifeInsurance"] {
+  const life = value ?? {};
+  const policies = Array.isArray(life.policies) ? life.policies : [];
+  const policyCoverageTotal = policies.reduce(
+    (sum, policy) => sum + Number(policy?.coverageAmount ?? 0),
+    0
+  );
+  const groupCoverage = Number(life.groupLifeAmount ?? 0);
+  const termCoverage = Number(life.termLifeAmount ?? 0);
+  const permCoverage = Number(life.permLifeAmount ?? 0);
+  const hasGroupPolicy = policies.some((policy) => policy?.policyType === "group");
+  const hasTermPolicy = policies.some((policy) => policy?.policyType === "term");
+  const hasPermPolicy = policies.some((policy) =>
+    ["whole-life", "universal", "iul"].includes(String(policy?.policyType ?? ""))
+  );
+
+  return {
+    ...life,
+    policies,
+    hasGroupLife: Boolean(life.hasGroupLife || groupCoverage > 0 || hasGroupPolicy),
+    hasTermLife: Boolean(life.hasTermLife || termCoverage > 0 || hasTermPolicy),
+    hasPermLife: Boolean(life.hasPermLife || permCoverage > 0 || hasPermPolicy),
+    totalCoverageAmount: groupCoverage + termCoverage + permCoverage + policyCoverageTotal,
+  };
+}
+
+function normalizeProtectionEstateData(
+  role: "primary" | "spouse",
+  value?: PersonFinancialBackground
+): PersonFinancialBackground {
+  const base = value ?? {
+    role,
+    yearsInCountry: 0,
+    countryOfResidence: "US",
+    income: {},
+    monthlyExpenses: {},
+    retirement401k: { has401k: false },
+    employmentHistory: [],
+    hsa: { hasHSA: false },
+    ira: { hasIRA: false },
+    rothIRA: { hasRothIRA: false },
+    backdoorRothIRA: { hasBackdoorRoth: false },
+    pension: { hasPension: false },
+    plan403b457b: { hasPlan: false },
+    brokerage: { hasBrokerage: false },
+    cd: { hasCDs: false },
+    bonds: { hasBonds: false },
+    annuity: { hasAnnuity: false },
+    equityCompensation: { hasEquityComp: false },
+    education529: { has529: false },
+    realEstate: { hasRealEstate: false },
+    crypto: { hasCrypto: false },
+    cashOnHand: { hasCashOnHand: false },
+    socialSecurity: { hasEstimate: false },
+    systematicInvestments: { hasSystematicInvestments: false },
+    fundsAbroad: { sendsFundsAbroad: false },
+    debts: {},
+    lifeInsurance: {},
+    estate: {},
+  };
+
+  return {
+    ...base,
+    role,
+    lifeInsurance: normalizeLifeInsuranceData(base.lifeInsurance),
+  };
+}
 
 function YesNoField({
   label,
@@ -163,7 +235,19 @@ function LifeInsuranceTab({
         label="Group Life Insurance (Employer)"
         description="Life insurance provided through your employer"
         value={ins.hasGroupLife}
-        onChange={(v) => setIns({ hasGroupLife: v })}
+        onChange={(v) =>
+          setIns(
+            v
+              ? { hasGroupLife: true }
+              : {
+                  hasGroupLife: false,
+                  groupLifeBasedOnSalary: false,
+                  groupLifeSalaryMultiple: undefined,
+                  groupLifeAmount: undefined,
+                  policies: policies.filter((policy) => policy.policyType !== "group"),
+                }
+          )
+        }
       >
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
@@ -265,7 +349,20 @@ function LifeInsuranceTab({
         label="Individual Term Life Insurance"
         description="Personal term life policy"
         value={ins.hasTermLife}
-        onChange={(v) => setIns({ hasTermLife: v })}
+        onChange={(v) =>
+          setIns(
+            v
+              ? { hasTermLife: true }
+              : {
+                  hasTermLife: false,
+                  termLifeAmount: undefined,
+                  termLifePremium: undefined,
+                  termLengthYears: undefined,
+                  hasLivingBenefits: false,
+                  policies: policies.filter((policy) => policy.policyType !== "term"),
+                }
+          )
+        }
       >
         <div className="grid gap-3 sm:grid-cols-3">
           <CurrencyField label="Coverage amount" value={ins.termLifeAmount}
@@ -339,7 +436,25 @@ function LifeInsuranceTab({
         label="Permanent Life Insurance (Whole / Universal / IUL)"
         description="Cash-value life insurance policies"
         value={ins.hasPermLife}
-        onChange={(v) => setIns({ hasPermLife: v })}
+        onChange={(v) =>
+          setIns(
+            v
+              ? { hasPermLife: true }
+              : {
+                  hasPermLife: false,
+                  permLifeType: undefined,
+                  permLifeAmount: undefined,
+                  permLifePremium: undefined,
+                  permLifeCashValue: undefined,
+                  policies: policies.filter(
+                    (policy) =>
+                      !["whole-life", "universal", "iul"].includes(
+                        String(policy.policyType ?? "")
+                      )
+                  ),
+                }
+          )
+        }
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
@@ -508,6 +623,10 @@ function LifeInsuranceTab({
             </p>
           </div>
         </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Coverage amounts are self-reported and have not been independently verified.
+          Contact your insurance carrier to confirm active coverage and current benefit amounts.
+        </p>
       </div>
 
       <YesNoField
@@ -543,9 +662,11 @@ function LifeInsuranceTab({
 function WillTrustTab({
   data,
   update,
+  clientName,
 }: {
   data: PersonFinancialBackground;
   update: (patch: Partial<PersonFinancialBackground>) => void;
+  clientName?: string;
 }) {
   const est = data.estate ?? {};
   const setEst = (patch: Partial<PersonFinancialBackground["estate"]>) =>
@@ -553,6 +674,11 @@ function WillTrustTab({
 
   return (
     <div className="space-y-3">
+      <EstatePlanningGuide
+        clientName={clientName}
+        hasHome={Boolean(data.realEstate?.hasRealEstate)}
+      />
+
       <YesNoField
         label="Will"
         description="A legal document specifying how your assets should be distributed"
@@ -608,6 +734,12 @@ function WillTrustTab({
         onChange={(v) => setEst({ beneficiaryDesignationsCurrent: v })}
       />
 
+      <p className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-3 text-[11px] text-amber-900">
+        Estate planning status is self-reported for Financial Needs Analysis purposes only.
+        Arclis does not provide legal advice or prepare legal documents. Consult a licensed
+        estate attorney.
+      </p>
+
       <div className="rounded-xl border bg-card px-5 py-4 shadow-sm">
         <div className="space-y-1">
           <Label className="text-xs">Additional notes</Label>
@@ -623,7 +755,6 @@ function WillTrustTab({
 
 export interface ProtectionEstateScreenProps {
   clientNames: string;
-  caseId: string;
   defaultValues?: PersonFinancialBackground;
   role: "primary" | "spouse";
   onSubmit: (data: PersonFinancialBackground) => void | Promise<void>;
@@ -633,7 +764,6 @@ export interface ProtectionEstateScreenProps {
 
 export function ProtectionEstateScreen({
   clientNames,
-  caseId,
   defaultValues,
   role,
   onSubmit,
@@ -641,42 +771,17 @@ export function ProtectionEstateScreen({
   onContinue,
 }: ProtectionEstateScreenProps) {
   const [data, setData] = useState<PersonFinancialBackground>(
-    defaultValues ?? {
-      role,
-      yearsInCountry: 0,
-      countryOfResidence: "US",
-      income: {},
-      monthlyExpenses: {},
-      retirement401k: { has401k: false },
-      employmentHistory: [],
-      hsa: { hasHSA: false },
-      ira: { hasIRA: false },
-      rothIRA: { hasRothIRA: false },
-      backdoorRothIRA: { hasBackdoorRoth: false },
-      pension: { hasPension: false },
-      plan403b457b: { hasPlan: false },
-      brokerage: { hasBrokerage: false },
-      cd: { hasCDs: false },
-      bonds: { hasBonds: false },
-      annuity: { hasAnnuity: false },
-      equityCompensation: { hasEquityComp: false },
-      education529: { has529: false },
-      realEstate: { hasRealEstate: false },
-      crypto: { hasCrypto: false },
-      cashOnHand: { hasCashOnHand: false },
-      socialSecurity: { hasEstimate: false },
-      systematicInvestments: { hasSystematicInvestments: false },
-      fundsAbroad: { sendsFundsAbroad: false },
-      debts: {},
-      lifeInsurance: {},
-      estate: {},
-    }
+    normalizeProtectionEstateData(role, defaultValues)
   );
   const [activeTab, setActiveTab] = useState<SubTab>("life-insurance");
 
   const update = useCallback((patch: Partial<PersonFinancialBackground>) => {
     setData((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  useEffect(() => {
+    setData(normalizeProtectionEstateData(role, defaultValues));
+  }, [defaultValues, role]);
 
   const handleSave = async () => {
     await onSubmit(data);
@@ -703,7 +808,7 @@ export function ProtectionEstateScreen({
 
       <div className="flex min-h-[500px] rounded-b-xl border border-t-0">
         {/* Left sidebar */}
-        <div className="hidden w-56 shrink-0 border-r bg-muted/10 p-4 md:block">
+        <div className="hidden w-56 shrink-0 border-r bg-muted/10 p-4 lg:block">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Sections
           </p>
@@ -740,7 +845,7 @@ export function ProtectionEstateScreen({
         </div>
 
         {/* Main content */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-4 sm:p-6">
           <div className="mb-5">
             <h3 className="flex items-center gap-2 text-lg font-bold">
               <span>{activeTab === "life-insurance" ? "🛡️" : "📜"}</span>
@@ -754,13 +859,27 @@ export function ProtectionEstateScreen({
           </div>
 
           {activeTab === "life-insurance" && <LifeInsuranceTab data={data} update={update} />}
-          {activeTab === "will-trust" && <WillTrustTab data={data} update={update} />}
+          {activeTab === "will-trust" && (
+            <WillTrustTab
+              data={data}
+              update={update}
+              clientName={clientNames?.split(/[,&]/)[0]?.trim()}
+            />
+          )}
 
-          <div className="mt-8 flex items-center justify-between">
+          {activeTab === "life-insurance" && (
+            <DisclaimerBanner
+              variant="standard"
+              context="insurance"
+              className="mt-6 rounded-md border border-[#E5E7EB]"
+            />
+          )}
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className="w-full gap-1.5 sm:w-auto"
               onClick={() => {
                 if (activeTab === "will-trust") setActiveTab("life-insurance");
               }}
@@ -772,7 +891,7 @@ export function ProtectionEstateScreen({
             {activeTab === "life-insurance" ? (
               <Button
                 size="sm"
-                className="gap-1.5"
+                className="w-full gap-1.5 sm:w-auto"
                 onClick={async () => { await handleSave(); setActiveTab("will-trust"); }}
                 disabled={isSubmitting}
               >
@@ -782,7 +901,7 @@ export function ProtectionEstateScreen({
             ) : (
               <Button
                 size="sm"
-                className="gap-1.5"
+                className="w-full gap-1.5 sm:w-auto"
                 onClick={handleSaveAndContinue}
                 disabled={isSubmitting}
               >

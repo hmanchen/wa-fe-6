@@ -12,7 +12,8 @@ export default function FinancialFreedomEngine(props) {
     props?.fullAnalysis?.xcurve ||
     {};
   const crossingPointAge = toNum(
-    xcurve.crossing_age ||
+    props?.crossingPointAge ||
+      xcurve.crossing_age ||
       xcurve.crossingAge ||
       xcurve.crossover_age ||
       xcurve.crossoverAge ||
@@ -21,8 +22,7 @@ export default function FinancialFreedomEngine(props) {
       xcurve.crossing_point_age ||
       xcurve.crossingPointAge
   );
-  const crossingPointLabel =
-    crossingPointAge > 0 ? String(crossingPointAge) : "not available";
+  const hasCrossingPoint = crossingPointAge > 0;
 
   return (
     <div
@@ -38,8 +38,17 @@ export default function FinancialFreedomEngine(props) {
         📊 Financial Freedom Timeline
       </div>
       <div style={{ fontSize: 12, color: "#4A5568", marginTop: 4 }}>
-        Based on your financial profile, your money and responsibility lines cross at age{" "}
-        <strong>{crossingPointLabel}</strong>. See your complete timeline on the{" "}
+        {hasCrossingPoint ? (
+          <>
+            Based on your financial profile, your money and responsibility lines cross at age{" "}
+            <strong>{String(crossingPointAge)}</strong>. See your complete timeline on the{" "}
+          </>
+        ) : (
+          <>
+            At current savings rate, your financial crossing point extends beyond our 90-year planning horizon.
+            Accelerating retirement savings can move this date closer. See your complete timeline on the{" "}
+          </>
+        )}
         <span
           onClick={() => props?.onNavigate?.("xcurve")}
           style={{ color: "#4A7C6F", cursor: "pointer", textDecoration: "underline" }}

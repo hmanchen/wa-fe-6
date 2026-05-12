@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -38,7 +38,10 @@ import { FinancialBgInsights } from "@/components/features/financial-interview/f
 import FinancialFreedomEngine from "@/components/analysis/FinancialFreedomEngine";
 import { FinancialHomeScreen } from "@/components/features/financial-interview/financial-home-screen";
 import { FinancialHomePyramid } from "@/components/features/financial-interview/financial-home-pyramid/FinancialHomePyramid";
-import { XCurveScreen } from "@/components/features/financial-interview/xcurve-screen";
+import {
+  XCurveScreen,
+  computeXCurveCrossingAgeForDashboard,
+} from "@/components/features/financial-interview/xcurve-screen";
 import RecommendationsScreen from "@/components/recommendations/RecommendationsScreen";
 import IULIllustrationScreen from "@/components/recommendations/IULIllustrationScreen";
 import CollegeFundingScreen from "@/components/recommendations/CollegeFundingScreen";
@@ -174,6 +177,16 @@ export default function FinancialInterviewPage() {
     caseData?.clientPersonalInfo?.address?.province || "unknown",
     shouldLoadFullAnalysis
   );
+  const dashboardCrossingAge = useMemo(
+    () =>
+      computeXCurveCrossingAgeForDashboard(
+        caseData,
+        healthScore,
+        fullAnalysisData,
+        xcurveData
+      ),
+    [caseData, healthScore, fullAnalysisData, xcurveData]
+  );
 
   // ── Derived display name ────────────────────────────────
   const clientNames = (() => {
@@ -246,6 +259,11 @@ export default function FinancialInterviewPage() {
   const handlePrimarySave = useCallback(
     async (data: PersonFinancialBackground) => {
       await saveBackground.mutateAsync({ role: "primary", data });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["full-analysis", caseId] }),
+        queryClient.invalidateQueries({ queryKey: ["xcurve-data", caseId] }),
+        queryClient.invalidateQueries({ queryKey: ["financial-health-score", caseId] }),
+      ]);
       if (caseData?.id && caseData?.status === "draft") {
         await updateCase.mutateAsync({
           id: caseData.id,
@@ -264,6 +282,8 @@ export default function FinancialInterviewPage() {
       caseData?.status,
       caseData?.clientPersonalInfo?.partnerFirstName,
       spouseBackgroundComplete,
+      queryClient,
+      caseId,
       updateCase,
     ]
   );
@@ -271,10 +291,15 @@ export default function FinancialInterviewPage() {
   const handleSpouseSave = useCallback(
     async (data: PersonFinancialBackground) => {
       await saveBackground.mutateAsync({ role: "spouse", data });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["full-analysis", caseId] }),
+        queryClient.invalidateQueries({ queryKey: ["xcurve-data", caseId] }),
+        queryClient.invalidateQueries({ queryKey: ["financial-health-score", caseId] }),
+      ]);
       toast.success("Spouse financial background saved");
       setSpousePromptOpen(false);
     },
-    [saveBackground]
+    [saveBackground, queryClient, caseId]
   );
 
   const isCurrentSectionLoading = (() => {
@@ -415,7 +440,7 @@ export default function FinancialInterviewPage() {
       />
 
       {/* Floating annotation launcher */}
-      <div className="fixed right-3 top-1/2 z-[70] -translate-y-1/2">
+      <div className="fixed top-[14px] right-[70px] z-[70]">
         {annotationLauncherOpen ? (
           <div className="flex items-center gap-2 rounded-2xl border bg-background/95 p-2 shadow-lg backdrop-blur-sm">
             <Button
@@ -476,7 +501,7 @@ export default function FinancialInterviewPage() {
               </div>
             </div>
             <div className="rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-800">
-              Confidentiality Notice: Client information in this interview is private and intended only for advisory planning purposes.
+              🔒 Confidentiality Notice: Client information in this interview is private and confidential, intended solely for Financial Needs Analysis and insurance planning purposes. Not for redistribution.
             </div>
             {spousePromptOpen && spouseName && (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -633,7 +658,6 @@ export default function FinancialInterviewPage() {
             <TabsContent value="primary">
               <ProtectionEstateScreen
                 clientNames={clientNames}
-                caseId={caseId}
                 defaultValues={interviewData?.primaryBackground}
                 role="primary"
                 onSubmit={handlePrimarySave}
@@ -645,7 +669,6 @@ export default function FinancialInterviewPage() {
             <TabsContent value="spouse">
               <ProtectionEstateScreen
                 clientNames={clientNames}
-                caseId={caseId}
                 defaultValues={interviewData?.spouseBackground}
                 role="spouse"
                 onSubmit={handleSpouseSave}
@@ -674,6 +697,7 @@ export default function FinancialInterviewPage() {
               <FinancialFreedomEngine
                 fullAnalysis={fullAnalysisData}
                 xcurveData={xcurveData}
+                crossingPointAge={dashboardCrossingAge}
                 healthScore={healthScore}
                 caseData={caseData}
                 interviewData={interviewData}

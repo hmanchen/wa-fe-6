@@ -1,5 +1,5 @@
 /**
- * Financial Interview types for WealthArchitect platform
+ * Financial Interview types for Arclis platform
  *
  * The Financial Interview is a multi-section workflow where the advisor
  * captures detailed financial data while educating the client.
@@ -962,6 +962,7 @@ export interface FinancialHealthScore {
     }>;
     totalMonthlyNetRentalIncome: number;
     totalRentalEquity: number;
+    concentrationPctOfTotalAssets?: number;
     concentrationPctOfNetWorth: number;
     alerts: string[];
   };

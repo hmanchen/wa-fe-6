@@ -1,5 +1,5 @@
 /**
- * WealthArchitect type definitions
+ * Arclis type definitions
  * Insurance-centric financial intelligence platform for advisors
  */
 

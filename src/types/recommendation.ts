@@ -1,5 +1,5 @@
 /**
- * Recommendation types for WealthArchitect platform
+ * Recommendation types for Arclis platform
  */
 
 export type ProductType =

@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, FileText, Shield, Scale, AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import { useFinancialHome } from "@/hooks/use-presentation-flow";
 import { aiFinancialHome } from "@/lib/api/presentation-flow";
 
@@ -120,6 +121,9 @@ export function FinancialHomeScreen({ caseId, onContinue }: FinancialHomeScreenP
       </div>
 
       <div className="space-y-5 px-4 pb-6">
+        <div className="rounded-lg border border-amber-300 bg-amber-50/70 px-4 py-2 text-[11px] text-amber-900">
+          🤖 AI-Generated Content — For educational discussion purposes only. Not professional financial, legal, or tax advice.
+        </div>
         {isLoading || isFetching ? <LoadingState /> : null}
         {!isLoading && isError ? <ErrorState onRetry={() => void refetch()} /> : null}
 
@@ -311,7 +315,12 @@ export function FinancialHomeScreen({ caseId, onContinue }: FinancialHomeScreenP
             </div>
 
             <div className="rounded-xl border border-l-4 border-l-teal-500 bg-teal-50/40 p-5 shadow-sm">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-teal-700">ADVISOR NOTES</p>
+              <p className="mb-1 text-xs font-bold uppercase tracking-wider text-teal-700">
+                🔒 Advisor Notes — Agent Only View
+              </p>
+              <p className="mb-2 text-[11px] text-teal-800/80">
+                Not included in client-facing materials
+              </p>
               <div className="grid gap-4 lg:grid-cols-2">
                 <ul className="space-y-1">
                   {(sections?.advisorInsights?.observations ?? []).map((h: unknown, i: number) => (
@@ -331,6 +340,7 @@ export function FinancialHomeScreen({ caseId, onContinue }: FinancialHomeScreenP
           </>
         )}
 
+        <DisclaimerBanner variant="ai" context="educational" className="rounded-md border border-[#E5E7EB]" />
         {/* Continue */}
         <div className="flex justify-end pt-2">
           <Button onClick={onContinue} className="gap-1.5">

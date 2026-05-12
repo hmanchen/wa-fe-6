@@ -1,4 +1,4 @@
-# WealthArchitect Backend — Complete API Reference
+# Arclis Backend — Complete API Reference
 
 **Version:** 1.0  
 **Date:** February 20, 2026  

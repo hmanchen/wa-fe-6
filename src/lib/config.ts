@@ -5,7 +5,7 @@ function getApiBaseUrl(): string {
   }
   // Fallback: detect based on browser hostname
   if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
-    return "https://dev-api.covrx.ai";
+    return "https://api.getarclis.com";
   }
   return "http://localhost:8000";
 }

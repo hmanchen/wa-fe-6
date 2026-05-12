@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DisclaimerBanner } from "@/components/shared/DisclaimerBanner";
 import { cn } from "@/lib/utils";
 import type {
   GoalsDiscoveryData,
@@ -308,6 +309,7 @@ export function GoalsDiscoveryScreen({
 
   useEffect(() => {
     if (defaultValues) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setData(normalizeGoalsDiscovery(defaultValues));
       setPendingPatch({});
     }
@@ -316,7 +318,7 @@ export function GoalsDiscoveryScreen({
   const triggerSave = useCallback(async () => {
     if (Object.keys(pendingPatch).length === 0) return;
     try {
-      await onSave(pendingPatch);
+      await onSave(data);
       setPendingPatch({});
     } catch (err) {
       const message =
@@ -324,7 +326,7 @@ export function GoalsDiscoveryScreen({
       setError(message);
       throw err;
     }
-  }, [onSave, pendingPatch]);
+  }, [onSave, pendingPatch, data]);
 
   const updateData = useCallback((patch: Partial<GoalsDiscoveryData>) => {
     setData((prev) => ({ ...prev, ...patch }));
@@ -427,7 +429,6 @@ export function GoalsDiscoveryScreen({
 
       if (shouldApplyFallback) {
         await onSave({
-          ...pendingPatch,
           retirementVision: {
             ...data.retirementVision,
             desiredMonthlyIncome: fallbackRetirementIncomeGoal,
@@ -448,7 +449,6 @@ export function GoalsDiscoveryScreen({
     monthlyExpenses,
     onNext,
     onSave,
-    pendingPatch,
     triggerSave,
     validateBeforeNext,
   ]);
@@ -539,7 +539,7 @@ export function GoalsDiscoveryScreen({
 
             <div>
               <p className="mb-2 text-xs font-semibold text-muted-foreground">Available Goals</p>
-              <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid max-h-[28rem] gap-2 overflow-y-auto pr-1 md:grid-cols-2">
                 {availableGoals.map((goal) => (
                   <button
                     type="button"
@@ -943,6 +943,9 @@ export function GoalsDiscoveryScreen({
                 <div style={{ fontSize: 12, color: "#4A5568", marginTop: 4 }}>
                   {riskProfileMeta.description}
                 </div>
+                <div style={{ fontSize: 11, color: "#6B7280", marginTop: 6 }}>
+                  Your risk profile is used for educational purposes to frame this financial analysis only. It is not an investment suitability assessment and does not constitute investment advice.
+                </div>
               </div>
             )}
           </AccordionContent>
@@ -1234,6 +1237,7 @@ export function GoalsDiscoveryScreen({
       </Accordion>
 
       <div className="sticky bottom-0 z-10 rounded-xl border bg-background/95 p-3 backdrop-blur">
+        <DisclaimerBanner variant="standard" context="fna" className="mb-3 rounded-md border border-[#E5E7EB]" />
         <div className="flex items-center justify-between">
           <Button variant="outline" onClick={onBack} className="gap-1.5">
             <ArrowLeft className="size-4" />

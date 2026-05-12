@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-provider";
+import {
+  APP_DEFAULT_PAGE_TITLE,
+  APP_FULL_NAME,
+  APP_SHORT_NAME,
+  APP_TITLE_TAGLINE,
+} from "@/lib/app-branding";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,7 +24,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WealthArchitect | Financial Intelligence Platform",
+  applicationName: APP_FULL_NAME,
+  title: {
+    default: APP_DEFAULT_PAGE_TITLE,
+    template: `%s | ${APP_SHORT_NAME} | ${APP_TITLE_TAGLINE}`,
+  },
   description:
     "Insurance-centric financial intelligence platform for financial advisors",
 };
