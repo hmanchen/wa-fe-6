@@ -18,6 +18,11 @@ import { CaseNav } from "@/components/layouts/case-nav";
 import { FullPageLoader } from "@/components/shared/loading-spinner";
 import { useCase } from "@/hooks/use-cases";
 import { useFinancialInterview } from "@/hooks/use-financial-interview";
+import type { FinancialInterviewPayload } from "@/lib/api/financial-interview";
+import {
+  getFinancialInterviewSections,
+  resolveFinancialHomeSection,
+} from "@/lib/financial-interview/workflow";
 import { formatDate } from "@/lib/formatters/date";
 import { caseStatusConfig } from "@/lib/constants/case-status";
 import {
@@ -68,7 +73,7 @@ function getDisplayName(
   return clientName;
 }
 
-function getWorkflowProgress(status: string): {
+function getWorkflowProgress(status: string, interviewData?: FinancialInterviewPayload): {
   currentStep: string;
   completedSteps: string[];
   progressPercent: number;
@@ -85,10 +90,36 @@ function getWorkflowProgress(status: string): {
   const currentStep = statusToStep[status] ?? "overview";
   const currentIndex = steps.indexOf(currentStep);
   const completedSteps = steps.slice(0, currentIndex);
-  const progressPercent =
+  let progressPercent =
     status === "closed"
       ? 100
       : Math.round(((currentIndex + 0.5) / steps.length) * 100);
+
+  if (status === "discovery") {
+    const interviewSections = getFinancialInterviewSections();
+    const sectionIds = interviewSections.map((section) => section.id);
+    const completedInterviewSections = (interviewData?.completedSections ?? [])
+      .map(resolveFinancialHomeSection)
+      .filter((section, index, sections) =>
+        sectionIds.includes(section) && sections.indexOf(section) === index
+      );
+    const inferredCurrentSection =
+      interviewData?.currentSection ??
+      sectionIds.find((section) => !completedInterviewSections.includes(section)) ??
+      "financial-background";
+    const currentInterviewIndex = Math.max(
+      sectionIds.indexOf(resolveFinancialHomeSection(inferredCurrentSection)),
+      0
+    );
+    const completedCount = Math.max(
+      completedInterviewSections.length,
+      currentInterviewIndex + 0.5
+    );
+    progressPercent = Math.min(
+      99,
+      Math.round((completedCount / interviewSections.length) * 100)
+    );
+  }
 
   return { currentStep, completedSteps, progressPercent };
 }
@@ -142,7 +173,10 @@ export default function CaseDetailPage() {
 
   const pi = caseData.clientPersonalInfo;
   const config = caseStatusConfig[caseData.status];
-  const { currentStep, completedSteps, progressPercent } = getWorkflowProgress(caseData.status);
+  const { currentStep, completedSteps, progressPercent } = getWorkflowProgress(
+    caseData.status,
+    interviewData
+  );
   const displayName = getDisplayName(caseData.clientName, pi);
   const clientAge = calculateAge(pi?.dateOfBirth);
   const spouseAge = calculateAge(pi?.partnerDateOfBirth);

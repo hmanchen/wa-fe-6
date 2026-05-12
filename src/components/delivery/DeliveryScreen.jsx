@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
+import { FEATURE_FINANCIAL_HOME_SCREEN } from "@/lib/financial-interview/workflow";
 
 export default function DeliveryScreen({ caseId, caseData, onBack }) {
   const supabase = createClient();
@@ -145,12 +146,12 @@ export default function DeliveryScreen({ caseId, caseData, onBack }) {
         description: "Health score, gaps, unallocated surplus",
         
       },
-      {
+      ...(FEATURE_FINANCIAL_HOME_SCREEN ? [{
         key: "financial_home",
         label: "Financial Story",
         icon: "🏠",
         description: "Two futures, CFP narrative",
-      },
+      }] : []),
       {
         key: "recommendations",
         label: "Recommendations",

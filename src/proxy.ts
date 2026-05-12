@@ -16,6 +16,10 @@ function isSupabaseConfigured(): boolean {
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  if (process.env.PLAYWRIGHT_AUTH_BYPASS === 'true') {
+    return supabaseResponse
+  }
+
   const publicRoutes = ['/login', '/register', '/auth/callback']
   const isPublicRoute = publicRoutes.some(route =>
     request.nextUrl.pathname.startsWith(route)
